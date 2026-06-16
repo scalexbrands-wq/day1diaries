@@ -1,0 +1,19 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored — never commit real secrets.
+
+db_password = "ChangeMe123!StrongPassword"   # required — RDS master password
+aws_region  = "ap-south-1"                   # Mumbai. Change to your preferred region.
+
+# ── Custom domain (optional) ─────────────────────────────────
+# Leave domain_name = "" to skip custom domain setup entirely
+# (you'll get a CloudFront *.cloudfront.net URL and an ALB *.elb.amazonaws.com URL).
+
+domain_name   = ""              # e.g. "day1diaries.com"
+api_subdomain = "api"           # results in api.day1diaries.com
+
+# If your domain's DNS is managed in Route 53, set this to true and
+# provide the hosted zone ID — DNS records + cert validation are automated.
+# If you use GoDaddy/Namecheap/Cloudflare/etc, leave false — terraform will
+# print the exact CNAME/A records to add manually after `apply`.
+use_route53    = false
+hosted_zone_id = ""             # only needed if use_route53 = true

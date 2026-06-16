@@ -1,0 +1,13 @@
+api_custom_domain = ""
+api_load_balancer_dns = "day1diaries-production-alb-1344224637.ap-south-1.elb.amazonaws.com"
+aws_region = "ap-south-1"
+cloudfront_distribution_id = "E2XVOA5HASGAM"
+cloudfront_domain = "d1kxji3yv78nbx.cloudfront.net"
+cognito_client_id = "l4g35ol0f0cb8m4h2oftak0ho"
+cognito_domain = "day1diaries-production-auth-2026x7k"
+cognito_user_pool_id = "ap-south-1_d9octroYO"
+ecr_repository_url = "928743223824.dkr.ecr.ap-south-1.amazonaws.com/day1diaries-production-api"
+frontend_s3_bucket = "day1diaries-production-frontend"
+manual_dns_instructions = "No custom domain configured. Set domain_name in terraform.tfvars to enable."
+rds_endpoint = "day1diaries-production-db.cjqu6es2cdw3.ap-south-1.rds.amazonaws.com"
+

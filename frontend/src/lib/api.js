@@ -1,0 +1,610 @@
+// ============================================================
+// Day1 Diaries — AWS API Client
+// Replaces src/lib/api.js
+// Talks to: Express API (RDS data) + AWS Cognito (auth)
+// ============================================================
+
+const API_BASE = process.env.REACT_APP_API_BASE_URL   // e.g. https://api.day1diaries.app
+const COGNITO_CLIENT_ID = process.env.REACT_APP_COGNITO_CLIENT_ID
+const AWS_REGION = process.env.REACT_APP_AWS_REGION
+
+if (!API_BASE) console.error('Missing REACT_APP_API_BASE_URL')
+if (!COGNITO_CLIENT_ID) console.error('Missing REACT_APP_COGNITO_CLIENT_ID')
+
+// ── Token storage ──────────────────────────────────────────────
+const TOKEN_KEY = 'day1diaries_tokens'
+
+export const getStoredTokens = () => {
+  try { return JSON.parse(localStorage.getItem(TOKEN_KEY)) } catch { return null }
+}
+const storeTokens = (tokens) => localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens))
+const clearTokens = () => localStorage.removeItem(TOKEN_KEY)
+
+// ── Core fetch wrapper — attaches Bearer token ──────────────────
+async function apiFetch(path, options = {}) {
+  const tokens = getStoredTokens()
+  const headers = { 'Content-Type': 'application/json', ...options.headers }
+  if (tokens?.accessToken) headers.Authorization = `Bearer ${tokens.accessToken}`
+
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  const data = await res.json().catch(() => ({}))
+
+  if (!res.ok) {
+    return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  }
+  return { data, error: null }
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+
+export const signUp = async (email, password, metadata = {}) => {
+  const result = await apiFetch('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, username: metadata.username, fullName: metadata.full_name }),
+  })
+  if (result.data?.tokens) storeTokens(result.data.tokens)
+  return result
+}
+
+export const confirmSignUp = async (email, code, password, username, fullName) => {
+  const result = await apiFetch('/auth/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ email, code, password, username, fullName }),
+  })
+  if (result.data?.tokens) storeTokens(result.data.tokens)
+  return result
+}
+
+export const resendConfirmationCode = (email) =>
+  apiFetch('/auth/resend-code', { method: 'POST', body: JSON.stringify({ email }) })
+
+export const signIn = async (email, password) => {
+  const result = await apiFetch('/auth/signin', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  })
+  if (result.data?.tokens) storeTokens(result.data.tokens)
+  return result
+}
+
+export const signOut = async () => {
+  await apiFetch('/auth/signout', { method: 'POST' })
+  clearTokens()
+  return { error: null }
+}
+
+export const getSession = async () => {
+  const tokens = getStoredTokens()
+  if (!tokens) return { data: { session: null }, error: null }
+
+  // Verify token is still valid by hitting /auth/me; refresh if expired
+  const me = await apiFetch('/auth/me')
+  if (me.error?.status === 401 && tokens.refreshToken) {
+    const refreshed = await refreshSession(tokens.refreshToken)
+    if (refreshed.data) {
+      return { data: { session: { user: refreshed.data.profile } }, error: null }
+    }
+    clearTokens()
+    return { data: { session: null }, error: null }
+  }
+  if (me.error) return { data: { session: null }, error: null }
+  return { data: { session: { user: me.data.profile } }, error: null }
+}
+
+const refreshSession = async (refreshToken) => {
+  const result = await apiFetch('/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+  })
+  if (result.data?.tokens) {
+    const existing = getStoredTokens()
+    storeTokens({ ...existing, ...result.data.tokens })
+    return apiFetch('/auth/me')
+  }
+  return { data: null, error: result.error }
+}
+
+// Google OAuth via Cognito Hosted UI (redirect-based)
+export const signInGoogle = () => {
+  const domain = process.env.REACT_APP_COGNITO_DOMAIN
+  const redirectUri = encodeURIComponent(window.location.origin)
+  window.location.href = `https://${domain}.auth.${AWS_REGION}.amazoncognito.com/oauth2/authorize?identity_provider=Google&redirect_uri=${redirectUri}&response_type=CODE&client_id=${COGNITO_CLIENT_ID}&scope=email+openid+profile`
+}
+
+// ============================================================
+// PROFILES
+// ============================================================
+
+export const getProfile = (userId) => apiFetch(`/profiles/by-id/${userId}`)
+
+export const getProfileByUsername = (username) => apiFetch(`/profiles/${username}`)
+
+export const getProfileLiveCounts = async (username) => {
+  const result = await apiFetch(`/profiles/${username}/live-counts`)
+  return { data: result.data?.counts, error: result.error }
+}
+
+export const updateProfile = (userId, updates) =>
+  apiFetch('/profiles/me', { method: 'PATCH', body: JSON.stringify(updates) })
+
+export const isContributorOrAdmin = (profile) =>
+  profile?.role === 'admin' || profile?.role === 'contributor'
+
+// ============================================================
+// STORIES
+// ============================================================
+
+export const getStories = async ({ page = 0, limit = 10, category, userId, search } = {}) => {
+  const params = new URLSearchParams({ page, limit })
+  if (category) params.set('category', category)
+  if (userId) params.set('userId', userId)
+  if (search) params.set('search', search)
+  const result = await apiFetch(`/stories?${params}`)
+  return { data: result.data?.stories, error: result.error }
+}
+
+export const getFeedStories = async (followingIds, page = 0, limit = 10) => {
+  const params = new URLSearchParams({ page, limit, followingIds: (followingIds || []).join(',') })
+  const result = await apiFetch(`/stories/feed?${params}`)
+  return { data: result.data?.stories, error: result.error }
+}
+
+export const getTrendingStories = async (limit = 20) => {
+  const result = await apiFetch(`/stories/trending?limit=${limit}`)
+  return { data: result.data?.stories, error: result.error }
+}
+
+export const getStory = async (id) => {
+  const result = await apiFetch(`/stories/${id}`)
+  return { data: result.data?.story, error: result.error }
+}
+
+export const createStory = async (story) => {
+  const result = await apiFetch('/stories', { method: 'POST', body: JSON.stringify(story) })
+  return { data: result.data?.story, error: result.error }
+}
+
+export const updateStory = async (id, updates) => {
+  const result = await apiFetch(`/stories/${id}`, { method: 'PATCH', body: JSON.stringify(updates) })
+  return { data: result.data?.story, error: result.error }
+}
+
+export const deleteStory = (id) => apiFetch(`/stories/${id}`, { method: 'DELETE' })
+
+// ── Likes ──────────────────────────────────────────────────────
+export const getLike = async (userId, storyId) => {
+  const result = await apiFetch(`/stories/${storyId}/like-status`)
+  return { data: result.data?.liked ? { id: true } : null, error: result.error }
+}
+
+export const toggleLike = async (userId, storyId) => {
+  const result = await apiFetch(`/stories/${storyId}/toggle-like`, { method: 'POST' })
+  return result.data || { liked: false }
+}
+
+// ── Comments ──────────────────────────────────────────────────
+export const getComments = async (storyId) => {
+  const result = await apiFetch(`/stories/${storyId}/comments`)
+  return { data: result.data?.comments, error: result.error }
+}
+
+export const addComment = async (comment) => {
+  const result = await apiFetch(`/stories/${comment.story_id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ content: comment.content }),
+  })
+  return { data: result.data?.comment, error: result.error }
+}
+
+// ── Saves ─────────────────────────────────────────────────────
+export const getSave = async (userId, storyId) => {
+  const result = await apiFetch(`/stories/${storyId}/save-status`)
+  return { data: result.data?.saved ? { id: true } : null, error: result.error }
+}
+
+export const toggleSave = async (userId, storyId) => {
+  const result = await apiFetch(`/stories/${storyId}/toggle-save`, { method: 'POST' })
+  return result.data || { saved: false }
+}
+
+export const getSavedStories = async (userId) => {
+  const result = await apiFetch('/social/saved')
+  return { data: result.data?.saved, error: result.error }
+}
+
+// ============================================================
+// SOCIAL — Follows / Leaderboard
+// ============================================================
+
+export const getFollow = async (followerId, followingId) => {
+  const result = await apiFetch(`/social/follow-status/${followingId}`)
+  return { data: result.data?.following ? { id: true } : null, error: result.error }
+}
+
+export const toggleFollowFixed = async (followerId, followingId) => {
+  const result = await apiFetch(`/social/toggle-follow/${followingId}`, { method: 'POST' })
+  return result.data || { following: false }
+}
+
+// Single-arg convenience: toggleFollow(targetUserId)
+export const toggleFollow = async (targetUserId) => {
+  const result = await apiFetch(`/social/toggle-follow/${targetUserId}`, { method: 'POST' })
+  return { data: result.data, error: result.error }
+}
+
+export const getFollowing = async (userId) => {
+  const result = await apiFetch('/social/following')
+  return { data: (result.data?.following || []).map(id => ({ following_id: id })), error: result.error }
+}
+
+export const getFollowers = async (userId) => {
+  const result = await apiFetch(`/social/followers/${userId}`)
+  return { data: result.data?.followers, error: result.error }
+}
+
+export const getLeaderboard = async (limit = 20) => {
+  const result = await apiFetch(`/social/leaderboard?limit=${limit}`)
+  return { data: result.data?.leaderboard, error: result.error }
+}
+
+// ============================================================
+// HABITS
+// ============================================================
+
+export const getHabits = async () => {
+  const result = await apiFetch('/habits')
+  return { data: result.data?.habits, error: result.error }
+}
+
+export const getUserHabits = async (userId) => {
+  const result = await apiFetch('/habits/mine')
+  return { data: result.data?.userHabits, error: result.error }
+}
+
+export const getUserHabitProgress = getUserHabits
+
+export const adoptHabit = async (userId, habitId) => {
+  const result = await apiFetch(`/habits/${habitId}/adopt`, { method: 'POST' })
+  return { data: result.data?.userHabit, error: result.error }
+}
+
+export const logHabit = async (log) => {
+  const result = await apiFetch(`/habits/${log.habit_id}/log`, {
+    method: 'POST',
+    body: JSON.stringify({ note: log.note }),
+  })
+  return { data: result.data?.log, error: result.error }
+}
+
+export const getHabitLogs = async (userId, habitId) => {
+  const result = await apiFetch(`/habits/${habitId}/logs`)
+  return { data: result.data?.logs, error: result.error }
+}
+
+// ── Habit Challenges ─────────────────────────────────────────
+export const getChallenges = async () => {
+  const result = await apiFetch('/habits/challenges/all')
+  return { data: result.data?.challenges, error: result.error }
+}
+
+export const getChallengeDetail = async (id) => {
+  const result = await apiFetch(`/habits/challenges/${id}`)
+  return { data: result.data?.challenge, error: result.error }
+}
+
+export const getChallengeParticipants = async (challengeId, limit = 10) => {
+  const result = await apiFetch(`/habits/challenges/${challengeId}/participants?limit=${limit}`)
+  return { data: result.data?.participants, error: result.error }
+}
+
+export const joinChallenge = async (challengeId, userId) => {
+  const result = await apiFetch(`/habits/challenges/${challengeId}/join`, { method: 'POST' })
+  return { data: result.data?.participation, error: result.error }
+}
+
+export const getUserChallenges = async (userId) => {
+  const result = await apiFetch('/habits/challenges/mine')
+  return { data: result.data?.myChallenges, error: result.error }
+}
+
+// ============================================================
+// COMMUNITY / EVENTS
+// ============================================================
+
+export const getCommunityUpdates = async (type) => {
+  const params = type ? `?type=${type}` : ''
+  const result = await apiFetch(`/community${params}`)
+  return { data: result.data?.updates, error: result.error }
+}
+
+export const getCommunityUpdate = async (id) => {
+  const result = await apiFetch(`/community/${id}`)
+  return { data: result.data?.update, error: result.error }
+}
+
+export const registerForEvent = async (eventId, userId) => {
+  const result = await apiFetch(`/community/${eventId}/register`, { method: 'POST' })
+  return { data: result.data?.registration, error: result.error }
+}
+
+export const getUserEventRegistration = async (eventId, userId) => {
+  const result = await apiFetch(`/community/${eventId}/registration-status`)
+  return { data: result.data?.registered ? { id: true } : null, error: result.error }
+}
+
+// ============================================================
+// ADMIN — Habits, Challenges, Events, Users, Stats
+// ============================================================
+
+export const adminGetHabits = async () => {
+  const result = await apiFetch('/habits/admin/all')
+  return { data: result.data?.habits, error: result.error }
+}
+
+export const adminUpsertHabit = async (h) => {
+  const result = h.id
+    ? await apiFetch(`/habits/admin/${h.id}`, { method: 'PATCH', body: JSON.stringify(h) })
+    : await apiFetch('/habits/admin', { method: 'POST', body: JSON.stringify(h) })
+  return { data: result.data?.habit, error: result.error }
+}
+
+export const adminDeleteHabit = (id) => apiFetch(`/habits/admin/${id}`, { method: 'DELETE' })
+
+export const adminUpsertChallenge = async (ch) => {
+  const result = ch.id
+    ? await apiFetch(`/habits/admin/challenges/${ch.id}`, { method: 'PATCH', body: JSON.stringify(ch) })
+    : await apiFetch('/habits/admin/challenges', { method: 'POST', body: JSON.stringify(ch) })
+  return { data: result.data?.challenge, error: result.error }
+}
+
+export const adminDeleteChallenge = (id) => apiFetch(`/habits/admin/challenges/${id}`, { method: 'DELETE' })
+
+export const adminUpsertCommunityUpdate = async (cu) => {
+  const result = cu.id
+    ? await apiFetch(`/community/admin/${cu.id}`, { method: 'PATCH', body: JSON.stringify(cu) })
+    : await apiFetch('/community/admin', { method: 'POST', body: JSON.stringify(cu) })
+  return { data: result.data?.update, error: result.error }
+}
+
+export const adminDeleteCommunityUpdate = (id) => apiFetch(`/community/admin/${id}`, { method: 'DELETE' })
+
+export const adminGetUsers = async () => {
+  const result = await apiFetch('/admin/users')
+  return { data: result.data?.users, error: result.error }
+}
+
+export const adminSetRole = async (userId, role) => {
+  const result = await apiFetch(`/admin/users/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) })
+  return { data: result.data?.profile, error: result.error }
+}
+
+export const getAdminStats = async () => {
+  const result = await apiFetch('/admin/stats')
+  return { data: result.data?.stats, error: result.error }
+}
+
+export const adminFlaggedStories = async () => {
+  const result = await apiFetch('/admin/flagged-stories')
+  return { data: result.data?.stories, error: result.error }
+}
+
+export const adminModerateStory = (id, status) =>
+  apiFetch(`/admin/stories/${id}/moderate`, { method: 'PATCH', body: JSON.stringify({ status }) })
+
+// ============================================================
+// LANDING PAGE
+// ============================================================
+
+export const getLandingData = async () => {
+  const result = await apiFetch('/landing/data')
+  return { data: result.data, error: result.error }
+}
+
+// Individual getters (kept for compatibility with existing Landing.js)
+export const getLandingStats = async () => {
+  const { data } = await getLandingData()
+  return data?.stats || { users: 0, stories: 0, habit_adoptions: 0 }
+}
+export const getLandingCategories = async () => {
+  const { data } = await getLandingData()
+  return { data: data?.categories || [], error: null }
+}
+export const getLandingTestimonials = async () => {
+  const { data } = await getLandingData()
+  return { data: data?.testimonials || [], error: null }
+}
+export const getLandingHabits = async () => {
+  const { data } = await getLandingData()
+  return { data: data?.habits || [], error: null }
+}
+export const getLandingLeaderboard = async () => {
+  const { data } = await getLandingData()
+  return { data: data?.leaderboard || [], error: null }
+}
+export const getLandingFeaturedStories = async () => {
+  const { data } = await getLandingData()
+  return { data: data?.featuredStories || [], error: null }
+}
+export const getLandingHeroContent = async () => {
+  const { data } = await getLandingData()
+  return { data: data?.hero, error: null }
+}
+export const getLandingLevels = async () => {
+  const { data } = await getLandingData()
+  return { data: data?.levels || [], error: null }
+}
+
+// ── Admin: Landing content management ──────────────────────────
+export const adminGetLandingHero = async () => {
+  const result = await apiFetch('/landing/admin/hero')
+  return { data: result.data, error: result.error }
+}
+export const adminUpsertLandingHero = (data) =>
+  apiFetch('/landing/admin/hero', { method: 'PATCH', body: JSON.stringify(data) })
+
+export const adminGetCategories = async () => {
+  const result = await apiFetch('/landing/admin/categories')
+  return { data: result.data?.categories, error: result.error }
+}
+export const adminUpsertCategory = async (cat) => {
+  const result = await apiFetch('/landing/admin/categories', { method: 'POST', body: JSON.stringify(cat) })
+  return { data: result.data?.category, error: result.error }
+}
+export const adminDeleteCategory = (id) => apiFetch(`/landing/admin/categories/${id}`, { method: 'DELETE' })
+
+export const adminGetTestimonials = async () => {
+  const result = await apiFetch('/landing/admin/testimonials')
+  return { data: result.data?.testimonials, error: result.error }
+}
+export const adminUpsertTestimonial = async (t) => {
+  const result = await apiFetch('/landing/admin/testimonials', { method: 'POST', body: JSON.stringify(t) })
+  return { data: result.data?.testimonial, error: result.error }
+}
+export const adminDeleteTestimonial = (id) => apiFetch(`/landing/admin/testimonials/${id}`, { method: 'DELETE' })
+
+export const adminToggleFeatureStory = (id, featured) =>
+  apiFetch(`/landing/admin/stories/${id}/feature`, { method: 'PATCH', body: JSON.stringify({ featured }) })
+
+export const adminGetFeaturedStories = async () => {
+  const result = await apiFetch('/landing/admin/featured-stories')
+  return { data: result.data?.stories, error: result.error }
+}
+
+// ── Public config (no auth) ─────────────────────────────────────
+export const getAuthConfig = async () => {
+  const result = await apiFetch('/auth/config')
+  return { data: result.data, error: result.error }
+}
+
+// ── Admin: App settings ──────────────────────────────────────────
+export const adminGetSettings = async () => {
+  const result = await apiFetch('/admin/settings')
+  return { data: result.data?.settings, error: result.error }
+}
+export const adminUpdateSettings = async (settings) => {
+  const result = await apiFetch('/admin/settings', { method: 'PATCH', body: JSON.stringify(settings) })
+  return { data: result.data?.settings, error: result.error }
+}
+
+// ============================================================
+// SITE PAGES — About, Blog, Careers, Contact
+// ============================================================
+
+// ── About ──────────────────────────────────────────────────────
+export const getAboutSections = async () => {
+  const result = await apiFetch('/pages/about')
+  return { data: result.data?.sections || [], error: result.error }
+}
+export const adminGetAboutSections = async () => {
+  const result = await apiFetch('/admin/pages/about')
+  return { data: result.data?.sections || [], error: result.error }
+}
+export const adminUpsertAboutSection = async (section) => {
+  const result = await apiFetch('/admin/pages/about', { method: 'POST', body: JSON.stringify(section) })
+  return { data: result.data?.section, error: result.error }
+}
+export const adminDeleteAboutSection = async (id) => {
+  const result = await apiFetch(`/admin/pages/about/${id}`, { method: 'DELETE' })
+  return { data: result.data, error: result.error }
+}
+
+// ── Blog ───────────────────────────────────────────────────────
+export const getBlogPosts = async () => {
+  const result = await apiFetch('/pages/blog')
+  return { data: result.data?.posts || [], error: result.error }
+}
+export const getBlogPost = async (slug) => {
+  const result = await apiFetch(`/pages/blog/${slug}`)
+  return { data: result.data?.post, error: result.error }
+}
+export const adminGetBlogPosts = async () => {
+  const result = await apiFetch('/admin/pages/blog')
+  return { data: result.data?.posts || [], error: result.error }
+}
+export const adminUpsertBlogPost = async (post) => {
+  const result = await apiFetch('/admin/pages/blog', { method: 'POST', body: JSON.stringify(post) })
+  return { data: result.data?.post, error: result.error }
+}
+export const adminDeleteBlogPost = async (id) => {
+  const result = await apiFetch(`/admin/pages/blog/${id}`, { method: 'DELETE' })
+  return { data: result.data, error: result.error }
+}
+
+// ── Careers ────────────────────────────────────────────────────
+export const getCareersJobs = async () => {
+  const result = await apiFetch('/pages/careers')
+  return { data: result.data?.jobs || [], error: result.error }
+}
+export const getCareersJob = async (id) => {
+  const result = await apiFetch(`/pages/careers/${id}`)
+  return { data: result.data?.job, error: result.error }
+}
+export const applyToJob = async (id, application) => {
+  const result = await apiFetch(`/pages/careers/${id}/apply`, { method: 'POST', body: JSON.stringify(application) })
+  return { data: result.data, error: result.error }
+}
+export const adminGetCareersJobs = async () => {
+  const result = await apiFetch('/admin/pages/careers')
+  return { data: result.data?.jobs || [], error: result.error }
+}
+export const adminUpsertCareersJob = async (job) => {
+  const result = await apiFetch('/admin/pages/careers', { method: 'POST', body: JSON.stringify(job) })
+  return { data: result.data?.job, error: result.error }
+}
+export const adminDeleteCareersJob = async (id) => {
+  const result = await apiFetch(`/admin/pages/careers/${id}`, { method: 'DELETE' })
+  return { data: result.data, error: result.error }
+}
+export const adminGetAllApplications = async () => {
+  const result = await apiFetch('/admin/pages/applications')
+  return { data: result.data?.applications || [], error: result.error }
+}
+export const adminGetJobApplications = async (jobId) => {
+  const result = await apiFetch(`/admin/pages/careers/${jobId}/applications`)
+  return { data: result.data?.applications || [], error: result.error }
+}
+export const adminUpdateApplicationStatus = async (id, status) => {
+  const result = await apiFetch(`/admin/pages/applications/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  return { data: result.data?.application, error: result.error }
+}
+
+// ── Contact ────────────────────────────────────────────────────
+export const sendContactMessage = async (msg) => {
+  const result = await apiFetch('/pages/contact', { method: 'POST', body: JSON.stringify(msg) })
+  return { data: result.data, error: result.error }
+}
+export const adminGetContactMessages = async () => {
+  const result = await apiFetch('/admin/pages/contact')
+  return { data: result.data?.messages || [], error: result.error }
+}
+export const adminUpdateContactStatus = async (id, status) => {
+  const result = await apiFetch(`/admin/pages/contact/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  return { data: result.data?.message, error: result.error }
+}
+
+// ── Careers KPI stats (admin) ──────────────────────────────────
+export const adminGetCareersStats = async () => {
+  const result = await apiFetch('/admin/pages/careers/stats')
+  return { data: result.data?.stats, error: result.error }
+}
+
+// ── Story categories ──────────────────────────────────────────
+export const getStoryCategories = async () => {
+  const result = await apiFetch('/stories/categories')
+  return { data: result.data?.categories || [], error: result.error }
+}
+export const getSuggestedUsers = async (limit=5) => {
+  const result = await apiFetch(`/stories/suggested-users?limit=${limit}`)
+  return { data: result.data?.users || [], error: result.error }
+}
+// ── Coins system ──────────────────────────────────────────────
+export const getMyCoins = async () => {
+  const result = await apiFetch('/social/coins')
+  return { data: result.data?.coins ?? 0, error: result.error }
+}
+export const unlockStory = async (storyId) => {
+  const result = await apiFetch(`/stories/${storyId}/unlock`, { method: 'POST' })
+  return { data: result.data, error: result.error }
+}

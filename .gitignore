@@ -1,0 +1,19 @@
+# Terraform
+infrastructure/.terraform/
+infrastructure/*.tfstate
+infrastructure/*.tfstate.*
+infrastructure/.terraform.lock.hcl
+infrastructure/terraform.tfvars
+
+# Backend
+backend/.env
+backend/node_modules/
+
+# Frontend
+frontend/.env.production
+frontend/node_modules/
+frontend/build/
+
+# Misc
+*.log
+.DS_Store
