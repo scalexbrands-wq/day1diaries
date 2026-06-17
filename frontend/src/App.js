@@ -5,6 +5,7 @@ import './index.css'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import Toast from './components/Toast'
+import AnnouncementPopup from './components/AnnouncementPopup'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -18,6 +19,7 @@ import Leaderboard from './pages/Leaderboard'
 import Profile from './pages/Profile'
 import AdminDashboard from './pages/AdminDashboard'
 import SavedStories from './pages/SavedStories'
+import Jobs from './pages/Jobs'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
 import ContentPolicy from './pages/ContentPolicy'
@@ -49,6 +51,7 @@ const AppLayout = ({ children }) => (
       <div style={{ paddingTop:'60px' }}>{children}</div>
     </div>
     <Toast />
+    <AnnouncementPopup />
   </div>
 )
 
@@ -69,6 +72,7 @@ export default function App() {
           <Route path="/community"           element={<PrivateRoute><AppLayout><Community/></AppLayout></PrivateRoute>} />
           <Route path="/leaderboard"         element={<PrivateRoute><AppLayout><Leaderboard/></AppLayout></PrivateRoute>} />
           <Route path="/profile/:username"   element={<PrivateRoute><AppLayout><Profile/></AppLayout></PrivateRoute>} />
+          <Route path="/jobs"                element={<PrivateRoute><AppLayout><Jobs/></AppLayout></PrivateRoute>} />
           <Route path="/saved"               element={<PrivateRoute><AppLayout><SavedStories/></AppLayout></PrivateRoute>} />
           <Route path="/admin"               element={<AdminRoute><AppLayout><AdminDashboard/></AppLayout></AdminRoute>} />
           <Route path="/privacy"             element={<PrivacyPolicy/>} />

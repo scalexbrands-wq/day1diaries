@@ -46,6 +46,10 @@ async function requireAuth(req, res, next) {
     const { rows } = await pool.query('SELECT * FROM profiles WHERE id = $1', [sub])
     req.profile = rows[0] || null
 
+    if (req.profile?.is_blocked) {
+      return res.status(403).json({ error: 'Your account has been blocked. Please contact support.' })
+    }
+
     next()
   } catch (err) {
     console.error('Auth error:', err.message)

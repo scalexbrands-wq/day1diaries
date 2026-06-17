@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   getFeedStories, getTrendingStories, getLeaderboard, getHabits,
-  getUserHabitProgress, getSuggestedUsers, toggleFollow
+  getUserHabitProgress, getSuggestedUsers, getMyUnlockedStoryIds
 } from '../lib/api'
 import StoryCard from '../components/StoryCard'
 import FollowButton from '../components/FollowButton'
@@ -92,6 +92,7 @@ export default function Feed() {
   const [habits, setHabits] = useState([])
   const [suggestedUsers, setSuggestedUsers] = useState([])
   const [followedUsers, setFollowedUsers] = useState(new Set())
+  const [unlockedIds, setUnlockedIds] = useState(new Set())
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
@@ -115,12 +116,24 @@ export default function Feed() {
     getLeaderboard(5).then(({ data }) => setLeaderboard(data || []))
     getHabits().then(({ data }) => setHabits((data||[]).slice(0,4)))
     getSuggestedUsers(5).then(({ data }) => setSuggestedUsers(data || []))
+    getMyUnlockedStoryIds().then(({ data }) => { if (data?.length) setUnlockedIds(new Set(data)) })
   }, [])
 
-  const handleFollow = async (userId) => {
-    await toggleFollow(userId)
+  // FollowButton already calls the toggle API internally.
+  // This handler only updates local state so the card disappears after following.
+  const handleFollow = (userId) => {
     setFollowedUsers(prev => new Set([...prev, userId]))
     setSuggestedUsers(prev => prev.filter(u => u.id !== userId))
+  }
+
+  const handleUnlock = (storyId) => setUnlockedIds(prev => new Set([...prev, storyId]))
+
+  const isStoryLocked = (story) => {
+    if (!story.profiles?.is_private) return false
+    if (user?.id === story.user_id) return false
+    if (story.viewer_follows_author) return false
+    if (unlockedIds.has(story.id)) return false
+    return true
   }
 
   // Inject People to Follow card after 3rd story
@@ -179,7 +192,7 @@ export default function Feed() {
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {feedItems.map(item =>
               item.type === 'story'
-                ? <StoryCard key={item.key} story={item.data}/>
+                ? <StoryCard key={item.key} story={item.data} isLocked={isStoryLocked(item.data)} onUnlock={handleUnlock}/>
                 : <PeopleToFollowCard key={item.key} users={suggestedUsers.filter(u=>!followedUsers.has(u.id))} onFollow={handleFollow}/>
             )}
             {loading && <div className="loading-center"><div className="spinner"/></div>}

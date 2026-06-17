@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import {
-  getAdminStats, adminGetUsers, adminFlaggedStories, adminModerateStory,
+  getAdminStats, adminGetUsers, adminFlaggedStories, adminModerateStory, adminBlockUser, adminUpdateUser, adminDeleteUser,
   adminGetHabits, adminUpsertHabit, adminDeleteHabit,
   getChallenges, adminUpsertChallenge, adminDeleteChallenge,
   getCommunityUpdates, adminUpsertCommunityUpdate, adminDeleteCommunityUpdate,
@@ -11,7 +11,8 @@ import {
   adminGetCareersJobs, adminUpsertCareersJob, adminDeleteCareersJob,
   adminGetAllApplications, adminGetCareersStats, adminUpdateApplicationStatus,
   adminGetContactMessages, adminUpdateContactStatus,
-  adminGetCategories, adminUpsertCategory, adminDeleteCategory
+  adminGetCategories, adminUpsertCategory, adminDeleteCategory,
+  adminGetAnnouncements, adminUpsertAnnouncement, adminDeleteAnnouncement,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -39,6 +40,7 @@ const Modal = ({title,onClose,children}) => (
 
 const TABS = [
   ['overview','📊 Overview'],
+  ['announcements','📢 Announcements'],
   ['habits','💪 Habits'],
   ['challenges','🏆 Challenges'],
   ['events','📅 Events'],
@@ -59,8 +61,9 @@ export default function AdminDashboard() {
           <button key={k} onClick={()=>setTab(k)} style={{padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',color:tab===k?'#FF6B2B':'#8C7B6E',borderBottom:tab===k?'2px solid #FF6B2B':'2px solid transparent',marginBottom:'-2px',whiteSpace:'nowrap'}}>{l}</button>
         ))}
       </div>
-      {tab==='overview'   && <OverviewTab/>}
-      {tab==='habits'     && <HabitsTab/>}
+      {tab==='overview'       && <OverviewTab/>}
+      {tab==='announcements'  && <AnnouncementsTab/>}
+      {tab==='habits'         && <HabitsTab/>}
       {tab==='challenges' && <ChallengesTab/>}
       {tab==='events'     && <EventsTab/>}
       {tab==='users'      && <UsersTab/>}
@@ -69,6 +72,137 @@ export default function AdminDashboard() {
       {tab==='sitepages'  && <SitePagesTab/>}
       {tab==='categories' && <CategoriesTab/>}
       {tab==='settings'   && <SettingsTab/>}
+    </div>
+  )
+}
+
+/* ══ ANNOUNCEMENTS ═════════════════════════════════════════════ */
+const PRESET_COLORS = ['#FF6B2B','#7C3AED','#059669','#2563EB','#DC2626','#F59E0B','#EC4899','#1A0800']
+const PRESET_EMOJIS = ['📢','🎉','🚀','⭐','💡','🔥','🏆','🎯','💪','✨','📣','🎊']
+
+function AnnouncementsTab() {
+  const [list, setList] = useState([])
+  const [form, setForm] = useState({ title:'', message:'', emoji:'📢', bg_color:'#FF6B2B', is_active:true })
+  const [editing, setEditing] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+
+  const load = useCallback(() => {
+    adminGetAnnouncements().then(({ data }) => setList(data || []))
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const openNew = () => {
+    setEditing(null)
+    setForm({ title:'', message:'', emoji:'📢', bg_color:'#FF6B2B', is_active:true })
+    setShowModal(true)
+  }
+  const openEdit = (a) => {
+    setEditing(a)
+    setForm({ title:a.title, message:a.message, emoji:a.emoji||'📢', bg_color:a.bg_color||'#FF6B2B', is_active:a.is_active })
+    setShowModal(true)
+  }
+
+  const handleSave = async () => {
+    if (!form.title.trim() || !form.message.trim()) return toast.error('Title and message required')
+    setSaving(true)
+    const payload = editing ? { ...form, id: editing.id } : form
+    const { data, error } = await adminUpsertAnnouncement(payload)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(editing ? 'Updated' : 'Announcement created')
+    setShowModal(false)
+    load()
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this announcement?')) return
+    await adminDeleteAnnouncement(id)
+    toast.success('Deleted')
+    load()
+  }
+
+  const toggleActive = async (a) => {
+    await adminUpsertAnnouncement({ ...a, is_active: !a.is_active })
+    load()
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Announcements</h3>
+        <Btn onClick={openNew}>+ New Announcement</Btn>
+      </div>
+
+      {list.length === 0 && (
+        <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No announcements yet. Create one to show a popup to users on login.</p></Card>
+      )}
+
+      {list.map(a => (
+        <Card key={a.id} style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+          <div style={{width:44,height:44,borderRadius:12,background:`linear-gradient(135deg,${a.bg_color||'#FF6B2B'},${a.bg_color||'#FF6B2B'}88)`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>
+            {a.emoji||'📢'}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+              <span style={{fontWeight:700,fontSize:14}}>{a.title}</span>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:100,background:a.is_active?'rgba(5,150,105,.1)':'rgba(107,114,128,.1)',color:a.is_active?'#059669':'#6B7280',fontWeight:700}}>
+                {a.is_active?'ACTIVE':'INACTIVE'}
+              </span>
+            </div>
+            <p style={{fontSize:13,color:'#4A2800',margin:'0 0 8px',lineHeight:1.5,wordBreak:'break-word'}}>{a.message}</p>
+            <div style={{fontSize:11,color:'#8C7B6E'}}>{new Date(a.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>toggleActive(a)}>
+              {a.is_active?'Deactivate':'Activate'}
+            </Btn>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openEdit(a)}>Edit</Btn>
+            <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>handleDelete(a.id)}>Delete</Btn>
+          </div>
+        </Card>
+      ))}
+
+      {showModal && (
+        <Modal title={editing?'Edit Announcement':'New Announcement'} onClose={()=>setShowModal(false)}>
+          {/* Preview */}
+          <div style={{background:`linear-gradient(135deg,${form.bg_color},${form.bg_color}cc)`,borderRadius:16,padding:'20px',textAlign:'center',marginBottom:16}}>
+            <div style={{fontSize:36,marginBottom:6}}>{form.emoji||'📢'}</div>
+            <div style={{color:'white',fontWeight:700,fontSize:14,marginBottom:4}}>{form.title||'Announcement title'}</div>
+            <div style={{color:'rgba(255,255,255,.85)',fontSize:12,lineHeight:1.5}}>{form.message||'Message preview…'}</div>
+          </div>
+
+          <L c="Title"/>
+          <Inp value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. New Feature Launched 🎉"/>
+          <L c="Message"/>
+          <TA value={form.message} onChange={e=>setForm(f=>({...f,message:e.target.value}))} placeholder="Describe the announcement…" style={{minHeight:90}}/>
+
+          <L c="Emoji"/>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
+            {PRESET_EMOJIS.map(e=>(
+              <button key={e} onClick={()=>setForm(f=>({...f,emoji:e}))} style={{width:36,height:36,borderRadius:8,border:`2px solid ${form.emoji===e?'#FF6B2B':'#DDD3CA'}`,background:'white',cursor:'pointer',fontSize:18}}>
+                {e}
+              </button>
+            ))}
+          </div>
+
+          <L c="Background Color"/>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+            {PRESET_COLORS.map(c=>(
+              <button key={c} onClick={()=>setForm(f=>({...f,bg_color:c}))} style={{width:32,height:32,borderRadius:50,background:c,border:form.bg_color===c?'3px solid #1A0800':'3px solid transparent',cursor:'pointer',transition:'all .15s'}}/>
+            ))}
+          </div>
+
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+            <input type="checkbox" id="ann-active" checked={form.is_active} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))} style={{width:16,height:16}}/>
+            <label htmlFor="ann-active" style={{fontSize:13,fontWeight:600,color:'#1A0800',cursor:'pointer'}}>Active (show to users)</label>
+          </div>
+
+          <Btn onClick={handleSave} disabled={saving} style={{width:'100%',padding:'11px'}}>
+            {saving?'Saving…':editing?'Save Changes':'Create Announcement'}
+          </Btn>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -430,66 +564,335 @@ function EventsTab() {
 
 /* ══ USERS ════════════════════════════════════════════════════ */
 function UsersTab() {
-  const [users,setUsers]=useState([])
-  const [search,setSearch]=useState('')
-  const [loading,setLoading]=useState(true)
-  useEffect(()=>{adminGetUsers().then(({data})=>{setUsers(data||[]);setLoading(false)})},[])
-  const COLORS=['#FF6B2B','#7C3AED','#059669','#2563EB','#EC4899']
-  const getColor=n=>COLORS[(n||'').charCodeAt(0)%COLORS.length]
-  const getInit=n=>(n||'?').split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2)
-  const filtered=users.filter(u=>(u.full_name||u.username||'').toLowerCase().includes(search.toLowerCase()))
+  const [users, setUsers] = useState([])
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(null) // user object being edited
+  const [form, setForm] = useState({})
+  const [saving, setSaving] = useState(false)
+
+  const load = () => adminGetUsers().then(({ data }) => { setUsers(data || []); setLoading(false) })
+  useEffect(() => { load() }, [])
+
+  const COLORS = ['#FF6B2B', '#7C3AED', '#059669', '#2563EB', '#EC4899']
+  const getColor = n => COLORS[(n || '').charCodeAt(0) % COLORS.length]
+  const getInit = n => (n || '?').split(' ').map(x => x[0]).join('').toUpperCase().slice(0, 2)
+
+  const filtered = users.filter(u =>
+    (u.full_name || u.username || u.email || '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  const startEdit = (u) => {
+    setForm({
+      full_name: u.full_name || '',
+      username: u.username || '',
+      bio: u.bio || '',
+      location: u.location || '',
+      role: u.role || 'user',
+      is_blocked: u.is_blocked || false,
+    })
+    setEditing(u)
+  }
+
+  const saveEdit = async () => {
+    setSaving(true)
+    const { data, error } = await adminUpdateUser(editing.id, form)
+    setSaving(false)
+    if (error) { toast.error(error.message || 'Failed to update'); return }
+    setUsers(us => us.map(u => u.id === editing.id ? { ...u, ...data } : u))
+    setEditing(null)
+    toast.success('User updated')
+  }
+
+  const handleDelete = async (u) => {
+    if (!window.confirm(`Permanently delete @${u.username}? This removes their account, stories, comments and cannot be undone.`)) return
+    const { error } = await adminDeleteUser(u.id)
+    if (error) { toast.error(error.message || 'Failed to delete'); return }
+    setUsers(us => us.filter(x => x.id !== u.id))
+    toast.success(`User @${u.username} deleted`)
+  }
+
+  const roleColor = { admin: '#7C3AED', contributor: '#059669', user: '#8C7B6E' }
+  const roleBg = { admin: 'rgba(124,58,237,.1)', contributor: 'rgba(5,150,105,.1)', user: 'rgba(0,0,0,.05)' }
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
+
   return (
     <div>
-      <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:16}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search users..." style={{flex:1,padding:'9px 14px',border:'1.5px solid #DDD3CA',borderRadius:100,fontSize:13,fontFamily:'inherit',outline:'none'}}/>
-        <div style={{fontSize:13,color:'#8C7B6E'}}>{filtered.length} users</div>
+      {/* Search bar + count */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name, username or email..."
+          style={{ flex: 1, padding: '9px 14px', border: '1.5px solid #DDD3CA', borderRadius: 100, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+        />
+        <div style={{ fontSize: 13, color: '#8C7B6E', whiteSpace: 'nowrap' }}>{filtered.length} users</div>
       </div>
-      {loading&&<div style={{textAlign:'center',padding:40,color:'#8C7B6E'}}>Loading...</div>}
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>
-        {filtered.map(u=>(
-          <div key={u.id} style={{background:'white',border:'1px solid #F0EAE4',borderRadius:12,padding:'12px 16px',display:'flex',alignItems:'center',gap:12}}>
-            <div style={{width:36,height:36,borderRadius:'50%',background:getColor(u.full_name||u.username),color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,flexShrink:0}}>
-              {u.avatar_url?<img src={u.avatar_url} alt="" style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/>:getInit(u.full_name||u.username||'?')}
+
+      {loading && <div style={{ textAlign: 'center', padding: 40, color: '#8C7B6E' }}>Loading...</div>}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {filtered.map(u => (
+          <div key={u.id} style={{
+            background: 'white',
+            border: u.is_blocked ? '1.5px solid #FECACA' : '1px solid #F0EAE4',
+            borderRadius: 12,
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}>
+            {/* Avatar */}
+            <div style={{ width: 38, height: 38, borderRadius: '50%', background: getColor(u.full_name || u.username), color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0, overflow: 'hidden' }}>
+              {u.avatar_url
+                ? <img src={u.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : getInit(u.full_name || u.username || '?')}
             </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:600,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                {u.full_name||u.username}
-                {u.role==='admin'&&<span style={{fontSize:9,padding:'1px 7px',borderRadius:100,background:'rgba(124,58,237,.1)',color:'#7C3AED',fontWeight:700}}>ADMIN</span>}
-                {u.role==='contributor'&&<span style={{fontSize:9,padding:'1px 7px',borderRadius:100,background:'rgba(5,150,105,.1)',color:'#059669',fontWeight:700}}>CONTRIBUTOR</span>}
+
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                {u.full_name || u.username}
+                <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 100, background: roleBg[u.role] || roleBg.user, color: roleColor[u.role] || roleColor.user, fontWeight: 700 }}>
+                  {(u.role || 'user').toUpperCase()}
+                </span>
+                {u.is_blocked && <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 100, background: '#FEE2E2', color: '#DC2626', fontWeight: 700 }}>BLOCKED</span>}
               </div>
-              <div style={{fontSize:11,color:'#8C7B6E'}}>@{u.username} · {u.location||'—'} · {u.stories_count||0} stories · {(u.score||0).toLocaleString()} pts</div>
+              <div style={{ fontSize: 11, color: '#8C7B6E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                @{u.username} · {u.location || '—'} · {(u.score || 0).toLocaleString()} pts · joined {u.created_at ? formatDistanceToNow(new Date(u.created_at), { addSuffix: true }) : '—'}
+              </div>
             </div>
-            <span style={{fontSize:11,padding:'2px 9px',borderRadius:100,background:'#F5EDE4',color:'#8C7B6E',flexShrink:0}}>{u.level}</span>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button
+                onClick={() => startEdit(u)}
+                style={{ padding: '5px 14px', borderRadius: 100, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent', color: '#FF6B2B', border: '1.5px solid #FF6B2B' }}
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDelete(u)}
+                style={{ padding: '5px 14px', borderRadius: 100, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent', color: '#DC2626', border: '1.5px solid #DC2626' }}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Edit Modal */}
+      {editing && (
+        <Modal title={`Edit User — @${editing.username}`} onClose={() => setEditing(null)}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <L c="Full Name" />
+              <Inp value={form.full_name} onChange={set('full_name')} placeholder="Priya Sharma" />
+            </div>
+            <div>
+              <L c="Username" />
+              <Inp value={form.username} onChange={set('username')} placeholder="priya_s" />
+            </div>
+          </div>
+          <L c="Bio" />
+          <TA value={form.bio} onChange={set('bio')} placeholder="Short bio..." style={{ minHeight: 60 }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <L c="Location" />
+              <Inp value={form.location} onChange={set('location')} placeholder="Mumbai, India" />
+            </div>
+            <div>
+              <L c="Role" />
+              <select
+                value={form.role}
+                onChange={set('role')}
+                style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #DDD3CA', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', marginBottom: 12, background: 'white' }}
+              >
+                <option value="user">User</option>
+                <option value="contributor">Contributor</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 20, padding: '10px 12px', background: form.is_blocked ? '#FEF2F2' : '#F0FDF4', borderRadius: 8 }}>
+            <input type="checkbox" checked={form.is_blocked} onChange={set('is_blocked')} />
+            <span style={{ fontWeight: 600, color: form.is_blocked ? '#DC2626' : '#059669' }}>
+              {form.is_blocked ? '🚫 Account is blocked' : '✓ Account is active'}
+            </span>
+          </label>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <Btn v="secondary" onClick={() => setEditing(null)}>Cancel</Btn>
+            <Btn onClick={saveEdit} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</Btn>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
 
 /* ══ MODERATION ════════════════════════════════════════════════ */
 function ModerationTab() {
-  const [flagged,setFlagged]=useState([])
-  const [loading,setLoading]=useState(true)
-  useEffect(()=>{adminFlaggedStories().then(({data})=>{setFlagged(data||[]);setLoading(false)})},[])
-  const handle=async(id,status)=>{await adminModerateStory(id,status);setFlagged(f=>f.filter(s=>s.id!==id));toast.success(status==='published'?'Approved':'Removed')}
+  const [flagged, setFlagged] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState({})
+  const [blocking, setBlocking] = useState({})
+
+  useEffect(() => {
+    adminFlaggedStories().then(({ data }) => { setFlagged(data || []); setLoading(false) })
+  }, [])
+
+  const removeFromList = (id) => setFlagged(f => f.filter(s => s.id !== id))
+
+  const handleApprove = async (id) => {
+    await adminModerateStory(id, 'published')
+    removeFromList(id)
+    toast.success('Post approved & flag cleared')
+  }
+
+  const handleDelete = async (id) => {
+    await adminModerateStory(id, 'removed')
+    removeFromList(id)
+    toast.success('Post removed')
+  }
+
+  const handleBlock = async (story) => {
+    const userId = story.user_id
+    const author = story.profiles || {}
+    const alreadyBlocked = author.is_blocked
+    setBlocking(b => ({ ...b, [userId]: true }))
+    await adminBlockUser(userId, !alreadyBlocked)
+    setBlocking(b => ({ ...b, [userId]: false }))
+    // Update is_blocked in local state
+    setFlagged(f => f.map(s => s.user_id === userId
+      ? { ...s, profiles: { ...s.profiles, is_blocked: !alreadyBlocked } }
+      : s
+    ))
+    toast.success(alreadyBlocked ? `User @${author.username} unblocked` : `User @${author.username} blocked`)
+  }
+
+  const highlightBadWords = (text, flagReason) => {
+    if (!flagReason || !text) return text
+    const words = flagReason.replace('Detected: ', '').split(', ').filter(Boolean)
+    if (!words.length) return text
+    const re = new RegExp(`(${words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+    const parts = text.split(re)
+    return parts.map((p, i) =>
+      re.test(p) ? <mark key={i} style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 3, padding: '0 2px', fontWeight: 700 }}>{p}</mark> : p
+    )
+  }
+
   return (
     <div>
-      <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Flagged Content ({flagged.length})</div>
-      {loading&&<div style={{textAlign:'center',padding:40,color:'#8C7B6E'}}>Loading...</div>}
-      {flagged.length===0&&!loading&&<div style={{textAlign:'center',padding:'60px 20px',color:'#8C7B6E'}}><div style={{fontSize:32,marginBottom:8}}>✅</div><div style={{fontWeight:600}}>All clear — no flagged content</div></div>}
-      <div style={{display:'flex',flexDirection:'column',gap:10}}>
-        {flagged.map(s=>(
-          <Card key={s.id}>
-            <div style={{fontWeight:600,marginBottom:4}}>{s.title}</div>
-            <div style={{fontSize:12,color:'#8C7B6E',marginBottom:10}}>by {s.profiles?.username} · {s.category}</div>
-            <div style={{fontSize:13,color:'#4A2800',marginBottom:12,lineHeight:1.6}}>{s.content?.slice(0,200)}...</div>
-            <div style={{display:'flex',gap:8}}>
-              <Btn v="green" onClick={()=>handle(s.id,'published')} style={{fontSize:12}}>✓ Approve</Btn>
-              <Btn v="danger" onClick={()=>handle(s.id,'removed')} style={{fontSize:12}}>Remove</Btn>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 700 }}>Flagged Content</div>
+        {flagged.length > 0 && (
+          <span style={{ background: '#DC2626', color: 'white', fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 100 }}>
+            {flagged.length}
+          </span>
+        )}
+      </div>
+
+      {loading && <div style={{ textAlign: 'center', padding: 40, color: '#8C7B6E' }}>Loading...</div>}
+      {!loading && flagged.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8C7B6E' }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>✅</div>
+          <div style={{ fontWeight: 600, fontSize: 15 }}>All clear — no flagged content</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Bad words in posts are automatically detected and shown here.</div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {flagged.map(s => {
+          const author = s.profiles || {}
+          const isExpanded = expanded[s.id]
+          const isBlocked = author.is_blocked
+          const preview = s.content?.slice(0, 300)
+          const needsMore = (s.content?.length || 0) > 300
+
+          return (
+            <div key={s.id} style={{
+              background: 'white',
+              border: '2px solid #FECACA',
+              borderRadius: 16,
+              overflow: 'hidden',
+            }}>
+              {/* Red header bar */}
+              <div style={{ background: 'linear-gradient(90deg,#FEF2F2,#FFF5F5)', padding: '12px 20px', borderBottom: '1px solid #FECACA', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 16 }}>🚩</span>
+                <span style={{ fontWeight: 700, fontSize: 13.5, color: '#DC2626' }}>Flagged Post</span>
+                {s.flag_reason && (
+                  <span style={{ fontSize: 11, background: '#FEE2E2', color: '#DC2626', padding: '2px 8px', borderRadius: 100, fontWeight: 600 }}>
+                    {s.flag_reason}
+                  </span>
+                )}
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8C7B6E' }}>
+                  {s.created_at ? formatDistanceToNow(new Date(s.created_at), { addSuffix: true }) : ''}
+                </span>
+              </div>
+
+              {/* Content */}
+              <div style={{ padding: '16px 20px' }}>
+                {/* Author row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#FF6B2B', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    {(author.full_name || author.username || '?')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1A0800' }}>
+                      {author.full_name || author.username}
+                      {isBlocked && <span style={{ marginLeft: 6, fontSize: 10, background: '#DC2626', color: 'white', padding: '1px 6px', borderRadius: 100, fontWeight: 600 }}>BLOCKED</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#8C7B6E' }}>@{author.username} · {s.category}</div>
+                  </div>
+                </div>
+
+                {/* Story title */}
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: '#1A0800', lineHeight: 1.4 }}>
+                  {highlightBadWords(s.title, s.flag_reason)}
+                </div>
+
+                {/* Story content preview */}
+                <div style={{ fontSize: 13, color: '#4A2800', lineHeight: 1.7, marginBottom: 10 }}>
+                  {isExpanded
+                    ? highlightBadWords(s.content, s.flag_reason)
+                    : highlightBadWords(preview, s.flag_reason)
+                  }
+                  {needsMore && (
+                    <button onClick={() => setExpanded(e => ({ ...e, [s.id]: !isExpanded }))} style={{ background: 'none', border: 'none', color: '#FF6B2B', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: '0 4px' }}>
+                      {isExpanded ? ' Show less' : '... Show more'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid #F5EFE9' }}>
+                  <button
+                    onClick={() => handleDelete(s.id)}
+                    style={{ padding: '7px 16px', borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: '#DC2626', color: 'white', border: 'none' }}
+                  >
+                    🗑 Delete Post
+                  </button>
+                  <button
+                    onClick={() => handleBlock(s)}
+                    disabled={blocking[s.user_id]}
+                    style={{ padding: '7px 16px', borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: isBlocked ? '#059669' : '#7C3AED', color: 'white', border: 'none', opacity: blocking[s.user_id] ? 0.6 : 1 }}
+                  >
+                    {blocking[s.user_id] ? '...' : isBlocked ? '✓ Unblock User' : '🚫 Block User'}
+                  </button>
+                  <button
+                    onClick={() => handleApprove(s.id)}
+                    style={{ padding: '7px 16px', borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'transparent', color: '#059669', border: '1.5px solid #059669' }}
+                  >
+                    ✓ Dismiss Flag
+                  </button>
+                </div>
+              </div>
             </div>
-          </Card>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

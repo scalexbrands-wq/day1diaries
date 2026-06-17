@@ -1,6 +1,6 @@
 const express = require('express')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, optionalAuth, requireRole } = require('../middleware/auth')
 
 const router = express.Router()
 const adminRouter = express.Router()
@@ -154,8 +154,41 @@ router.get('/careers', async (req, res) => {
   res.json({ jobs: rows })
 })
 
+// ── GET /pages/my-job-applications — user's own job applications ──
+// Intentionally NOT under /careers/:id to avoid UUID routing conflict
+router.get('/my-job-applications', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT a.id, a.job_id, a.full_name, a.email, a.cover_note, a.resume_url, a.created_at,
+            a.user_status, a.user_notes, a.custom_status,
+            j.title AS job_title, j.department, j.location, j.job_type,
+            j.salary_min, j.salary_max, j.currency, j.is_active
+     FROM job_applications a
+     JOIN careers_jobs j ON j.id = a.job_id
+     WHERE a.user_id = $1
+     ORDER BY a.created_at DESC`,
+    [req.cognitoSub]
+  )
+  res.json({ applications: rows })
+})
+
+// Keep old path as alias so any cached requests still work
+router.get('/careers/my-applications', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT a.id, a.job_id, a.full_name, a.email, a.cover_note, a.resume_url, a.created_at,
+            a.user_status, a.user_notes, a.custom_status,
+            j.title AS job_title, j.department, j.location, j.job_type,
+            j.salary_min, j.salary_max, j.currency, j.is_active
+     FROM job_applications a JOIN careers_jobs j ON j.id = a.job_id
+     WHERE a.user_id = $1 ORDER BY a.created_at DESC`,
+    [req.cognitoSub]
+  )
+  res.json({ applications: rows })
+})
+
 // ── GET /pages/careers/:id — public, single job ──────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 router.get('/careers/:id', async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Job not found' })
   const { rows } = await pool.query(
     'SELECT * FROM careers_jobs WHERE id = $1 AND is_active = true',
     [req.params.id]
@@ -164,9 +197,9 @@ router.get('/careers/:id', async (req, res) => {
   res.json({ job: rows[0] })
 })
 
-// ── POST /pages/careers/:id/apply — public, submit application ──
+// ── POST /pages/careers/:id/apply — submit application (auth optional)
 // body: { full_name, email, phone, resume_url, cover_note }
-router.post('/careers/:id/apply', async (req, res) => {
+router.post('/careers/:id/apply', optionalAuth, async (req, res) => {
   const { full_name, email, phone, resume_url, cover_note } = req.body
   if (!full_name || !email) return res.status(400).json({ error: 'full_name and email are required' })
 
@@ -174,11 +207,42 @@ router.post('/careers/:id/apply', async (req, res) => {
   if (!job.rows.length) return res.status(404).json({ error: 'Job not found' })
 
   const { rows } = await pool.query(
-    `INSERT INTO job_applications (job_id, full_name, email, phone, resume_url, cover_note)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at`,
-    [req.params.id, full_name, email, phone || null, resume_url || null, cover_note || null]
+    `INSERT INTO job_applications (job_id, full_name, email, phone, resume_url, cover_note, user_id, user_status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'applied') RETURNING id, created_at, user_id`,
+    [req.params.id, full_name, email, phone || null, resume_url || null, cover_note || null, req.cognitoSub || null]
   )
   res.json({ application: rows[0], message: 'Application submitted successfully.' })
+})
+
+// ── PATCH /pages/careers/applications/:id/my-update — user updates own pipeline ──
+// body: { user_status, user_notes, custom_status }
+router.patch('/careers/applications/:id/my-update', requireAuth, async (req, res) => {
+  const VALID = ['applied','screening','interview_1','interview_2','offer_received','custom']
+  const { user_status, user_notes, custom_status } = req.body
+  if (user_status && !VALID.includes(user_status)) {
+    return res.status(400).json({ error: 'Invalid status' })
+  }
+
+  const { rows: existing } = await pool.query(
+    'SELECT id FROM job_applications WHERE id = $1 AND user_id = $2',
+    [req.params.id, req.cognitoSub]
+  )
+  if (!existing.length) return res.status(404).json({ error: 'Application not found' })
+
+  const updates = []
+  const vals = []
+  let i = 1
+  if (user_status !== undefined)   { updates.push(`user_status = $${i++}`);   vals.push(user_status) }
+  if (user_notes !== undefined)    { updates.push(`user_notes = $${i++}`);    vals.push(user_notes) }
+  if (custom_status !== undefined) { updates.push(`custom_status = $${i++}`); vals.push(custom_status) }
+  if (!updates.length) return res.status(400).json({ error: 'No fields to update' })
+
+  vals.push(req.params.id)
+  const { rows } = await pool.query(
+    `UPDATE job_applications SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
+    vals
+  )
+  res.json({ application: rows[0] })
 })
 
 // ── GET /admin/pages/careers — admin, all jobs ────────────────────

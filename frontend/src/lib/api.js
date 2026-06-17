@@ -399,6 +399,15 @@ export const adminFlaggedStories = async () => {
 export const adminModerateStory = (id, status) =>
   apiFetch(`/admin/stories/${id}/moderate`, { method: 'PATCH', body: JSON.stringify({ status }) })
 
+export const adminBlockUser = (userId, isBlocked) =>
+  apiFetch(`/admin/users/${userId}/block`, { method: 'PATCH', body: JSON.stringify({ is_blocked: isBlocked }) })
+
+export const adminUpdateUser = (userId, fields) =>
+  apiFetch(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(fields) })
+
+export const adminDeleteUser = (userId) =>
+  apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })
+
 // ============================================================
 // LANDING PAGE
 // ============================================================
@@ -613,4 +622,50 @@ export const getMyCoins = async () => {
 export const unlockStory = async (storyId) => {
   const result = await apiFetch(`/stories/${storyId}/unlock`, { method: 'POST' })
   return { data: result.data, error: result.error }
+}
+export const getMyUnlockedStoryIds = async () => {
+  const result = await apiFetch('/stories/my-unlocks')
+  return { data: result.data?.unlockedIds || [], error: result.error }
+}
+export const recordStoryView = async (storyId) => {
+  return apiFetch(`/stories/${storyId}/view`, { method: 'POST' })
+}
+export const shareStory = async (storyId) => {
+  const result = await apiFetch(`/stories/${storyId}/share`, { method: 'POST' })
+  return { data: result.data, error: result.error }
+}
+
+// ── User job applications ─────────────────────────────────────
+export const getMyApplications = async () => {
+  const result = await apiFetch('/pages/my-job-applications')
+  return { data: result.data?.applications || [], error: result.error }
+}
+export const updateMyApplication = async (id, updates) => {
+  const result = await apiFetch(`/pages/careers/applications/${id}/my-update`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+  return { data: result.data?.application, error: result.error }
+}
+
+// ── Announcements ─────────────────────────────────────────────
+export const getActiveAnnouncements = async () => {
+  const result = await apiFetch('/announcements/active')
+  return { data: result.data?.announcements || [], error: result.error }
+}
+export const dismissAnnouncement = async (id) => {
+  return apiFetch(`/announcements/${id}/dismiss`, { method: 'POST' })
+}
+export const adminGetAnnouncements = async () => {
+  const result = await apiFetch('/announcements')
+  return { data: result.data?.announcements || [], error: result.error }
+}
+export const adminUpsertAnnouncement = async (a) => {
+  const method = a.id ? 'PUT' : 'POST'
+  const path = a.id ? `/announcements/${a.id}` : '/announcements'
+  const result = await apiFetch(path, { method, body: JSON.stringify(a) })
+  return { data: result.data?.announcement, error: result.error }
+}
+export const adminDeleteAnnouncement = async (id) => {
+  return apiFetch(`/announcements/${id}`, { method: 'DELETE' })
 }

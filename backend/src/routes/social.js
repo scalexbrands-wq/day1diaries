@@ -47,10 +47,11 @@ router.get('/follow-status/:targetUserId', requireAuth, async (req, res) => {
   }
 })
 
-// GET /social/coins — get current user coin balance
+// GET /social/coins — get current user points balance (coins and points are the same)
 router.get('/coins', requireAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT coins FROM profiles WHERE id=$1', [req.cognitoSub])
-  res.json({ coins: rows[0]?.coins || 0 })
+  const pts = rows[0]?.coins || 0
+  res.json({ coins: pts, points: pts })
 })
 
 // POST /social/toggle-follow/:targetUserId

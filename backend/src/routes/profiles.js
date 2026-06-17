@@ -30,7 +30,8 @@ router.get('/:username', optionalAuth, async (req, res) => {
 // ── GET /profiles/:username/live-counts ─────────────────────
 router.get('/:username/live-counts', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT stories_count, followers_count, following_count, likes_received, score, level
+    `SELECT stories_count, followers_count, following_count, likes_received, score, level,
+            COALESCE(coins,0) AS coins, COALESCE(stories_read,0) AS stories_read
      FROM profiles WHERE username = $1`,
     [req.params.username]
   )

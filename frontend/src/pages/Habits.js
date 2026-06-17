@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   getHabits, getUserHabits, adoptHabit, logHabit, getHabitLogs,
   getChallengeDetail, getChallengeParticipants, getChallenges,
-  joinChallenge, isContributorOrAdmin, adminUpsertHabit
+  joinChallenge, getUserChallenges, isContributorOrAdmin, adminUpsertHabit
 } from '../lib/api'
 import ProBadge from '../components/ProBadge'
 import { getInitials, getAvatarColor } from '../components/Sidebar'
@@ -110,16 +110,21 @@ export default function Habits() {
   const canManage = isContributorOrAdmin(profile)
 
   const load = useCallback(async () => {
-    const [{ data:h }, { data:uh }, { data:c }] = await Promise.all([
+    const [{ data:h }, { data:uh }, { data:c }, { data:uc }] = await Promise.all([
       getHabits(),
       getUserHabits(user.id),
       getChallenges(),
+      getUserChallenges(user.id),
     ])
     setHabits(h||[])
     setChallenges(c||[])
     const map = {}
     ;(uh||[]).forEach(u => { map[u.habit_id] = u })
     setUserHabits(map)
+    // Pre-populate joined challenges from backend
+    const joinedMap = {}
+    ;(uc||[]).forEach(cp => { joinedMap[cp.challenge_id] = true })
+    setJoined(joinedMap)
     setLoading(false)
   }, [user.id])
 
@@ -272,9 +277,23 @@ export default function Habits() {
                           <div key={d} style={{ width:9, height:9, borderRadius:2, background: d<=(userHabits[selected.id]?.current_day||0)?'#FF6B2B':'rgba(26,8,0,.07)', title:`Day ${d}` }}/>
                         ))}
                       </div>
-                      {/* Log today */}
-                      <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder={`Day ${userHabits[selected.id]?.current_day} update — what did you do?`} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #DDD3CA', borderRadius:10, fontSize:12, fontFamily:'inherit', resize:'vertical', minHeight:72, outline:'none', marginBottom:8 }}/>
-                      <button onClick={handleLog} className="btn btn-primary" style={{ width:'100%', justifyContent:'center', fontSize:12 }}>Log Today ✓</button>
+                      {/* Log today — only if not already logged today */}
+                      {(() => {
+                        const today = new Date().toDateString()
+                        const alreadyLogged = logs.some(l => new Date(l.logged_at).toDateString() === today)
+                        return alreadyLogged ? (
+                          <div style={{ textAlign:'center', padding:'12px', background:'rgba(5,150,105,.07)', borderRadius:10, border:'1.5px solid rgba(5,150,105,.2)', marginBottom:8 }}>
+                            <div style={{ fontSize:18, marginBottom:4 }}>✅</div>
+                            <div style={{ fontSize:12, fontWeight:700, color:'#059669' }}>Already logged today!</div>
+                            <div style={{ fontSize:11, color:'#6B7280', marginTop:2 }}>Come back tomorrow to log Day {(userHabits[selected.id]?.current_day||0)+1}</div>
+                          </div>
+                        ) : (
+                          <>
+                            <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder={`Day ${userHabits[selected.id]?.current_day} update — what did you do?`} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #DDD3CA', borderRadius:10, fontSize:12, fontFamily:'inherit', resize:'vertical', minHeight:72, outline:'none', marginBottom:8 }}/>
+                            <button onClick={handleLog} className="btn btn-primary" style={{ width:'100%', justifyContent:'center', fontSize:12 }}>Log Today ✓</button>
+                          </>
+                        )
+                      })()}
 
                       {/* Recent logs */}
                       {logs.length > 0 && (
@@ -347,7 +366,10 @@ export default function Habits() {
                     </div>
 
                     {isJoined
-                      ? <div style={{ fontSize:12, fontWeight:600, color:'#059669' }}>✓ You're in! 🔥</div>
+                      ? <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:100, background:'rgba(5,150,105,.1)', border:'1.5px solid rgba(5,150,105,.25)', width:'fit-content' }}>
+                          <span style={{ fontSize:13 }}>✅</span>
+                          <span style={{ fontSize:11, fontWeight:700, color:'#059669' }}>Already Joined</span>
+                        </div>
                       : locked
                         ? <button onClick={e=>{e.stopPropagation();navigate('/plans')}} style={{ fontSize:11, padding:'6px 14px', borderRadius:100, border:'1.5px solid #7C3AED', background:'transparent', color:'#7C3AED', cursor:'pointer', fontFamily:'inherit' }}>Upgrade to Join →</button>
                         : <button onClick={e=>{e.stopPropagation();handleJoinChallenge(c)}} style={{ fontSize:11, padding:'6px 14px', borderRadius:100, border:'1.5px solid #FF6B2B', background:'transparent', color:'#FF6B2B', cursor:'pointer', fontFamily:'inherit', transition:'all .2s' }}
@@ -400,11 +422,18 @@ export default function Habits() {
                     {selChallenge.participants_limit && <div>👥 Max {selChallenge.participants_limit} participants</div>}
                   </div>
 
-                  {!joined[selChallenge.id] && selChallenge.visibility !== 'pro' || profile?.is_pro ? (
-                    !joined[selChallenge.id] && <button onClick={() => handleJoinChallenge(selChallenge)} className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginBottom:16 }}>Join This Challenge →</button>
-                  ) : (
-                    <button onClick={() => navigate('/plans')} className="btn btn-ghost" style={{ width:'100%', justifyContent:'center', marginBottom:16 }}>Upgrade to Join →</button>
-                  )}
+                  {joined[selChallenge.id]
+                    ? <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px', borderRadius:12, background:'rgba(5,150,105,.08)', border:'1.5px solid rgba(5,150,105,.2)', marginBottom:16 }}>
+                        <span style={{ fontSize:18 }}>✅</span>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:700, color:'#059669' }}>Already Joined!</div>
+                          <div style={{ fontSize:11, color:'#6B7280' }}>You're participating in this challenge</div>
+                        </div>
+                      </div>
+                    : selChallenge.visibility === 'pro' && !profile?.is_pro
+                      ? <button onClick={() => navigate('/plans')} className="btn btn-ghost" style={{ width:'100%', justifyContent:'center', marginBottom:16 }}>Upgrade to Join →</button>
+                      : <button onClick={() => handleJoinChallenge(selChallenge)} className="btn btn-primary" style={{ width:'100%', justifyContent:'center', marginBottom:16 }}>Join This Challenge →</button>
+                  }
 
                   <div style={{ height:1, background:'#F5EDE4', margin:'4px 0 16px' }}/>
 

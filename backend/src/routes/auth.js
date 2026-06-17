@@ -82,6 +82,14 @@ router.post('/signup', async (req, res) => {
         [sub, username, fullName || username, email]
       )
 
+      // Daily login bonus on first login
+      await pool.query(
+        `UPDATE profiles
+         SET score = score + 10, coins = coins + 10, last_login_date = CURRENT_DATE
+         WHERE id = $1 AND (last_login_date IS NULL OR last_login_date < CURRENT_DATE)`,
+        [sub]
+      )
+
       return res.json({
         message: 'Account created successfully.',
         autoConfirmed: true,
@@ -176,6 +184,19 @@ router.post('/signin', async (req, res) => {
       ClientId: CLIENT_ID,
       AuthParameters: { USERNAME: email, PASSWORD: password },
     }))
+
+    // Daily login bonus: +10 score + coins if user hasn't logged in today
+    try {
+      const payload = JSON.parse(Buffer.from(result.AuthenticationResult.IdToken.split('.')[1], 'base64').toString())
+      await pool.query(
+        `UPDATE profiles
+         SET score = score + 10, coins = coins + 10, last_login_date = CURRENT_DATE
+         WHERE id = $1 AND (last_login_date IS NULL OR last_login_date < CURRENT_DATE)`,
+        [payload.sub]
+      )
+    } catch (bonusErr) {
+      console.error('Daily login bonus error (non-fatal):', bonusErr.message)
+    }
 
     res.json({
       tokens: {

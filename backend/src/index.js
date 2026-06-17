@@ -17,6 +17,9 @@ const morgan = require('morgan')
 // AUTH_PROVIDER=local swaps in self-signed JWTs + a local password
 // table instead of Cognito — see backend/src/routes/auth.local.js
 // and README "Run locally".
+const { initDB } = require('./db/pool')
+initDB()
+
 const authRoutes = process.env.AUTH_PROVIDER === 'local'
   ? require('./routes/auth.local')
   : require('./routes/auth')
@@ -28,6 +31,7 @@ const communityRoutes = require('./routes/community')
 const adminRoutes = require('./routes/admin')
 const landingRoutes = require('./routes/landing')
 const { publicRouter: pagesPublicRoutes, adminRouter: pagesAdminRoutes } = require('./routes/pages')
+const announcementRoutes = require('./routes/announcements')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -88,6 +92,7 @@ app.use('/admin', adminRoutes)
 app.use('/landing', landingRoutes)
 app.use('/pages', pagesPublicRoutes)
 app.use('/admin/pages', pagesAdminRoutes)
+app.use('/announcements', announcementRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))

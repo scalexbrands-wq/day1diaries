@@ -38,6 +38,7 @@ router.get('/data', async (req, res) => {
     featuredStories: featured.rows,
     stats: stats.rows[0],
     levels: levels.rows,
+    open_jobs: openJobs,
   })
 })
 
