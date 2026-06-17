@@ -10,11 +10,31 @@ const {
 } = require('@aws-sdk/client-cognito-identity-provider')
 const { pool } = require('../db/pool')
 const { requireAuth } = require('../middleware/auth')
+const whatsapp = require('../utils/whatsapp')
 
 const router = express.Router()
 const client = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION })
 const CLIENT_ID = process.env.COGNITO_CLIENT_ID
 const USER_POOL_ID = process.env.COGNITO_USER_POOL_ID
+
+// Sends the WhatsApp community welcome message the first time a user
+// (who provided a phone number) logs in — never again after that,
+// tracked via profiles.whatsapp_welcome_sent_at.
+async function maybeSendWhatsAppWelcome(sub) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT phone, full_name FROM profiles WHERE id = $1 AND phone IS NOT NULL AND whatsapp_welcome_sent_at IS NULL`,
+      [sub]
+    )
+    if (!rows.length) return
+    const sent = await whatsapp.sendWelcomeMessage(rows[0].phone, rows[0].full_name)
+    if (sent) {
+      await pool.query(`UPDATE profiles SET whatsapp_welcome_sent_at = now() WHERE id = $1`, [sub])
+    }
+  } catch (err) {
+    console.error('WhatsApp welcome error (non-fatal):', err.message)
+  }
+}
 
 // Reads the email_verification_required setting (defaults to true if missing/unset)
 async function isEmailVerificationRequired() {
@@ -33,7 +53,7 @@ async function isEmailVerificationRequired() {
 // ── POST /auth/signup ───────────────────────────────────────
 // body: { email, password, username, fullName }
 router.post('/signup', async (req, res) => {
-  const { email, password, username, fullName } = req.body
+  const { email, password, username, fullName, phone } = req.body
   if (!email || !password || !username) {
     return res.status(400).json({ error: 'email, password, and username are required' })
   }
@@ -76,10 +96,10 @@ router.post('/signup', async (req, res) => {
       const sub = payload.sub
 
       await pool.query(
-        `INSERT INTO profiles (id, username, full_name, email)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO profiles (id, username, full_name, email, phone)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (id) DO NOTHING`,
-        [sub, username, fullName || username, email]
+        [sub, username, fullName || username, email, phone || null]
       )
 
       // Daily login bonus on first login
@@ -89,6 +109,8 @@ router.post('/signup', async (req, res) => {
          WHERE id = $1 AND (last_login_date IS NULL OR last_login_date < CURRENT_DATE)`,
         [sub]
       )
+
+      await maybeSendWhatsAppWelcome(sub)
 
       return res.json({
         message: 'Account created successfully.',
@@ -119,7 +141,7 @@ router.post('/signup', async (req, res) => {
 // ── POST /auth/confirm ──────────────────────────────────────
 // body: { email, code, username, fullName }
 router.post('/confirm', async (req, res) => {
-  const { email, code, username, fullName } = req.body
+  const { email, code, username, fullName, phone } = req.body
   try {
     await client.send(new ConfirmSignUpCommand({
       ClientId: CLIENT_ID,
@@ -140,11 +162,13 @@ router.post('/confirm', async (req, res) => {
     const sub = payload.sub
 
     await pool.query(
-      `INSERT INTO profiles (id, username, full_name, email)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO profiles (id, username, full_name, email, phone)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (id) DO NOTHING`,
-      [sub, username, fullName || username, email]
+      [sub, username, fullName || username, email, phone || null]
     )
+
+    await maybeSendWhatsAppWelcome(sub)
 
     res.json({
       message: 'Account confirmed and profile created',
@@ -196,6 +220,13 @@ router.post('/signin', async (req, res) => {
       )
     } catch (bonusErr) {
       console.error('Daily login bonus error (non-fatal):', bonusErr.message)
+    }
+
+    try {
+      const payload = JSON.parse(Buffer.from(result.AuthenticationResult.IdToken.split('.')[1], 'base64').toString())
+      await maybeSendWhatsAppWelcome(payload.sub)
+    } catch (waErr) {
+      console.error('WhatsApp welcome trigger error (non-fatal):', waErr.message)
     }
 
     res.json({

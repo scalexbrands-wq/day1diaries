@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   getFeedStories, getTrendingStories, getLeaderboard, getHabits,
-  getUserHabitProgress, getSuggestedUsers, getMyUnlockedStoryIds
+  getUserHabitProgress, getSuggestedUsers, getMyUnlockedStoryIds,
+  getStoryCategories, getDepartments, getTopicFollows, toggleTopicFollow,
+  getStoriesByCategories, getCareersByDepartments
 } from '../lib/api'
 import StoryCard from '../components/StoryCard'
 import FollowButton from '../components/FollowButton'
@@ -83,6 +85,82 @@ function PeopleToFollowCard({ users, onFollow }) {
   )
 }
 
+/* ── Topic chip (category or company) with follow toggle ── */
+function TopicChip({ label, icon, following, onToggle }) {
+  return (
+    <button
+      onClick={onToggle}
+      style={{
+        display:'flex', alignItems:'center', gap:6, padding:'6px 12px',
+        borderRadius:100, fontSize:12, fontWeight:600, cursor:'pointer',
+        border: following ? '1.5px solid #FF6B2B' : '1.5px solid #E8DDD7',
+        background: following ? 'rgba(255,107,43,.08)' : 'white',
+        color: following ? '#FF6B2B' : '#1A0800',
+        whiteSpace:'nowrap', flexShrink:0,
+      }}
+    >
+      {icon && <span>{icon}</span>}
+      <span>{label}</span>
+      <span style={{ fontSize:11 }}>{following ? '✓' : '+'}</span>
+    </button>
+  )
+}
+
+/* ── Categories & Companies — browse + follow ── */
+function TopicsPanel({ categories, departments, followedCategories, followedDepartments, onToggleCategory, onToggleDepartment }) {
+  if (!categories.length && !departments.length) return null
+  return (
+    <div style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, padding:16, marginBottom:14 }}>
+      {categories.length > 0 && (
+        <div style={{ marginBottom: departments.length ? 14 : 0 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#1A0800', marginBottom:10 }}>📚 Categories</div>
+          <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:2 }}>
+            {categories.map(c => (
+              <TopicChip
+                key={c.name}
+                label={c.name}
+                icon={c.icon}
+                following={followedCategories.has(c.name)}
+                onToggle={() => onToggleCategory(c.name)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {departments.length > 0 && (
+        <div>
+          <div style={{ fontSize:12, fontWeight:700, color:'#1A0800', marginBottom:10 }}>🏢 Companies</div>
+          <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:2 }}>
+            {departments.map(d => (
+              <TopicChip
+                key={d}
+                label={d}
+                following={followedDepartments.has(d)}
+                onToggle={() => onToggleDepartment(d)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Job card (for the Following tab — jobs from followed companies) ── */
+function JobFollowCard({ job, navigate }) {
+  return (
+    <div onClick={() => navigate(`/careers/${job.id}`)} style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, padding:16, cursor:'pointer' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 }}>
+        <div>
+          <div style={{ fontSize:13, fontWeight:700, color:'#1A0800' }}>{job.title}</div>
+          <div style={{ fontSize:11, color:'#8C7B6E', marginTop:3 }}>🏢 {job.department} · 📍 {job.location}</div>
+        </div>
+        <span style={{ fontSize:10, fontWeight:700, color:'#FF6B2B', background:'rgba(255,107,43,.1)', borderRadius:100, padding:'4px 10px', whiteSpace:'nowrap' }}>{job.job_type}</span>
+      </div>
+    </div>
+  )
+}
+
 export default function Feed() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
@@ -97,6 +175,16 @@ export default function Feed() {
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const LIMIT = 8
+
+  // Categories / Companies follow state
+  const [activeTab, setActiveTab] = useState('forYou') // 'forYou' | 'following'
+  const [categories, setCategories] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [followedCategories, setFollowedCategories] = useState(new Set())
+  const [followedDepartments, setFollowedDepartments] = useState(new Set())
+  const [followingStories, setFollowingStories] = useState([])
+  const [followingJobs, setFollowingJobs] = useState([])
+  const [followingLoading, setFollowingLoading] = useState(false)
 
   const loadStories = useCallback(async (reset = false) => {
     setLoading(true)
@@ -117,7 +205,46 @@ export default function Feed() {
     getHabits().then(({ data }) => setHabits((data||[]).slice(0,4)))
     getSuggestedUsers(5).then(({ data }) => setSuggestedUsers(data || []))
     getMyUnlockedStoryIds().then(({ data }) => { if (data?.length) setUnlockedIds(new Set(data)) })
+    getStoryCategories().then(({ data }) => setCategories(data || []))
+    getDepartments().then(({ data }) => setDepartments(data || []))
+    getTopicFollows().then(({ data }) => {
+      setFollowedCategories(new Set(data?.categories || []))
+      setFollowedDepartments(new Set(data?.departments || []))
+    })
   }, [])
+
+  const loadFollowingTab = useCallback(async () => {
+    setFollowingLoading(true)
+    const [storiesRes, jobsRes] = await Promise.all([
+      followedCategories.size ? getStoriesByCategories([...followedCategories]) : Promise.resolve({ data: [] }),
+      followedDepartments.size ? getCareersByDepartments([...followedDepartments]) : Promise.resolve({ data: [] }),
+    ])
+    setFollowingStories(storiesRes.data || [])
+    setFollowingJobs(jobsRes.data || [])
+    setFollowingLoading(false)
+  }, [followedCategories, followedDepartments])
+
+  useEffect(() => { if (activeTab === 'following') loadFollowingTab() }, [activeTab, loadFollowingTab])
+
+  const handleToggleCategory = async (name) => {
+    const wasFollowing = followedCategories.has(name)
+    setFollowedCategories(prev => {
+      const next = new Set(prev)
+      wasFollowing ? next.delete(name) : next.add(name)
+      return next
+    })
+    await toggleTopicFollow('category', name)
+  }
+
+  const handleToggleDepartment = async (name) => {
+    const wasFollowing = followedDepartments.has(name)
+    setFollowedDepartments(prev => {
+      const next = new Set(prev)
+      wasFollowing ? next.delete(name) : next.add(name)
+      return next
+    })
+    await toggleTopicFollow('department', name)
+  }
 
   // FollowButton already calls the toggle API internally.
   // This handler only updates local state so the card disappears after following.
@@ -182,32 +309,73 @@ export default function Feed() {
           {/* Habit Progress */}
           <HabitProgressTile userId={user.id} navigate={navigate}/>
 
-          {/* Header */}
+          {/* Categories & Companies — browse + follow */}
+          <TopicsPanel
+            categories={categories}
+            departments={departments}
+            followedCategories={followedCategories}
+            followedDepartments={followedDepartments}
+            onToggleCategory={handleToggleCategory}
+            onToggleDepartment={handleToggleDepartment}
+          />
+
+          {/* Header + tabs */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-            <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.15rem', fontWeight:900, color:'#1A0800', margin:0 }}>My Feed</h2>
+            <div style={{ display:'flex', gap:6 }}>
+              {[['forYou','For You'],['following','Following']].map(([key,label]) => (
+                <button key={key} onClick={()=>setActiveTab(key)} style={{
+                  fontFamily:"'Playfair Display',serif", fontSize:'1.05rem', fontWeight:900,
+                  color: activeTab===key ? '#1A0800' : '#C9BBAF',
+                  background:'none', border:'none', cursor:'pointer', padding:'2px 0',
+                  borderBottom: activeTab===key ? '2.5px solid #FF6B2B' : '2.5px solid transparent',
+                }}>{label}</button>
+              ))}
+            </div>
             <button className="btn btn-primary" onClick={()=>navigate('/write')} style={{ padding:'7px 16px', fontSize:12, borderRadius:100 }}>+ Write</button>
           </div>
 
           {/* Feed items */}
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {feedItems.map(item =>
-              item.type === 'story'
-                ? <StoryCard key={item.key} story={item.data} isLocked={isStoryLocked(item.data)} onUnlock={handleUnlock}/>
-                : <PeopleToFollowCard key={item.key} users={suggestedUsers.filter(u=>!followedUsers.has(u.id))} onFollow={handleFollow}/>
-            )}
-            {loading && <div className="loading-center"><div className="spinner"/></div>}
-            {!loading && stories.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-state-icon">📭</div>
-                <h3>No stories yet</h3>
-                <p>Follow some creators to see their stories here, or share your own!</p>
-                <button className="btn btn-primary" onClick={() => navigate('/write')}>Share Your Story</button>
-              </div>
-            )}
-            {!loading && hasMore && stories.length > 0 && (
-              <button className="btn btn-secondary" style={{ alignSelf:'center' }} onClick={() => loadStories()}>Load More</button>
-            )}
-          </div>
+          {activeTab === 'forYou' ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {feedItems.map(item =>
+                item.type === 'story'
+                  ? <StoryCard key={item.key} story={item.data} isLocked={isStoryLocked(item.data)} onUnlock={handleUnlock}/>
+                  : <PeopleToFollowCard key={item.key} users={suggestedUsers.filter(u=>!followedUsers.has(u.id))} onFollow={handleFollow}/>
+              )}
+              {loading && <div className="loading-center"><div className="spinner"/></div>}
+              {!loading && stories.length === 0 && (
+                <div className="empty-state">
+                  <div className="empty-state-icon">📭</div>
+                  <h3>No stories yet</h3>
+                  <p>Follow some creators to see their stories here, or share your own!</p>
+                  <button className="btn btn-primary" onClick={() => navigate('/write')}>Share Your Story</button>
+                </div>
+              )}
+              {!loading && hasMore && stories.length > 0 && (
+                <button className="btn btn-secondary" style={{ alignSelf:'center' }} onClick={() => loadStories()}>Load More</button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {followingLoading && <div className="loading-center"><div className="spinner"/></div>}
+              {!followingLoading && !followedCategories.size && !followedDepartments.size && (
+                <div className="empty-state">
+                  <div className="empty-state-icon">⭐</div>
+                  <h3>Nothing followed yet</h3>
+                  <p>Follow categories and companies above to see their stories and jobs here.</p>
+                </div>
+              )}
+              {!followingLoading && followingJobs.map(job => <JobFollowCard key={job.id} job={job} navigate={navigate}/>)}
+              {!followingLoading && followingStories.map(s => <StoryCard key={s.id} story={s} isLocked={isStoryLocked(s)} onUnlock={handleUnlock}/>)}
+              {!followingLoading && (followedCategories.size || followedDepartments.size) && !followingJobs.length && !followingStories.length && (
+                <div className="empty-state">
+                  <div className="empty-state-icon">📭</div>
+                  <h3>No matches yet</h3>
+                  <p>No stories or jobs found for what you're following right now — check back soon.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── RIGHT SIDEBAR ── */}

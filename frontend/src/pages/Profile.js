@@ -10,6 +10,7 @@ import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
 import { formatDistanceToNow } from 'date-fns'
 import ShareButton, { profileShareText } from '../components/ShareButton'
+import ProfileQRCard from '../components/ProfileQRCard'
 
 const LEVELS = {
   Beginner:'🥉', Explorer:'🥈', Achiever:'🥇',
@@ -263,6 +264,7 @@ export default function Profile() {
                   label="Share"
                   size="sm"
                 />
+                <ProfileQRCard profile={profile} />
               </>
             ) : (
               <>
@@ -280,6 +282,7 @@ export default function Profile() {
                   label="Share"
                   size="sm"
                 />
+                <ProfileQRCard profile={profile} />
                 {isAdmin && (
                   <button className="btn btn-secondary btn-sm" onClick={async () => {
                     const newRole = profile.role === 'contributor' ? 'user' : 'contributor'

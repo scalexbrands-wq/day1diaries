@@ -10,7 +10,7 @@ export default function Register() {
   const { reloadSession } = useAuth()
   const [step, setStep] = useState(location.state?.step === 'confirm' ? 'confirm' : 'signup')
   const [form, setForm] = useState({
-    email: location.state?.email || '', password: '', full_name: '', username: ''
+    email: location.state?.email || '', password: '', full_name: '', username: '', phone: ''
   })
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -27,7 +27,7 @@ export default function Register() {
     if (form.password.length < 8) { toast.error('Password must be at least 8 characters, with upper/lowercase and a number'); return }
     setLoading(true)
     const username = form.username.toLowerCase().replace(/\s+/g, '-')
-    const { data, error } = await signUp(form.email, form.password, { full_name: form.full_name, username })
+    const { data, error } = await signUp(form.email, form.password, { full_name: form.full_name, username, phone: form.phone })
     if (error) { setLoading(false); toast.error(error.message); return }
 
     if (data?.autoConfirmed) {
@@ -48,7 +48,7 @@ export default function Register() {
     e.preventDefault()
     setLoading(true)
     const username = form.username.toLowerCase().replace(/\s+/g, '-')
-    const { error } = await confirmSignUp(form.email, code, form.password, username, form.full_name)
+    const { error } = await confirmSignUp(form.email, code, form.password, username, form.full_name, form.phone)
     if (error) { setLoading(false); toast.error(error.message); return }
     await reloadSession()
     setLoading(false)
@@ -115,6 +115,11 @@ export default function Register() {
           <div className="form-group">
             <label className="form-label">Email</label>
             <input type="email" className="form-control" placeholder="you@example.com" value={form.email} onChange={set('email')} required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">WhatsApp Number</label>
+            <input type="tel" className="form-control" placeholder="+91XXXXXXXXXX" value={form.phone} onChange={set('phone')} required />
+            <div style={{ fontSize:'11px', color:'var(--gray-400)', marginTop:4 }}>We'll send you a welcome message with our WhatsApp community invite.</div>
           </div>
           <div className="form-group">
             <label className="form-label">Password</label>

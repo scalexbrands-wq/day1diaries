@@ -144,12 +144,20 @@ adminRouter.delete('/blog/:id', requireAuth, requireRole('admin'), async (req, r
 // ============================================================
 
 // ── GET /pages/careers — public, active jobs ────────────────────
+// optional query: departments=a,b — filter to jobs in those departments ("companies")
 router.get('/careers', async (req, res) => {
+  const departments = (req.query.departments || '').split(',').map(d => d.trim()).filter(Boolean)
+  const where = departments.length
+    ? `j.is_active = true AND j.department = ANY($1)`
+    : `j.is_active = true`
+  const params = departments.length ? [departments] : []
+
   const { rows } = await pool.query(
     `SELECT j.id, j.title, j.department, j.location, j.job_type, j.salary_min, j.salary_max, j.currency,
             j.description, j.requirements, j.created_at,
             (SELECT count(*) FROM job_applications a WHERE a.job_id = j.id) AS applications_count
-     FROM careers_jobs j WHERE j.is_active = true ORDER BY j.sort_order, j.created_at DESC`
+     FROM careers_jobs j WHERE ${where} ORDER BY j.sort_order, j.created_at DESC`,
+    params
   )
   res.json({ jobs: rows })
 })

@@ -25,5 +25,6 @@ CREATE TABLE IF NOT EXISTS pending_signups (
   full_name     text,
   password_hash text NOT NULL,
   code          text NOT NULL,
+  phone         text,
   created_at    timestamptz DEFAULT now()
 );

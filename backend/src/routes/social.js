@@ -91,6 +91,49 @@ router.get('/followers/:userId', async (req, res) => {
   res.json({ followers: rows })
 })
 
+// ── TOPIC FOLLOWS (categories & companies/departments) ─────────
+
+// GET /social/topic-follows — categories + departments the current user follows
+router.get('/topic-follows', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT topic_type, topic_value FROM topic_follows WHERE user_id = $1',
+    [req.cognitoSub]
+  )
+  res.json({
+    categories: rows.filter(r => r.topic_type === 'category').map(r => r.topic_value),
+    departments: rows.filter(r => r.topic_type === 'department').map(r => r.topic_value),
+  })
+})
+
+// POST /social/toggle-topic-follow  body: { type: 'category'|'department', value }
+router.post('/toggle-topic-follow', requireAuth, async (req, res) => {
+  const { type, value } = req.body
+  if (!['category', 'department'].includes(type) || !value?.trim()) {
+    return res.status(400).json({ error: 'type must be category or department, and value is required' })
+  }
+  const { rows } = await pool.query(
+    'SELECT id FROM topic_follows WHERE user_id = $1 AND topic_type = $2 AND topic_value = $3',
+    [req.cognitoSub, type, value]
+  )
+  if (rows.length) {
+    await pool.query('DELETE FROM topic_follows WHERE id = $1', [rows[0].id])
+    return res.json({ following: false })
+  }
+  await pool.query(
+    'INSERT INTO topic_follows (user_id, topic_type, topic_value) VALUES ($1, $2, $3)',
+    [req.cognitoSub, type, value]
+  )
+  res.json({ following: true })
+})
+
+// GET /social/departments — distinct departments ("companies") from active job listings
+router.get('/departments', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT department FROM careers_jobs WHERE is_active = true AND department IS NOT NULL ORDER BY department`
+  )
+  res.json({ departments: rows.map(r => r.department) })
+})
+
 // ── LEADERBOARD ───────────────────────────────────────────────
 
 // GET /social/leaderboard?limit=20

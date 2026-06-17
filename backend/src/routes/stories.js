@@ -86,6 +86,24 @@ router.get('/feed', requireAuth, async (req, res) => {
   res.json({ stories: rows, mode: 'mixed' })
 })
 
+// ── GET /stories/by-categories?categories=a,b,c — stories matching any of the given categories ──
+router.get('/by-categories', async (req, res) => {
+  const categories = (req.query.categories || '').split(',').map(c => c.trim()).filter(Boolean)
+  const page = parseInt(req.query.page) || 0
+  const limit = parseInt(req.query.limit) || 10
+  if (!categories.length) return res.json({ stories: [] })
+
+  const { rows } = await pool.query(
+    `SELECT ${STORY_SELECT} FROM stories s
+     JOIN profiles p ON p.id = s.user_id
+     WHERE s.status = 'published' AND s.visibility = 'public' AND s.category = ANY($1)
+     ORDER BY s.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [categories, limit, page * limit]
+  )
+  res.json({ stories: rows })
+})
+
 // ── GET /stories/categories — returns active categories from DB ──
 router.get('/categories', async (req, res) => {
   const { rows } = await pool.query(

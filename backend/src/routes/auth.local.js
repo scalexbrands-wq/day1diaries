@@ -16,10 +16,30 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const { pool } = require('../db/pool')
 const { requireAuth } = require('../middleware/auth')
+const whatsapp = require('../utils/whatsapp')
 
 const router = express.Router()
 const JWT_SECRET = process.env.LOCAL_JWT_SECRET || 'dev-only-insecure-secret'
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60 // 1 hour
+
+// Sends the WhatsApp community welcome message the first time a user
+// (who provided a phone number) logs in — never again after that,
+// tracked via profiles.whatsapp_welcome_sent_at.
+async function maybeSendWhatsAppWelcome(sub) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT phone, full_name FROM profiles WHERE id = $1 AND phone IS NOT NULL AND whatsapp_welcome_sent_at IS NULL`,
+      [sub]
+    )
+    if (!rows.length) return
+    const sent = await whatsapp.sendWelcomeMessage(rows[0].phone, rows[0].full_name)
+    if (sent) {
+      await pool.query(`UPDATE profiles SET whatsapp_welcome_sent_at = now() WHERE id = $1`, [sub])
+    }
+  } catch (err) {
+    console.error('WhatsApp welcome error (non-fatal):', err.message)
+  }
+}
 
 function signTokens(sub, email) {
   const accessToken = jwt.sign({ sub, email }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL_SECONDS })
@@ -58,7 +78,7 @@ function generateCode() {
 // email transport in local dev, so when verification IS required the
 // "code" is printed to the backend console instead of emailed.
 router.post('/signup', async (req, res) => {
-  const { email, password, username, fullName } = req.body
+  const { email, password, username, fullName, phone } = req.body
   if (!email || !password || !username) {
     return res.status(400).json({ error: 'email, password, and username are required' })
   }
@@ -81,13 +101,14 @@ router.post('/signup', async (req, res) => {
     if (!verificationRequired) {
       const sub = crypto.randomUUID()
       await pool.query(
-        `INSERT INTO profiles (id, username, full_name, email) VALUES ($1, $2, $3, $4)`,
-        [sub, username, fullName || username, email]
+        `INSERT INTO profiles (id, username, full_name, email, phone) VALUES ($1, $2, $3, $4, $5)`,
+        [sub, username, fullName || username, email, phone || null]
       )
       await pool.query(
         `INSERT INTO local_credentials (profile_id, password_hash) VALUES ($1, $2)`,
         [sub, passwordHash]
       )
+      await maybeSendWhatsAppWelcome(sub)
       return res.json({
         message: 'Account created successfully.',
         autoConfirmed: true,
@@ -97,10 +118,10 @@ router.post('/signup', async (req, res) => {
 
     const code = generateCode()
     await pool.query(
-      `INSERT INTO pending_signups (email, username, full_name, password_hash, code)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (email) DO UPDATE SET username=$2, full_name=$3, password_hash=$4, code=$5, created_at=now()`,
-      [email, username, fullName || username, passwordHash, code]
+      `INSERT INTO pending_signups (email, username, full_name, password_hash, code, phone)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (email) DO UPDATE SET username=$2, full_name=$3, password_hash=$4, code=$5, phone=$6, created_at=now()`,
+      [email, username, fullName || username, passwordHash, code, phone || null]
     )
     console.log(`[local-auth] verification code for ${email}: ${code}`)
 
@@ -129,14 +150,15 @@ router.post('/confirm', async (req, res) => {
 
     const sub = crypto.randomUUID()
     await pool.query(
-      `INSERT INTO profiles (id, username, full_name, email) VALUES ($1, $2, $3, $4)`,
-      [sub, pending.username, pending.full_name, email]
+      `INSERT INTO profiles (id, username, full_name, email, phone) VALUES ($1, $2, $3, $4, $5)`,
+      [sub, pending.username, pending.full_name, email, pending.phone || null]
     )
     await pool.query(
       `INSERT INTO local_credentials (profile_id, password_hash) VALUES ($1, $2)`,
       [sub, pending.password_hash]
     )
     await pool.query('DELETE FROM pending_signups WHERE email = $1', [email])
+    await maybeSendWhatsAppWelcome(sub)
 
     res.json({
       message: 'Account confirmed and profile created',
@@ -177,6 +199,7 @@ router.post('/signin', async (req, res) => {
     if (!row || !(await bcrypt.compare(password, row.password_hash))) {
       return res.status(401).json({ error: 'Invalid email or password' })
     }
+    await maybeSendWhatsAppWelcome(row.id)
     res.json({ tokens: signTokens(row.id, row.email) })
   } catch (err) {
     console.error('Local signin error:', err)

@@ -42,16 +42,16 @@ async function apiFetch(path, options = {}) {
 export const signUp = async (email, password, metadata = {}) => {
   const result = await apiFetch('/auth/signup', {
     method: 'POST',
-    body: JSON.stringify({ email, password, username: metadata.username, fullName: metadata.full_name }),
+    body: JSON.stringify({ email, password, username: metadata.username, fullName: metadata.full_name, phone: metadata.phone }),
   })
   if (result.data?.tokens) storeTokens(result.data.tokens)
   return result
 }
 
-export const confirmSignUp = async (email, code, password, username, fullName) => {
+export const confirmSignUp = async (email, code, password, username, fullName, phone) => {
   const result = await apiFetch('/auth/confirm', {
     method: 'POST',
-    body: JSON.stringify({ email, code, password, username, fullName }),
+    body: JSON.stringify({ email, code, password, username, fullName, phone }),
   })
   if (result.data?.tokens) storeTokens(result.data.tokens)
   return result
@@ -243,6 +243,34 @@ export const toggleFollow = async (targetUserId) => {
 export const getFollowing = async (userId) => {
   const result = await apiFetch('/social/following')
   return { data: (result.data?.following || []).map(id => ({ following_id: id })), error: result.error }
+}
+
+// ── Topic follows (categories & companies/departments) ──────────
+export const getTopicFollows = async () => {
+  const result = await apiFetch('/social/topic-follows')
+  return { data: result.data || { categories: [], departments: [] }, error: result.error }
+}
+
+export const toggleTopicFollow = async (type, value) => {
+  const result = await apiFetch('/social/toggle-topic-follow', { method: 'POST', body: JSON.stringify({ type, value }) })
+  return { data: result.data || { following: false }, error: result.error }
+}
+
+export const getDepartments = async () => {
+  const result = await apiFetch('/social/departments')
+  return { data: result.data?.departments || [], error: result.error }
+}
+
+export const getStoriesByCategories = async (categories, page = 0, limit = 10) => {
+  const params = new URLSearchParams({ categories: (categories || []).join(','), page, limit })
+  const result = await apiFetch(`/stories/by-categories?${params}`)
+  return { data: result.data?.stories || [], error: result.error }
+}
+
+export const getCareersByDepartments = async (departments) => {
+  const params = new URLSearchParams({ departments: (departments || []).join(',') })
+  const result = await apiFetch(`/pages/careers?${params}`)
+  return { data: result.data?.jobs || [], error: result.error }
 }
 
 export const getFollowers = async (userId) => {

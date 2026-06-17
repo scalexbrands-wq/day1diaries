@@ -44,6 +44,9 @@ async function initDB() {
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS score INT DEFAULT 0`)
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS coins INT DEFAULT 0`)
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false`)
+    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT`)
+    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent_at TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE pending_signups ADD COLUMN IF NOT EXISTS phone TEXT`).catch(() => {})
     await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS flag_reason TEXT`)
     // job_applications user tracking columns
     await pool.query(`ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS user_id TEXT`)
@@ -71,6 +74,17 @@ async function initDB() {
         announcement_id  UUID NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
         read_at          TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE(user_id, announcement_id)
+      )
+    `)
+    // topic_follows — user follows of story categories and job departments ("companies")
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS topic_follows (
+        id          BIGSERIAL PRIMARY KEY,
+        user_id     TEXT NOT NULL,
+        topic_type  TEXT NOT NULL CHECK (topic_type IN ('category','department')),
+        topic_value TEXT NOT NULL,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, topic_type, topic_value)
       )
     `)
     console.log('DB schema init OK')
