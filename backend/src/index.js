@@ -4,6 +4,12 @@
 require('dotenv').config()
 
 const express = require('express')
+// Patches Express so a rejected promise / thrown error inside an async
+// route handler reaches the error-handling middleware below via
+// next(err), instead of becoming an unhandled rejection that crashes
+// the whole process (and takes down the API for every user). Must be
+// required after express, before any router is created.
+require('express-async-errors')
 const cors = require('cors')
 const helmet = require('helmet')
 const morgan = require('morgan')

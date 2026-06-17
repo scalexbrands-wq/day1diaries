@@ -4,6 +4,13 @@ const { requireAuth, optionalAuth } = require('../middleware/auth')
 
 const router = express.Router()
 
+// ── GET /profiles/by-id/:userId ──────────────────────────────
+router.get('/by-id/:userId', async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM profiles WHERE id = $1', [req.params.userId])
+  if (!rows.length) return res.status(404).json({ error: 'Profile not found' })
+  res.json({ profile: rows[0] })
+})
+
 // ── GET /profiles/:username ─────────────────────────────────
 router.get('/:username', optionalAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM profiles WHERE username = $1', [req.params.username])

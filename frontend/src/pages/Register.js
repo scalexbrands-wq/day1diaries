@@ -17,15 +17,28 @@ export default function Register() {
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
-  // ── Step 1: create the Cognito account ──────────────────────
+  // ── Step 1: create the account ───────────────────────────────
+  // If an admin has turned off email verification, signUp() comes
+  // back already confirmed (with tokens stored) — skip straight to
+  // the feed instead of showing a confirmation step that has no
+  // code to enter.
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (form.password.length < 8) { toast.error('Password must be at least 8 characters, with upper/lowercase and a number'); return }
     setLoading(true)
     const username = form.username.toLowerCase().replace(/\s+/g, '-')
-    const { error } = await signUp(form.email, form.password, { full_name: form.full_name, username })
+    const { data, error } = await signUp(form.email, form.password, { full_name: form.full_name, username })
+    if (error) { setLoading(false); toast.error(error.message); return }
+
+    if (data?.autoConfirmed) {
+      await reloadSession()
+      setLoading(false)
+      toast.success('Welcome to Day1 Diaries 🎉')
+      navigate('/feed')
+      return
+    }
+
     setLoading(false)
-    if (error) { toast.error(error.message); return }
     toast.success('Check your email for a 6-digit verification code!')
     setStep('confirm')
   }

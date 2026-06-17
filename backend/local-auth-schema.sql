@@ -14,3 +14,16 @@ CREATE TABLE IF NOT EXISTS local_credentials (
   password_hash text NOT NULL,
   created_at    timestamptz DEFAULT now()
 );
+
+-- Holds signups awaiting email confirmation when an admin has
+-- app_settings.email_verification_required = true. There's no real
+-- email transport locally, so the "code" is printed to the backend
+-- console instead of sent — see routes/auth.local.js.
+CREATE TABLE IF NOT EXISTS pending_signups (
+  email         text PRIMARY KEY,
+  username      text NOT NULL,
+  full_name     text,
+  password_hash text NOT NULL,
+  code          text NOT NULL,
+  created_at    timestamptz DEFAULT now()
+);

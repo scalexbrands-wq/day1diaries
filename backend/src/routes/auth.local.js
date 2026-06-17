@@ -31,9 +31,32 @@ function signTokens(sub, email) {
   }
 }
 
+// Mirrors routes/auth.js's isEmailVerificationRequired — reads the
+// same admin-controlled app_settings row so toggling it in the admin
+// Settings tab behaves the same in local dev as it does with Cognito.
+async function isEmailVerificationRequired() {
+  try {
+    const { rows } = await pool.query(
+      `SELECT value FROM app_settings WHERE key = 'email_verification_required'`
+    )
+    if (!rows.length) return true
+    return rows[0].value === true || rows[0].value === 'true'
+  } catch (err) {
+    console.error('Settings lookup error:', err.message)
+    return true
+  }
+}
+
+function generateCode() {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
 // ── POST /auth/signup ───────────────────────────────────────
 // body: { email, password, username, fullName }
-// Auto-confirmed — no email verification step in local dev.
+// Skips straight to a confirmed account unless an admin has turned
+// on email_verification_required (Admin → Settings). There's no real
+// email transport in local dev, so when verification IS required the
+// "code" is printed to the backend console instead of emailed.
 router.post('/signup', async (req, res) => {
   const { email, password, username, fullName } = req.body
   if (!email || !password || !username) {
@@ -52,22 +75,40 @@ router.post('/signup', async (req, res) => {
       return res.status(409).json({ error: 'Username or email already taken' })
     }
 
-    const sub = crypto.randomUUID()
     const passwordHash = await bcrypt.hash(password, 10)
+    const verificationRequired = await isEmailVerificationRequired()
 
+    if (!verificationRequired) {
+      const sub = crypto.randomUUID()
+      await pool.query(
+        `INSERT INTO profiles (id, username, full_name, email) VALUES ($1, $2, $3, $4)`,
+        [sub, username, fullName || username, email]
+      )
+      await pool.query(
+        `INSERT INTO local_credentials (profile_id, password_hash) VALUES ($1, $2)`,
+        [sub, passwordHash]
+      )
+      return res.json({
+        message: 'Account created successfully.',
+        autoConfirmed: true,
+        tokens: signTokens(sub, email),
+      })
+    }
+
+    const code = generateCode()
     await pool.query(
-      `INSERT INTO profiles (id, username, full_name, email) VALUES ($1, $2, $3, $4)`,
-      [sub, username, fullName || username, email]
+      `INSERT INTO pending_signups (email, username, full_name, password_hash, code)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (email) DO UPDATE SET username=$2, full_name=$3, password_hash=$4, code=$5, created_at=now()`,
+      [email, username, fullName || username, passwordHash, code]
     )
-    await pool.query(
-      `INSERT INTO local_credentials (profile_id, password_hash) VALUES ($1, $2)`,
-      [sub, passwordHash]
-    )
+    console.log(`[local-auth] verification code for ${email}: ${code}`)
 
     res.json({
-      message: 'Account created successfully (local dev — auto-confirmed).',
-      autoConfirmed: true,
-      tokens: signTokens(sub, email),
+      message: 'Signup successful. Check the backend console for your verification code (no real email in local dev).',
+      autoConfirmed: false,
+      username,
+      fullName,
     })
   } catch (err) {
     console.error('Local signup error:', err)
@@ -76,14 +117,48 @@ router.post('/signup', async (req, res) => {
 })
 
 // ── POST /auth/confirm ──────────────────────────────────────
-// No-op in local dev — accounts are auto-confirmed at signup.
+// body: { email, code }
 router.post('/confirm', async (req, res) => {
-  res.status(400).json({ error: 'Email confirmation is not used in local dev mode — accounts are auto-confirmed at signup.' })
+  const { email, code } = req.body
+  try {
+    const { rows } = await pool.query('SELECT * FROM pending_signups WHERE email = $1', [email])
+    const pending = rows[0]
+    if (!pending || pending.code !== code) {
+      return res.status(400).json({ error: 'Invalid or expired verification code' })
+    }
+
+    const sub = crypto.randomUUID()
+    await pool.query(
+      `INSERT INTO profiles (id, username, full_name, email) VALUES ($1, $2, $3, $4)`,
+      [sub, pending.username, pending.full_name, email]
+    )
+    await pool.query(
+      `INSERT INTO local_credentials (profile_id, password_hash) VALUES ($1, $2)`,
+      [sub, pending.password_hash]
+    )
+    await pool.query('DELETE FROM pending_signups WHERE email = $1', [email])
+
+    res.json({
+      message: 'Account confirmed and profile created',
+      tokens: signTokens(sub, email),
+    })
+  } catch (err) {
+    console.error('Local confirm error:', err)
+    res.status(400).json({ error: err.message })
+  }
 })
 
 // ── POST /auth/resend-code ──────────────────────────────────
 router.post('/resend-code', async (req, res) => {
-  res.status(400).json({ error: 'Email confirmation is not used in local dev mode.' })
+  const { email } = req.body
+  const code = generateCode()
+  const { rowCount } = await pool.query(
+    'UPDATE pending_signups SET code = $1, created_at = now() WHERE email = $2',
+    [code, email]
+  )
+  if (!rowCount) return res.status(404).json({ error: 'No pending signup for this email' })
+  console.log(`[local-auth] resent verification code for ${email}: ${code}`)
+  res.json({ message: 'Verification code resent (check the backend console in local dev)' })
 })
 
 // ── POST /auth/signin ───────────────────────────────────────
@@ -143,7 +218,7 @@ router.get('/me', requireAuth, async (req, res) => {
 
 // ── GET /auth/config ─────────────────────────────────────────
 router.get('/config', async (req, res) => {
-  res.json({ emailVerificationRequired: false })
+  res.json({ emailVerificationRequired: await isEmailVerificationRequired() })
 })
 
 module.exports = router

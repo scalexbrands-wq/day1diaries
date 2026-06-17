@@ -117,9 +117,15 @@ export const signInGoogle = () => {
 // PROFILES
 // ============================================================
 
-export const getProfile = (userId) => apiFetch(`/profiles/by-id/${userId}`)
+export const getProfile = async (userId) => {
+  const result = await apiFetch(`/profiles/by-id/${userId}`)
+  return { data: result.data?.profile, error: result.error }
+}
 
-export const getProfileByUsername = (username) => apiFetch(`/profiles/${username}`)
+export const getProfileByUsername = async (username) => {
+  const result = await apiFetch(`/profiles/${username}`)
+  return { data: result.data?.profile, error: result.error }
+}
 
 export const getProfileLiveCounts = async (username) => {
   const result = await apiFetch(`/profiles/${username}/live-counts`)

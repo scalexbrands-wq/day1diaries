@@ -56,6 +56,9 @@ router.get('/coins', requireAuth, async (req, res) => {
 // POST /social/toggle-follow/:targetUserId
 router.post('/toggle-follow/:targetUserId', requireAuth, async (req, res) => {
   const targetId = req.params.targetUserId
+  if (!targetId || targetId === 'undefined' || targetId === 'null') {
+    return res.status(400).json({ error: 'Invalid target user' })
+  }
   if (targetId === req.cognitoSub) return res.status(400).json({ error: 'Cannot follow yourself' })
 
   const { rows } = await pool.query(

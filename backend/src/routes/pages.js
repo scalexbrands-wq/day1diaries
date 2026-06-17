@@ -146,9 +146,10 @@ adminRouter.delete('/blog/:id', requireAuth, requireRole('admin'), async (req, r
 // ── GET /pages/careers — public, active jobs ────────────────────
 router.get('/careers', async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT id, title, department, location, job_type, salary_min, salary_max, currency,
-            description, requirements, created_at
-     FROM careers_jobs WHERE is_active = true ORDER BY sort_order, created_at DESC`
+    `SELECT j.id, j.title, j.department, j.location, j.job_type, j.salary_min, j.salary_max, j.currency,
+            j.description, j.requirements, j.created_at,
+            (SELECT count(*) FROM job_applications a WHERE a.job_id = j.id) AS applications_count
+     FROM careers_jobs j WHERE j.is_active = true ORDER BY j.sort_order, j.created_at DESC`
   )
   res.json({ jobs: rows })
 })
@@ -182,8 +183,24 @@ router.post('/careers/:id/apply', async (req, res) => {
 
 // ── GET /admin/pages/careers — admin, all jobs ────────────────────
 adminRouter.get('/careers', requireAuth, requireRole('admin'), async (req, res) => {
-  const { rows } = await pool.query('SELECT * FROM careers_jobs ORDER BY sort_order, created_at DESC')
+  const { rows } = await pool.query(
+    `SELECT j.*, (SELECT count(*) FROM job_applications a WHERE a.job_id = j.id) AS applications_count
+     FROM careers_jobs j ORDER BY j.sort_order, j.created_at DESC`
+  )
   res.json({ jobs: rows })
+})
+
+// ── GET /admin/pages/careers/stats — admin, KPI summary ──────────
+adminRouter.get('/careers/stats', requireAuth, requireRole('admin'), async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT json_build_object(
+      'open_jobs',         (SELECT count(*) FROM careers_jobs WHERE is_active = true),
+      'total_jobs',        (SELECT count(*) FROM careers_jobs),
+      'total_applications',(SELECT count(*) FROM job_applications),
+      'new_applications',  (SELECT count(*) FROM job_applications WHERE status = 'new')
+    ) AS stats
+  `)
+  res.json({ stats: rows[0].stats })
 })
 
 // ── POST /admin/pages/careers — create or update a job ─────────────
