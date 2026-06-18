@@ -50,9 +50,7 @@ export default function CertificateViewer() {
         <button className="btn btn-secondary" onClick={() => setShareOpen(true)}>Share Certificate</button>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8, borderTop: '1px solid #F0EAE4' }}>
-        <QRCodeSection url={certificate.qr_target_url} />
-      </div>
+      <QRCodeSection url={certificate.qr_target_url} />
 
       {shareOpen && <CertificateShareModal certificate={certificate} onClose={() => setShareOpen(false)} />}
     </div>

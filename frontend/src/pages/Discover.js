@@ -11,7 +11,7 @@ export default function Discover() {
   const { user } = useAuth()
   const [params] = useSearchParams()
   const [stories, setStories] = useState([])
-  const [cat, setCat] = useState('All')
+  const [cat, setCat] = useState(params.get('category') || 'All')
   const [search, setSearch] = useState(params.get('q') || '')
   const [loading, setLoading] = useState(true)
   const [sort, setSort] = useState('latest')
@@ -21,7 +21,11 @@ export default function Discover() {
 
   useEffect(() => {
     getStoryCategories().then(({ data }) => {
-      if (data?.length) setCats(['All', ...data.map(c => c.name)])
+      if (data?.length) {
+        const names = data.map(c => c.name)
+        const fromUrl = params.get('category')
+        setCats(['All', ...(fromUrl && !names.includes(fromUrl) ? [fromUrl, ...names] : names)])
+      }
     })
     // Restore unlocked story IDs from DB so refreshing doesn't re-lock paid stories
     if (user) {

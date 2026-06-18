@@ -31,6 +31,18 @@ router.get('/users', requireAuth, requireRole('admin'), async (req, res) => {
   res.json({ users: rows })
 })
 
+// ── GET /admin/users/:id/stories ───────────────────────────────
+// Stories published by a user — used by the admin certificate generator
+// to pick which story to issue a certificate for.
+router.get('/users/:id/stories', requireAuth, requireRole('admin'), async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, title, category, created_at FROM stories
+     WHERE user_id = $1 AND status = 'published' ORDER BY created_at DESC`,
+    [req.params.id]
+  )
+  res.json({ stories: rows })
+})
+
 // ── PATCH /admin/users/:id/role ────────────────────────────────
 // body: { role }  — 'user' | 'contributor' | 'admin'
 router.patch('/users/:id/role', requireAuth, requireRole('admin'), async (req, res) => {

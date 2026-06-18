@@ -85,43 +85,62 @@ function PeopleToFollowCard({ users, onFollow }) {
   )
 }
 
-/* ── Topic chip (category or company) with follow toggle ── */
-function TopicChip({ label, icon, following, onToggle }) {
+/* ── Topic card (category or company) with a dedicated Follow button ── */
+function TopicCard({ label, icon, following, onToggle, onClick }) {
   return (
-    <button
-      onClick={onToggle}
+    <div
+      className="topic-card"
+      onClick={onClick}
       style={{
-        display:'flex', alignItems:'center', gap:6, padding:'6px 12px',
-        borderRadius:100, fontSize:12, fontWeight:600, cursor:'pointer',
-        border: following ? '1.5px solid #FF6B2B' : '1.5px solid #E8DDD7',
-        background: following ? 'rgba(255,107,43,.08)' : 'white',
-        color: following ? '#FF6B2B' : '#1A0800',
-        whiteSpace:'nowrap', flexShrink:0,
+        display:'flex', alignItems:'center', gap:10, padding:'10px 12px',
+        borderRadius:12, minWidth:0, cursor: onClick ? 'pointer' : 'default',
+        border: following ? '1.5px solid #FF6B2B' : '1px solid #F0EAE4',
+        background: following ? 'rgba(255,107,43,.05)' : 'white',
       }}
     >
-      {icon && <span>{icon}</span>}
-      <span>{label}</span>
-      <span style={{ fontSize:11 }}>{following ? '✓' : '+'}</span>
-    </button>
+      <div style={{ fontSize:18, flexShrink:0 }}>{icon || '🏢'}</div>
+      <div style={{ flex:1, minWidth:0, fontSize:12.5, fontWeight:600, color:'#1A0800', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={label}>
+        {label}
+      </div>
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggle() }}
+        style={{
+          flexShrink:0, padding:'5px 12px', borderRadius:100, fontSize:11, fontWeight:600, cursor:'pointer',
+          border: following ? '1.5px solid #DDD3CA' : '1.5px solid #FF6B2B',
+          background: following ? 'transparent' : '#FF6B2B',
+          color: following ? '#8C7B6E' : 'white',
+        }}
+      >
+        {following ? 'Following ✓' : '+ Follow'}
+      </button>
+    </div>
   )
 }
 
+const VISIBLE_CATEGORIES = 3
+
 /* ── Categories & Companies — browse + follow ── */
-function TopicsPanel({ categories, departments, followedCategories, followedDepartments, onToggleCategory, onToggleDepartment }) {
+function TopicsPanel({ categories, departments, followedCategories, followedDepartments, onToggleCategory, onToggleDepartment, onCategoryClick }) {
   if (!categories.length && !departments.length) return null
+  const shownCategories = categories.slice(0, VISIBLE_CATEGORIES)
   return (
     <div style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, padding:16, marginBottom:14 }}>
-      {categories.length > 0 && (
-        <div style={{ marginBottom: departments.length ? 14 : 0 }}>
+      <style>{`
+        .topic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+        @media(max-width:520px){ .topic-grid { grid-template-columns:1fr; } }
+      `}</style>
+      {shownCategories.length > 0 && (
+        <div style={{ marginBottom: departments.length ? 16 : 0 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#1A0800', marginBottom:10 }}>📚 Categories</div>
-          <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:2 }}>
-            {categories.map(c => (
-              <TopicChip
+          <div className="topic-grid">
+            {shownCategories.map(c => (
+              <TopicCard
                 key={c.name}
                 label={c.name}
                 icon={c.icon}
                 following={followedCategories.has(c.name)}
                 onToggle={() => onToggleCategory(c.name)}
+                onClick={() => onCategoryClick(c.name)}
               />
             ))}
           </div>
@@ -130,11 +149,12 @@ function TopicsPanel({ categories, departments, followedCategories, followedDepa
       {departments.length > 0 && (
         <div>
           <div style={{ fontSize:12, fontWeight:700, color:'#1A0800', marginBottom:10 }}>🏢 Companies</div>
-          <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:2 }}>
+          <div className="topic-grid">
             {departments.map(d => (
-              <TopicChip
+              <TopicCard
                 key={d}
                 label={d}
+                icon="🏢"
                 following={followedDepartments.has(d)}
                 onToggle={() => onToggleDepartment(d)}
               />
@@ -275,8 +295,9 @@ export default function Feed() {
   return (
     <div style={{ padding:'20px 16px' }}>
       <style>{`
-        .feed-layout { display:grid; grid-template-columns:1fr 300px; gap:20px; maxWidth:1100px; margin:0 auto; }
-        .feed-sidebar { display:flex; flex-direction:column; gap:14px; }
+        .feed-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:20px; max-width:1100px; margin:0 auto; }
+        .feed-layout > * { min-width:0; }
+        .feed-sidebar { display:flex; flex-direction:column; gap:14px; min-width:0; }
         .feed-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
         @media(max-width:900px){
           .feed-layout { grid-template-columns:1fr !important; }
@@ -317,6 +338,7 @@ export default function Feed() {
             followedDepartments={followedDepartments}
             onToggleCategory={handleToggleCategory}
             onToggleDepartment={handleToggleDepartment}
+            onCategoryClick={(name) => navigate(`/discover?category=${encodeURIComponent(name)}`)}
           />
 
           {/* Header + tabs */}

@@ -1,7 +1,7 @@
 const express = require('express')
 const QRCode = require('qrcode')
 const { pool } = require('../db/pool')
-const { requireAuth, optionalAuth } = require('../middleware/auth')
+const { requireAuth, optionalAuth, requireRole } = require('../middleware/auth')
 const { uploadBuffer } = require('../utils/s3')
 const { getEmbeddedFontCss } = require('../utils/fontEmbed')
 const { renderCertificate, renderSocialPreview } = require('../utils/certificateRender')
@@ -13,9 +13,50 @@ const {
 const router = express.Router()
 const WEBSITE_URL = process.env.WEBSITE_URL || 'https://d1kxji3yv78nbx.cloudfront.net'
 
+// ── Background rendering — runs after the request has already responded ──
+// Puppeteer rendering + S3 upload can take longer than typical gateway/ALB
+// timeouts, so the row is inserted as 'processing' first and the client
+// polls GET /certificates/:id until this finishes and flips it to 'completed'.
+async function renderCertificateAssets(certRow, certificateData) {
+  try {
+    const qrCodeDataUri = await QRCode.toDataURL(certificateData.qrTargetUrl, { width: 240, margin: 1 })
+    const fontCss = await getEmbeddedFontCss()
+    const fullData = {
+      ...certificateData,
+      qrCodeDataUri,
+      issuedAt: new Date(certRow.issued_at).toISOString(),
+      websiteUrl: WEBSITE_URL,
+      certificateNumber: certRow.certificate_number,
+    }
+    const html = renderCertificateHtml(fullData, fontCss)
+    const socialHtml = renderSocialPreviewHtml(fullData, fontCss)
+
+    const [{ pngBuffer, pdfBuffer }, socialBuffer] = await Promise.all([
+      renderCertificate(html),
+      renderSocialPreview(socialHtml),
+    ])
+
+    const [certificateImageUrl, certificatePdfUrl, socialPreviewUrl] = await Promise.all([
+      uploadBuffer(`certificates/${certRow.certificate_number}.png`, pngBuffer, 'image/png'),
+      uploadBuffer(`certificates/${certRow.certificate_number}.pdf`, pdfBuffer, 'application/pdf'),
+      uploadBuffer(`certificates/${certRow.certificate_number}-social.png`, socialBuffer, 'image/png'),
+    ])
+
+    await pool.query(
+      `UPDATE certificates SET certificate_image_url=$1, certificate_pdf_url=$2,
+         social_preview_url=$3, status='completed', updated_at=now() WHERE id=$4`,
+      [certificateImageUrl, certificatePdfUrl, socialPreviewUrl, certRow.id]
+    )
+  } catch (err) {
+    console.error('Certificate render failed', err)
+    await pool.query(`UPDATE certificates SET status='failed', updated_at=now() WHERE id=$1`, [certRow.id]).catch(() => {})
+  }
+}
+
 // ── POST /certificates/generate ─────────────────────────────────
+// Admin-only — issued on behalf of the story's author.
 // body: { storyId, companyName, jobTitle, joiningDate, industry, location, companyLogoUrl }
-router.post('/generate', requireAuth, async (req, res) => {
+router.post('/generate', requireAuth, requireRole('admin'), async (req, res) => {
   const { storyId, companyName, jobTitle, joiningDate, industry, location, companyLogoUrl } = req.body
   if (!storyId || !companyName || !jobTitle) {
     return res.status(400).json({ error: 'storyId, companyName, and jobTitle are required' })
@@ -30,9 +71,6 @@ router.post('/generate', requireAuth, async (req, res) => {
   )
   if (!rows.length) return res.status(404).json({ error: 'Story not found' })
   const story = rows[0]
-  if (story.user_id !== req.cognitoSub) {
-    return res.status(403).json({ error: 'Only the story author can generate a certificate for it' })
-  }
 
   const wordCount = (story.content || '').trim().split(/\s+/).filter(Boolean).length
   const impactLevel = computeImpactLevel(wordCount)
@@ -56,53 +94,23 @@ router.post('/generate', requireAuth, async (req, res) => {
   }
 
   const qrTargetUrl = `${WEBSITE_URL}/story/${storyId}`
-  const qrCodeDataUri = await QRCode.toDataURL(qrTargetUrl, { width: 240, margin: 1 })
-
-  const certificateData = {
-    fullName: snapshot.fullName,
-    avatarUrl: snapshot.avatarUrl,
-    storyTitle: story.title,
-    storyExcerpt: snapshot.excerpt,
-    highlight,
-    companyName, jobTitle, joiningDate, industry, location, companyLogoUrl,
-    insightTags, impactLevel, impactIcon, snapshot,
-    issuedAt: new Date().toISOString(),
-    qrCodeDataUri,
-    websiteUrl: WEBSITE_URL,
-  }
-
-  const fontCss = await getEmbeddedFontCss()
 
   let certificateNumber, insertedRow
-  for (let attempt = 0; attempt < 3 && !insertedRow; attempt++) {
+  for (let attempt = 0; attempt < 5 && !insertedRow; attempt++) {
     certificateNumber = generateCertificateNumber()
-    const html = renderCertificateHtml({ ...certificateData, certificateNumber }, fontCss)
-    const socialHtml = renderSocialPreviewHtml(certificateData, fontCss)
-
-    const [{ pngBuffer, pdfBuffer }, socialBuffer] = await Promise.all([
-      renderCertificate(html),
-      renderSocialPreview(socialHtml),
-    ])
-
-    const [certificateImageUrl, certificatePdfUrl, socialPreviewUrl] = await Promise.all([
-      uploadBuffer(`certificates/${certificateNumber}.png`, pngBuffer, 'image/png'),
-      uploadBuffer(`certificates/${certificateNumber}.pdf`, pdfBuffer, 'application/pdf'),
-      uploadBuffer(`certificates/${certificateNumber}-social.png`, socialBuffer, 'image/png'),
-    ])
-
     try {
       const { rows: inserted } = await pool.query(
         `INSERT INTO certificates (
            certificate_number, user_id, story_id, company_name, job_title, joining_date,
            industry, location, company_logo_url, ai_insights, impact_level, snapshot,
-           certificate_image_url, certificate_pdf_url, social_preview_url, qr_target_url
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+           qr_target_url, status
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'processing')
          RETURNING *`,
         [
-          certificateNumber, req.cognitoSub, storyId, companyName, jobTitle, joiningDate || null,
+          certificateNumber, story.user_id, storyId, companyName, jobTitle, joiningDate || null,
           industry || null, location || null, companyLogoUrl || null,
           JSON.stringify({ tags: insightTags, highlight }), impactLevel, JSON.stringify(snapshot),
-          certificateImageUrl, certificatePdfUrl, socialPreviewUrl, qrTargetUrl,
+          qrTargetUrl,
         ]
       )
       insertedRow = inserted[0]
@@ -112,7 +120,18 @@ router.post('/generate', requireAuth, async (req, res) => {
   }
 
   if (!insertedRow) return res.status(500).json({ error: 'Could not generate a unique certificate number' })
-  res.status(201).json({ certificate: insertedRow })
+  res.status(202).json({ certificate: insertedRow })
+
+  renderCertificateAssets(insertedRow, {
+    fullName: snapshot.fullName,
+    avatarUrl: snapshot.avatarUrl,
+    storyTitle: story.title,
+    storyExcerpt: snapshot.excerpt,
+    highlight,
+    companyName, jobTitle, joiningDate, industry, location, companyLogoUrl,
+    insightTags, impactLevel, impactIcon, snapshot,
+    qrTargetUrl,
+  })
 })
 
 // ── GET /certificates/:id ────────────────────────────────────────

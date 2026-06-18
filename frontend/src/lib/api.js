@@ -436,6 +436,11 @@ export const adminUpdateUser = (userId, fields) =>
 export const adminDeleteUser = (userId) =>
   apiFetch(`/admin/users/${userId}`, { method: 'DELETE' })
 
+export const adminGetUserStories = async (userId) => {
+  const result = await apiFetch(`/admin/users/${userId}/stories`)
+  return { data: result.data?.stories, error: result.error }
+}
+
 // ============================================================
 // LANDING PAGE
 // ============================================================

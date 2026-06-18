@@ -17,3 +17,4 @@ frontend/build/
 # Misc
 *.log
 .DS_Store
+.claude/

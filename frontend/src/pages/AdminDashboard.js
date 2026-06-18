@@ -16,6 +16,7 @@ import {
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
+import CertificateGenerator from '../components/CertificateGenerator'
 
 const L = ({c}) => <label style={{display:'block',fontSize:12,fontWeight:600,color:'#5C3D2E',marginBottom:5}}>{c}</label>
 const Inp = (p) => <input {...p} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',outline:'none',marginBottom:12,...p.style}} onFocus={e=>e.target.style.borderColor='#FF6B2B'} onBlur={e=>e.target.style.borderColor='#DDD3CA'}/>
@@ -571,6 +572,7 @@ function UsersTab() {
   const [editing, setEditing] = useState(null) // user object being edited
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
+  const [certifyingUser, setCertifyingUser] = useState(null) // user object to generate a certificate for
 
   const load = () => adminGetUsers().then(({ data }) => { setUsers(data || []); setLoading(false) })
   useEffect(() => { load() }, [])
@@ -675,6 +677,12 @@ function UsersTab() {
                 Edit
               </button>
               <button
+                onClick={() => setCertifyingUser(u)}
+                style={{ padding: '5px 14px', borderRadius: 100, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent', color: '#7C3AED', border: '1.5px solid #7C3AED' }}
+              >
+                🎖 Certificate
+              </button>
+              <button
                 onClick={() => handleDelete(u)}
                 style={{ padding: '5px 14px', borderRadius: 100, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'transparent', color: '#DC2626', border: '1.5px solid #DC2626' }}
               >
@@ -729,6 +737,11 @@ function UsersTab() {
             <Btn onClick={saveEdit} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</Btn>
           </div>
         </Modal>
+      )}
+
+      {/* Certificate Modal */}
+      {certifyingUser && (
+        <CertificateGenerator user={certifyingUser} onClose={() => setCertifyingUser(null)} />
       )}
     </div>
   )

@@ -5,7 +5,6 @@ import { getStory, getComments, addComment, toggleLike, toggleSave, deleteStory,
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
 import ShareButton, { storyShareText } from '../components/ShareButton'
-import CertificateGenerator from '../components/CertificateGenerator'
 import { formatDistanceToNow } from 'date-fns'
 
 export default function StoryDetail() {
@@ -22,7 +21,6 @@ export default function StoryDetail() {
   const [unlocked, setUnlocked] = useState(false)
   const [coins, setCoins] = useState(null)
   const [recentStories, setRecentStories] = useState([])
-  const [certGeneratorOpen, setCertGeneratorOpen] = useState(false)
 
   useEffect(() => {
     getStory(id).then(({ data }) => {
@@ -101,7 +99,7 @@ export default function StoryDetail() {
     : ''
 
   return (
-    <div style={{ padding: '16px', maxWidth: 1080, fontFamily: "'DM Sans',sans-serif" }}>
+    <div style={{ padding: '16px', maxWidth: 1080, margin: '0 auto', fontFamily: "'DM Sans',sans-serif" }}>
       <style>{`
         @keyframes sd-in { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
         .sd-card { background:white; border:1px solid #F0EAE4; border-radius:20px; margin-bottom:20px; animation:sd-in .4s ease both; }
@@ -114,7 +112,8 @@ export default function StoryDetail() {
         .sd-author-name { font-weight:700; font-size:15px; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .sd-author-sub { font-size:12px; color:#8C7B6E; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .sd-layout { display:grid; grid-template-columns:1fr 280px; gap:24px; align-items:start; }
-        @media(max-width:860px) { .sd-layout { grid-template-columns:1fr; } .sd-sidebar { order:99; } }
+        .sd-sidebar-sticky { position:sticky; top:24px; }
+        @media(max-width:860px) { .sd-layout { grid-template-columns:1fr; } .sd-sidebar { order:99; } .sd-sidebar-sticky { position:static; } }
         .sd-recent-item { display:flex; flex-direction:column; gap:4px; padding:12px 0; border-bottom:1px solid #F5EFE9; cursor:pointer; transition:background .15s; }
         .sd-recent-item:last-child { border-bottom:none; padding-bottom:0; }
         .sd-recent-item:hover .sd-recent-title { color:#FF6B2B; }
@@ -275,14 +274,6 @@ export default function StoryDetail() {
                   </svg>
                   {saved ? 'Saved' : 'Save'}
                 </button>
-                {isOwner && (
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setCertGeneratorOpen(true)}
-                  >
-                    🎖 Generate Certificate
-                  </button>
-                )}
                 <div style={{ marginLeft: 'auto' }}>
                   <ShareButton
                     text={storyShareText(story.title, id)}
@@ -295,10 +286,6 @@ export default function StoryDetail() {
           )}
         </div>
       </div>
-
-      {certGeneratorOpen && (
-        <CertificateGenerator storyId={id} onClose={() => setCertGeneratorOpen(false)} />
-      )}
 
       {/* ── Comments ── */}
       {!isLocked && (
@@ -377,7 +364,7 @@ export default function StoryDetail() {
       {/* ── Right sidebar ── */}
       {recentStories.length > 0 && (
         <div className="sd-sidebar">
-          <div className="sd-card" style={{ animationDelay: '.15s', position: 'sticky', top: 24 }}>
+          <div className="sd-card sd-sidebar-sticky" style={{ animationDelay: '.15s' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #F0EAE4' }}>
               <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1A0800' }}>
                 Recent Stories
