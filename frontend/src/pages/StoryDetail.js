@@ -5,6 +5,7 @@ import { getStory, getComments, addComment, toggleLike, toggleSave, deleteStory,
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
 import ShareButton, { storyShareText } from '../components/ShareButton'
+import CertificateGenerator from '../components/CertificateGenerator'
 import { formatDistanceToNow } from 'date-fns'
 
 export default function StoryDetail() {
@@ -21,6 +22,7 @@ export default function StoryDetail() {
   const [unlocked, setUnlocked] = useState(false)
   const [coins, setCoins] = useState(null)
   const [recentStories, setRecentStories] = useState([])
+  const [certGeneratorOpen, setCertGeneratorOpen] = useState(false)
 
   useEffect(() => {
     getStory(id).then(({ data }) => {
@@ -273,6 +275,14 @@ export default function StoryDetail() {
                   </svg>
                   {saved ? 'Saved' : 'Save'}
                 </button>
+                {isOwner && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setCertGeneratorOpen(true)}
+                  >
+                    🎖 Generate Certificate
+                  </button>
+                )}
                 <div style={{ marginLeft: 'auto' }}>
                   <ShareButton
                     text={storyShareText(story.title, id)}
@@ -285,6 +295,10 @@ export default function StoryDetail() {
           )}
         </div>
       </div>
+
+      {certGeneratorOpen && (
+        <CertificateGenerator storyId={id} onClose={() => setCertGeneratorOpen(false)} />
+      )}
 
       {/* ── Comments ── */}
       {!isLocked && (

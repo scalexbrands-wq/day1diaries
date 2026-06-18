@@ -21,21 +21,21 @@ export default function TopBar() {
   }
 
   return (
-    <div style={{
+    <div className="topbar" style={{
       position:'fixed', top:0, left:'var(--sidebar-width)', right:0, height:60,
       background:'rgba(255,255,255,.95)', backdropFilter:'blur(10px)',
       borderBottom:'1px solid var(--gray-100)', zIndex:100,
       display:'flex', alignItems:'center', justifyContent:'space-between',
       padding:'0 24px', gap:16
     }}>
-      <div style={{ fontFamily:'Playfair Display,serif', fontSize:'17px', fontWeight:700 }}>{title}</div>
+      <div className="topbar-title" style={{ fontFamily:'Playfair Display,serif', fontSize:'17px', fontWeight:700, whiteSpace:'nowrap' }}>{title}</div>
 
-      <form onSubmit={handleSearch} style={{ flex:1, maxWidth:360, display:'flex', gap:0 }}>
+      <form onSubmit={handleSearch} className="topbar-search" style={{ flex:1, maxWidth:360, display:'flex', gap:0, minWidth:0 }}>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search stories..."
           style={{
-            flex:1, padding:'7px 14px', border:'1.5px solid var(--gray-200)',
+            flex:1, minWidth:0, padding:'7px 14px', border:'1.5px solid var(--gray-200)',
             borderRadius:'100px 0 0 100px', fontSize:'13px', outline:'none',
             borderRight:'none', fontFamily:'DM Sans,sans-serif'
           }}
@@ -43,15 +43,23 @@ export default function TopBar() {
         <button type="submit" style={{
           padding:'7px 14px', background:'var(--orange)', color:'white',
           border:'1.5px solid var(--orange)', borderRadius:'0 100px 100px 0',
-          cursor:'pointer', fontSize:'13px'
+          cursor:'pointer', fontSize:'13px', flexShrink:0
         }}>⌕</button>
       </form>
 
-      <button className="btn btn-primary btn-sm" onClick={() => navigate('/write')}>
+      <button className="btn btn-primary btn-sm topbar-write-btn" onClick={() => navigate('/write')}>
         + Share Story
       </button>
 
-      <style>{`@media (max-width: 768px) { div[style*="left:var(--sidebar-width)"] { left: 0 !important; } }`}</style>
+      <style>{`
+        @media (max-width: 768px) {
+          .topbar { left: 0 !important; padding: 0 16px 0 56px !important; }
+        }
+        @media (max-width: 480px) {
+          .topbar-search { display: none !important; }
+          .topbar-write-btn { white-space: nowrap; }
+        }
+      `}</style>
     </div>
   )
 }

@@ -32,6 +32,7 @@ const adminRoutes = require('./routes/admin')
 const landingRoutes = require('./routes/landing')
 const { publicRouter: pagesPublicRoutes, adminRouter: pagesAdminRoutes } = require('./routes/pages')
 const announcementRoutes = require('./routes/announcements')
+const certificateRoutes = require('./routes/certificates')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -93,6 +94,7 @@ app.use('/landing', landingRoutes)
 app.use('/pages', pagesPublicRoutes)
 app.use('/admin/pages', pagesAdminRoutes)
 app.use('/announcements', announcementRoutes)
+app.use('/certificates', certificateRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))

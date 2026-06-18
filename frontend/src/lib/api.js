@@ -676,6 +676,31 @@ export const updateMyApplication = async (id, updates) => {
   return { data: result.data?.application, error: result.error }
 }
 
+// ============================================================
+// CERTIFICATES — Story Contributor Certificate
+// ============================================================
+
+export const generateCertificate = async (payload) => {
+  const result = await apiFetch('/certificates/generate', { method: 'POST', body: JSON.stringify(payload) })
+  return { data: result.data?.certificate, error: result.error }
+}
+
+export const getCertificate = async (id) => {
+  const result = await apiFetch(`/certificates/${id}`)
+  return { data: result.data?.certificate, error: result.error }
+}
+
+export const certificateDownloadUrl = (id, format = 'png') =>
+  `${API_BASE}/certificates/${id}/download?format=${format}`
+
+export const shareCertificate = async (certificateId, platform) => {
+  const result = await apiFetch('/certificates/share', {
+    method: 'POST',
+    body: JSON.stringify({ certificateId, platform }),
+  })
+  return { data: result.data, error: result.error }
+}
+
 // ── Announcements ─────────────────────────────────────────────
 export const getActiveAnnouncements = async () => {
   const result = await apiFetch('/announcements/active')

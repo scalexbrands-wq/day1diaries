@@ -1,5 +1,7 @@
 # ── Day1 Diaries API — Docker image ──────────────────────────
-FROM node:20-alpine
+# Debian-based (not alpine) — @sparticuz/chromium (used for certificate
+# PDF/PNG rendering) needs glibc, which musl-based alpine doesn't have.
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 

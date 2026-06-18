@@ -184,6 +184,9 @@ export default function Habits() {
 
   return (
     <div style={{ padding:'16px' }}>
+      <style>{`
+        @media (max-width: 860px) { .habits-split { grid-template-columns: 1fr !important; } }
+      `}</style>
       {/* Tabs */}
       <div style={{ display:'flex', gap:0, borderBottom:'2px solid #F0EAE4', marginBottom:20 }}>
         {[['habits','📚 Habit Library'],['challenges','🏆 Challenges']].map(([k,l]) => (
@@ -193,7 +196,7 @@ export default function Habits() {
 
       {/* ── HABIT LIBRARY ── */}
       {tab === 'habits' && (
-        <div style={{ display:'grid', gridTemplateColumns:selected?'1fr 360px':'1fr', gap:24 }}>
+        <div className="habits-split" style={{ display:'grid', gridTemplateColumns:selected?'1fr 360px':'1fr', gap:24 }}>
           <div>
             <div style={{ display:'flex', gap:10, marginBottom:16, alignItems:'center', flexWrap:'wrap' }}>
               <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="Search habits…" style={{ flex:1, minWidth:180, padding:'9px 14px', border:'1.5px solid #DDD3CA', borderRadius:100, fontSize:13, fontFamily:'inherit', outline:'none' }}/>
@@ -334,7 +337,7 @@ export default function Habits() {
 
       {/* ── CHALLENGES ── */}
       {tab === 'challenges' && (
-        <div style={{ display:'grid', gridTemplateColumns:selChallenge?'1fr 380px':'1fr', gap:24 }}>
+        <div className="habits-split" style={{ display:'grid', gridTemplateColumns:selChallenge?'1fr 380px':'1fr', gap:24 }}>
           <div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
               {challenges.map(c => {

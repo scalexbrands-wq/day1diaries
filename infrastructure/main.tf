@@ -411,6 +411,38 @@ resource "aws_s3_bucket_policy" "frontend" {
 }
 
 # ============================================================
+# S3 — Story Contributor Certificates (public-read PNG/PDF/social preview)
+# ============================================================
+
+resource "aws_s3_bucket" "certificates" {
+  bucket = "${local.name}-certificates"
+  tags   = local.tags
+}
+
+resource "aws_s3_bucket_public_access_block" "certificates" {
+  bucket                  = aws_s3_bucket.certificates.id
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_policy" "certificates" {
+  bucket = aws_s3_bucket.certificates.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "PublicReadCertificates"
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "s3:GetObject"
+      Resource  = "${aws_s3_bucket.certificates.arn}/*"
+    }]
+  })
+  depends_on = [aws_s3_bucket_public_access_block.certificates]
+}
+
+# ============================================================
 # CLOUDFRONT — HTTPS proxy in front of the API ALB
 # ============================================================
 # Gives the API an HTTPS endpoint (*.cloudfront.net) without
@@ -490,8 +522,8 @@ resource "aws_ecs_task_definition" "api" {
   family                   = "${local.name}-api"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = 256    # 0.25 vCPU — adjust as needed
-  memory                   = 512    # 512 MB
+  cpu                      = 1024   # 1 vCPU — bumped for headless Chromium certificate rendering
+  memory                   = 2048   # 2048 MB — headless Chromium can use 150-300MB+ per render
   execution_role_arn       = aws_iam_role.ecs_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
@@ -509,6 +541,8 @@ resource "aws_ecs_task_definition" "api" {
       { name = "COGNITO_USER_POOL_ID", value = aws_cognito_user_pool.main.id },
       { name = "COGNITO_CLIENT_ID",    value = aws_cognito_user_pool_client.web.id },
       { name = "AWS_REGION",      value = var.aws_region },
+      { name = "CERTIFICATES_S3_BUCKET", value = aws_s3_bucket.certificates.id },
+      { name = "WEBSITE_URL",     value = "https://${aws_cloudfront_distribution.frontend.domain_name}" },
       { name = "CORS_ORIGIN",     value = join(",", compact([
           local.use_custom_domain ? "https://${var.domain_name}" : "",
           local.use_custom_domain ? "https://www.${var.domain_name}" : "",
@@ -620,6 +654,20 @@ resource "aws_iam_role_policy" "ecs_task_cognito" {
       Effect   = "Allow"
       Action   = ["cognito-idp:GetUser", "cognito-idp:AdminGetUser", "cognito-idp:AdminConfirmSignUp"]
       Resource = [aws_cognito_user_pool.main.arn]
+    }]
+  })
+}
+
+# Allow task to upload generated certificate PNG/PDF/social-preview images
+resource "aws_iam_role_policy" "ecs_task_s3_certificates" {
+  name = "certificates-s3-access"
+  role = aws_iam_role.ecs_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:GetObject"]
+      Resource = ["${aws_s3_bucket.certificates.arn}/*"]
     }]
   })
 }

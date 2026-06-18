@@ -30,6 +30,7 @@ import BlogPost from './pages/BlogPost'
 import Careers from './pages/Careers'
 import JobDetail from './pages/JobDetail'
 import Contact from './pages/Contact'
+import CertificateViewer from './pages/CertificateViewer'
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth()
@@ -85,6 +86,7 @@ export default function App() {
           <Route path="/careers"             element={<Careers/>} />
           <Route path="/careers/:id"         element={<JobDetail/>} />
           <Route path="/contact"             element={<Contact/>} />
+          <Route path="/certificate/:id"     element={<CertificateViewer/>} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

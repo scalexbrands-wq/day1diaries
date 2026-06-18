@@ -55,7 +55,8 @@ const TABS = [
 export default function AdminDashboard() {
   const [tab, setTab] = useState('overview')
   return (
-    <div style={{padding:'24px 32px',maxWidth:1100}}>
+    <div className="admin-dash" style={{padding:'24px 32px',maxWidth:1100}}>
+      <style>{`@media (max-width: 600px) { .admin-dash { padding: 16px !important; } }`}</style>
       <div style={{display:'flex',gap:0,borderBottom:'2px solid #F0EAE4',marginBottom:24,flexWrap:'wrap'}}>
         {TABS.map(([k,l]) => (
           <button key={k} onClick={()=>setTab(k)} style={{padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',color:tab===k?'#FF6B2B':'#8C7B6E',borderBottom:tab===k?'2px solid #FF6B2B':'2px solid transparent',marginBottom:'-2px',whiteSpace:'nowrap'}}>{l}</button>
@@ -287,7 +288,7 @@ function OverviewTab() {
   ]:[]
   return (
     <div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:24}}>
+      <div className="grid-3" style={{marginBottom:24}}>
         {KPIS.map(k=>(
           <div key={k.label} style={{background:'white',border:'1px solid #F0EAE4',borderRadius:14,padding:'16px 18px'}}>
             <div style={{fontSize:20,marginBottom:6}}>{k.icon}</div>

@@ -114,7 +114,7 @@ export default function Sidebar() {
       {mobileOpen && (
         <>
           <div onClick={() => setMobileOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:250 }}/>
-          <div style={{ position:'fixed', top:0, left:0, bottom:0, width:240, background:'white', zIndex:260, display:'flex', flexDirection:'column' }}>
+          <div style={{ position:'fixed', top:0, left:0, bottom:0, width:'min(240px, 82vw)', background:'white', zIndex:260, display:'flex', flexDirection:'column' }}>
             {content}
           </div>
         </>

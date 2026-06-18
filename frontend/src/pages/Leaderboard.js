@@ -26,14 +26,18 @@ export default function Leaderboard() {
 
   return (
     <div style={{ padding:'16px', maxWidth:900 }}>
-      <div className="stats-grid" style={{ gridTemplateColumns:'repeat(4,1fr)', marginBottom:24 }}>
+      <style>{`
+        @media (max-width: 768px) { .lb-layout { grid-template-columns: 1fr !important; } .lb-sidebar { order: 99; } }
+      `}</style>
+
+      <div className="stats-grid" style={{ marginBottom:24 }}>
         <div className="stat-card"><div className="stat-val">6</div><div className="stat-label">Levels to Climb</div></div>
         <div className="stat-card"><div className="stat-val">6</div><div className="stat-label">Badges to Earn</div></div>
         <div className="stat-card"><div className="stat-val">{users.length}</div><div className="stat-label">Top Creators</div></div>
         <div className="stat-card"><div className="stat-val">{users[0]?.score?.toLocaleString() || '—'}</div><div className="stat-label">#1 Score</div></div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 280px', gap:20 }}>
+      <div className="lb-layout" style={{ display:'grid', gridTemplateColumns:'1fr 280px', gap:20 }}>
         <div>
           <h3 style={{ marginBottom:16 }}>Top Creators</h3>
           <div className="card">
@@ -58,7 +62,7 @@ export default function Leaderboard() {
           </div>
         </div>
 
-        <div>
+        <div className="lb-sidebar">
           <h3 style={{ marginBottom:16 }}>Levels</h3>
           <div className="card" style={{ marginBottom:16 }}>
             <div className="card-body" style={{ padding:'12px 16px' }}>
