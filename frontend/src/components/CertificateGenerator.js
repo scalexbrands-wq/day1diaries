@@ -69,14 +69,14 @@ export default function CertificateGenerator({ user, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={submitting ? undefined : onClose}>
-      <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Generate Certificate — {user.full_name || user.username}</h3>
           <button className="close-btn" onClick={onClose} disabled={submitting}>×</button>
         </div>
         <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
+          <div className="modal-body">
+            <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>Story *</label>
               <select style={inputStyle} value={form.storyId} onChange={update('storyId')} required>
                 <option value="">Select a story…</option>
@@ -88,37 +88,39 @@ export default function CertificateGenerator({ user, onClose }) {
                 <div style={{ fontSize: 11.5, color: '#8C7B6E', marginTop: 4 }}>This user has no published stories yet.</div>
               )}
             </div>
-            <div>
-              <label style={labelStyle}>Company Name *</label>
-              <input style={inputStyle} value={form.companyName} onChange={update('companyName')} required />
-            </div>
-            <div>
-              <label style={labelStyle}>Job Title *</label>
-              <input style={inputStyle} value={form.jobTitle} onChange={update('jobTitle')} required />
-            </div>
-            <div>
-              <label style={labelStyle}>Joining Date</label>
-              <input type="date" style={inputStyle} value={form.joiningDate} onChange={update('joiningDate')} />
-            </div>
-            <div>
-              <label style={labelStyle}>Industry</label>
-              <input style={inputStyle} value={form.industry} onChange={update('industry')} />
-            </div>
-            <div>
-              <label style={labelStyle}>Location</label>
-              <input style={inputStyle} value={form.location} onChange={update('location')} />
-            </div>
-            <div>
-              <label style={labelStyle}>Company Logo URL (optional)</label>
-              <input style={inputStyle} value={form.companyLogoUrl} onChange={update('companyLogoUrl')} />
-            </div>
-            <div>
-              <label style={labelStyle}>Community Manager Name</label>
-              <input style={inputStyle} value={form.communityManagerName} onChange={update('communityManagerName')} placeholder="Rohan Malhotra" />
-            </div>
-            <div>
-              <label style={labelStyle}>Co-Founder Name</label>
-              <input style={inputStyle} value={form.coFounderName} onChange={update('coFounderName')} placeholder="Neha Verma" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Company Name *</label>
+                <input style={inputStyle} value={form.companyName} onChange={update('companyName')} required />
+              </div>
+              <div>
+                <label style={labelStyle}>Job Title *</label>
+                <input style={inputStyle} value={form.jobTitle} onChange={update('jobTitle')} required />
+              </div>
+              <div>
+                <label style={labelStyle}>Joining Date</label>
+                <input type="date" style={inputStyle} value={form.joiningDate} onChange={update('joiningDate')} />
+              </div>
+              <div>
+                <label style={labelStyle}>Industry</label>
+                <input style={inputStyle} value={form.industry} onChange={update('industry')} />
+              </div>
+              <div>
+                <label style={labelStyle}>Location</label>
+                <input style={inputStyle} value={form.location} onChange={update('location')} />
+              </div>
+              <div>
+                <label style={labelStyle}>Company Logo URL (optional)</label>
+                <input style={inputStyle} value={form.companyLogoUrl} onChange={update('companyLogoUrl')} />
+              </div>
+              <div>
+                <label style={labelStyle}>Community Manager Name</label>
+                <input style={inputStyle} value={form.communityManagerName} onChange={update('communityManagerName')} placeholder="Rohan Malhotra" />
+              </div>
+              <div>
+                <label style={labelStyle}>Co-Founder Name</label>
+                <input style={inputStyle} value={form.coFounderName} onChange={update('coFounderName')} placeholder="Neha Verma" />
+              </div>
             </div>
           </div>
           <div className="modal-footer">

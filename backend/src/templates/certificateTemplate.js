@@ -104,13 +104,13 @@ const COMMUNITY_STATS = [
 
 function communityStatsRowHtml() {
   return `
-    <div style="display:flex;justify-content:space-around;align-items:center;margin-top:18px;
-      padding:14px 10px;background:white;border:1px solid #EADFCF;border-radius:12px;">
+    <div style="display:flex;justify-content:space-around;align-items:center;margin-top:26px;
+      padding:18px 10px;background:white;border:1px solid #EADFCF;border-radius:12px;">
       ${COMMUNITY_STATS.map(([icon, value, label]) => `
         <div style="text-align:center;">
-          <div style="font-size:20px;">${icon}</div>
-          <div class="heading" style="font-size:20px;font-weight:900;color:${COLORS.navy};margin-top:2px;">${value}</div>
-          <div style="font-size:10px;color:#6B5347;font-weight:600;">${label}</div>
+          <div style="font-size:24px;">${icon}</div>
+          <div class="heading" style="font-size:24px;font-weight:900;color:${COLORS.navy};margin-top:3px;">${value}</div>
+          <div style="font-size:11px;color:#6B5347;font-weight:600;">${label}</div>
         </div>
       `).join('')}
     </div>
@@ -130,10 +130,10 @@ function renderCertificateHtml(data, fontCss) {
   return `<!DOCTYPE html>
   <html><head><meta charset="utf-8" />
   <style>${baseStyles(fontCss)}
-    body { width: 1200px; }
-    .frame { width: 1200px; background: ${COLORS.navy}; padding: 14px; }
+    body { width: 1600px; }
+    .frame { width: 1600px; background: ${COLORS.navy}; padding: 18px; }
     .sheet {
-      width: 100%; padding: 36px 52px 0;
+      width: 100%; padding: 56px 70px 40px;
       background: linear-gradient(160deg, ${COLORS.background} 0%, #FFFFFF 55%, ${COLORS.background} 100%);
       display: flex; flex-direction: column;
     }
@@ -180,27 +180,27 @@ function renderCertificateHtml(data, fontCss) {
       </div>
 
       <!-- Awardee: photo + name + snapshot -->
-      <div style="display:flex;gap:22px;margin-top:18px;align-items:flex-start;">
-        <div style="width:200px;flex-shrink:0;text-align:center;">
+      <div style="display:flex;gap:30px;margin-top:26px;align-items:flex-start;">
+        <div style="width:230px;flex-shrink:0;text-align:center;">
           <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
-            <span style="font-size:26px;opacity:.65;">🌿</span>
-            ${avatarHtml(avatarUrl, fullName, 150)}
-            <span style="font-size:26px;opacity:.65;transform:scaleX(-1);display:inline-block;">🌿</span>
+            <span style="font-size:30px;opacity:.65;">🌿</span>
+            ${avatarHtml(avatarUrl, fullName, 160)}
+            <span style="font-size:30px;opacity:.65;transform:scaleX(-1);display:inline-block;">🌿</span>
           </div>
-          <div style="width:28px;height:28px;border-radius:50%;background:${COLORS.primary};color:white;
-            display:flex;align-items:center;justify-content:center;margin:-14px auto 0;border:3px solid white;font-size:13px;font-family:'DejaVu Sans',sans-serif;">★</div>
+          <div style="width:30px;height:30px;border-radius:50%;background:${COLORS.primary};color:white;
+            display:flex;align-items:center;justify-content:center;margin:-15px auto 0;border:3px solid white;font-size:14px;font-family:'DejaVu Sans',sans-serif;">★</div>
         </div>
 
-        <div style="flex:1;min-width:0;padding-top:6px;">
-          <div class="heading" style="font-size:34px;font-weight:900;color:${COLORS.navy};letter-spacing:.5px;">
+        <div style="flex:1;min-width:0;padding-top:10px;">
+          <div class="heading" style="font-size:36px;font-weight:900;color:${COLORS.navy};letter-spacing:.5px;">
             ${escapeHtml((fullName || '').toUpperCase())}
           </div>
-          <div style="width:64px;height:3px;background:linear-gradient(90deg,${COLORS.gold},${COLORS.primary});margin:10px 0 14px;"></div>
-          <div style="font-size:13.5px;color:#3A2E22;line-height:1.7;">
+          <div style="width:64px;height:3px;background:linear-gradient(90deg,${COLORS.gold},${COLORS.primary});margin:12px 0 16px;"></div>
+          <div style="font-size:14px;color:#3A2E22;line-height:1.75;">
             for sharing their valuable <span style="color:${COLORS.primary};font-weight:700;">Day 1</span> Professional Journey
             and helping <span style="color:${COLORS.primary};font-weight:700;">future freshers</span> learn from real-world experiences.
           </div>
-          <div style="font-size:13.5px;color:#3A2E22;line-height:1.7;margin-top:10px;">
+          <div style="font-size:14px;color:#3A2E22;line-height:1.75;margin-top:12px;">
             Your story has become part of a growing knowledge base that
             <span style="color:${COLORS.primary};font-weight:700;">inspires</span>,
             <span style="color:${COLORS.primary};font-weight:700;">guides</span>, and
@@ -208,10 +208,10 @@ function renderCertificateHtml(data, fontCss) {
           </div>
         </div>
 
-        <div style="width:300px;flex-shrink:0;">
-          <div style="background:${COLORS.navy};color:white;border-radius:10px 10px 0 0;padding:9px 16px;
-            font-weight:700;font-size:12px;display:flex;align-items:center;gap:8px;">📖 STORY SNAPSHOT</div>
-          <div style="background:white;border:1px solid #EADFCF;border-top:none;border-radius:0 0 12px 12px;padding:4px 16px;">
+        <div style="width:380px;flex-shrink:0;">
+          <div style="background:${COLORS.navy};color:white;border-radius:10px 10px 0 0;padding:11px 18px;
+            font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px;">📖 STORY SNAPSHOT</div>
+          <div style="background:white;border:1px solid #EADFCF;border-top:none;border-radius:0 0 12px 12px;padding:5px 18px;">
             ${snapshotRowHtml('✎', 'STORY TITLE', `“${escapeHtml(storyTitle)}”`)}
             ${snapshotRowHtml('🏢', 'COMPANY', `${escapeHtml(companyName)}${companyLogoUrl ? ` <img src="${escapeHtml(companyLogoUrl)}" style="height:14px;vertical-align:middle;object-fit:contain;" />` : ''}`)}
             ${snapshotRowHtml('💼', 'ROLE', escapeHtml(jobTitle))}
@@ -221,39 +221,39 @@ function renderCertificateHtml(data, fontCss) {
       </div>
 
       <!-- Highlight + AI insights + impact level -->
-      <div style="display:flex;gap:18px;margin-top:20px;align-items:stretch;">
+      <div style="display:flex;gap:24px;margin-top:28px;align-items:stretch;">
         <div style="flex:1;display:flex;flex-direction:column;">
-          <div style="background:${COLORS.navy};color:white;border-radius:10px 10px 0 0;padding:9px 16px;
-            font-weight:700;font-size:12px;display:flex;align-items:center;gap:8px;">❝ STORY HIGHLIGHT</div>
+          <div style="background:${COLORS.navy};color:white;border-radius:10px 10px 0 0;padding:11px 18px;
+            font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px;">❝ STORY HIGHLIGHT</div>
           <div style="background:${COLORS.cream};border:1px solid #EADFCF;border-top:none;border-radius:0 0 12px 12px;
-            padding:18px;flex:1;display:flex;align-items:center;">
-            <div style="font-style:italic;font-size:13.5px;color:#3A2E22;line-height:1.6;">“${escapeHtml(highlight)}”</div>
+            padding:22px;flex:1;display:flex;align-items:center;">
+            <div style="font-style:italic;font-size:14px;color:#3A2E22;line-height:1.65;">“${escapeHtml(highlight)}”</div>
           </div>
         </div>
 
         <div style="flex:1.25;display:flex;flex-direction:column;">
-          <div style="background:${COLORS.navy};color:white;border-radius:10px 10px 0 0;padding:9px 16px;
-            font-weight:700;font-size:12px;display:flex;align-items:center;gap:8px;">🤖 AI INSIGHTS GENERATED</div>
+          <div style="background:${COLORS.navy};color:white;border-radius:10px 10px 0 0;padding:11px 18px;
+            font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px;">🤖 AI INSIGHTS GENERATED</div>
           <div style="background:white;border:1px solid #EADFCF;border-top:none;border-radius:0 0 12px 12px;
-            padding:14px 16px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:11px;">
+            padding:18px 20px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;">
             ${insightRowsHtml(insightTags)}
           </div>
         </div>
 
-        <div style="width:160px;flex-shrink:0;border:1px solid #EADFCF;border-radius:12px;padding:16px 10px;
+        <div style="width:200px;flex-shrink:0;border:1px solid #EADFCF;border-radius:12px;padding:20px 12px;
           text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;background:white;">
-          <div style="font-size:9.5px;font-weight:700;color:#8C7B6E;letter-spacing:.05em;margin-bottom:8px;">IMPACT LEVEL</div>
-          <div style="width:62px;height:62px;border-radius:50%;background:${COLORS.cream};border:2px solid ${COLORS.gold};
-            display:flex;align-items:center;justify-content:center;font-size:26px;">${impactIcon || '🚀'}</div>
-          <div style="margin-top:10px;font-weight:800;font-size:13px;color:${COLORS.primary};line-height:1.3;">
+          <div style="font-size:10.5px;font-weight:700;color:#8C7B6E;letter-spacing:.05em;margin-bottom:10px;">IMPACT LEVEL</div>
+          <div style="width:70px;height:70px;border-radius:50%;background:${COLORS.cream};border:2px solid ${COLORS.gold};
+            display:flex;align-items:center;justify-content:center;font-size:30px;">${impactIcon || '🚀'}</div>
+          <div style="margin-top:12px;font-weight:800;font-size:14px;color:${COLORS.primary};line-height:1.3;">
             ${escapeHtml(impactLevel || '').toUpperCase()}
           </div>
         </div>
       </div>
 
       <!-- Footer: community impact / QR / signatures / cert id / seal -->
-      <div style="display:flex;gap:18px;margin-top:20px;align-items:flex-start;">
-        <div style="width:210px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;gap:24px;margin-top:28px;align-items:flex-start;">
+        <div style="width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;">
           <div style="background:${COLORS.navy};color:white;border-radius:12px;padding:12px 14px;display:flex;gap:9px;align-items:flex-start;">
             <div style="width:26px;height:26px;border-radius:50%;background:${COLORS.primary};display:flex;align-items:center;
               justify-content:center;flex-shrink:0;font-size:12px;">👥</div>
@@ -290,29 +290,29 @@ function renderCertificateHtml(data, fontCss) {
           </div>
         </div>
 
-        <div style="width:230px;flex-shrink:0;display:flex;gap:12px;align-items:flex-start;">
-          <div style="flex:1;border:1px solid #EADFCF;border-radius:10px;padding:11px 14px;background:${COLORS.cream};">
-            <div style="font-size:9px;color:#8C7B6E;font-weight:700;letter-spacing:.04em;">CERTIFICATE ID</div>
-            <div style="font-size:12.5px;font-weight:800;color:${COLORS.navy};margin-bottom:8px;">${escapeHtml(certificateNumber)}</div>
-            <div style="font-size:9px;color:#8C7B6E;font-weight:700;letter-spacing:.04em;">ISSUED ON</div>
-            <div style="font-size:11.5px;font-weight:700;color:${COLORS.navy};">${escapeHtml(formatDate(issuedAt))}</div>
+        <div style="width:270px;flex-shrink:0;display:flex;gap:14px;align-items:flex-start;">
+          <div style="flex:1;border:1px solid #EADFCF;border-radius:10px;padding:13px 16px;background:${COLORS.cream};">
+            <div style="font-size:10px;color:#8C7B6E;font-weight:700;letter-spacing:.04em;">CERTIFICATE ID</div>
+            <div style="font-size:13.5px;font-weight:800;color:${COLORS.navy};margin-bottom:10px;">${escapeHtml(certificateNumber)}</div>
+            <div style="font-size:10px;color:#8C7B6E;font-weight:700;letter-spacing:.04em;">ISSUED ON</div>
+            <div style="font-size:12.5px;font-weight:700;color:${COLORS.navy};">${escapeHtml(formatDate(issuedAt))}</div>
           </div>
-          <div style="width:68px;height:68px;border-radius:50%;border:2px dashed #B0A8A0;flex-shrink:0;
-            display:flex;align-items:center;justify-content:center;text-align:center;font-size:6.5px;color:#9C8F82;
-            font-weight:700;line-height:1.25;padding:6px;">DAY 1 DIARIES · AI-POWERED FRESHERS COMMUNITY</div>
+          <div style="width:76px;height:76px;border-radius:50%;border:2px dashed #B0A8A0;flex-shrink:0;
+            display:flex;align-items:center;justify-content:center;text-align:center;font-size:7px;color:#9C8F82;
+            font-weight:700;line-height:1.25;padding:7px;">DAY 1 DIARIES · AI-POWERED FRESHERS COMMUNITY</div>
         </div>
       </div>
 
       ${communityStatsRowHtml()}
 
       <!-- Bottom bar -->
-      <div style="margin:24px -52px 0;background:${COLORS.navy};color:white;padding:14px 52px;
-        display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+      <div style="margin:30px -70px 0;background:${COLORS.navy};color:white;padding:18px 70px;
+        display:flex;justify-content:space-between;align-items:center;font-size:13px;">
         <div style="font-weight:800;line-height:1.4;">
           EVERY FRESHER STORY IS A MEMORY.<br/>
           <span style="color:${COLORS.primary};">FOR SOMEONE ELSE, IT'S A ROADMAP.</span>
         </div>
-        <div style="font-size:11px;opacity:.85;">${escapeHtml(websiteUrl)}</div>
+        <div style="font-size:12px;opacity:.85;">${escapeHtml(websiteUrl)}</div>
       </div>
 
     </div></div>
