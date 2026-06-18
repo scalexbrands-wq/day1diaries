@@ -52,10 +52,10 @@ async function withPage(viewport, fn) {
 }
 
 async function renderCertificate(html) {
-  return withPage({ width: 1200, height: 870 }, async (page) => {
+  return withPage({ width: 1200, height: 980 }, async (page) => {
     await page.setContent(html, { waitUntil: 'networkidle0' })
     const pngBuffer = await page.screenshot({ type: 'png' })
-    const pdfBuffer = await page.pdf({ width: '1200px', height: '870px', printBackground: true })
+    const pdfBuffer = await page.pdf({ width: '1200px', height: '980px', printBackground: true })
     return { pngBuffer, pdfBuffer }
   })
 }

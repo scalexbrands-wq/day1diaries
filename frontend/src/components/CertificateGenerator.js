@@ -18,6 +18,7 @@ export default function CertificateGenerator({ user, onClose }) {
   const [stories, setStories] = useState([])
   const [form, setForm] = useState({
     storyId: '', companyName: '', jobTitle: '', joiningDate: '', industry: '', location: '', companyLogoUrl: '',
+    communityManagerName: '', coFounderName: '',
   })
   const [submitting, setSubmitting] = useState(false)
   const [certificate, setCertificate] = useState(null)
@@ -110,6 +111,14 @@ export default function CertificateGenerator({ user, onClose }) {
             <div>
               <label style={labelStyle}>Company Logo URL (optional)</label>
               <input style={inputStyle} value={form.companyLogoUrl} onChange={update('companyLogoUrl')} />
+            </div>
+            <div>
+              <label style={labelStyle}>Community Manager Name</label>
+              <input style={inputStyle} value={form.communityManagerName} onChange={update('communityManagerName')} placeholder="Rohan Malhotra" />
+            </div>
+            <div>
+              <label style={labelStyle}>Co-Founder Name</label>
+              <input style={inputStyle} value={form.coFounderName} onChange={update('coFounderName')} placeholder="Neha Verma" />
             </div>
           </div>
           <div className="modal-footer">

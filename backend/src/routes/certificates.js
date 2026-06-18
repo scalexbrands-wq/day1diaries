@@ -55,9 +55,13 @@ async function renderCertificateAssets(certRow, certificateData) {
 
 // ── POST /certificates/generate ─────────────────────────────────
 // Admin-only — issued on behalf of the story's author.
-// body: { storyId, companyName, jobTitle, joiningDate, industry, location, companyLogoUrl }
+// body: { storyId, companyName, jobTitle, joiningDate, industry, location, companyLogoUrl,
+//         communityManagerName, coFounderName }
 router.post('/generate', requireAuth, requireRole('admin'), async (req, res) => {
-  const { storyId, companyName, jobTitle, joiningDate, industry, location, companyLogoUrl } = req.body
+  const {
+    storyId, companyName, jobTitle, joiningDate, industry, location, companyLogoUrl,
+    communityManagerName, coFounderName,
+  } = req.body
   if (!storyId || !companyName || !jobTitle) {
     return res.status(400).json({ error: 'storyId, companyName, and jobTitle are required' })
   }
@@ -130,7 +134,7 @@ router.post('/generate', requireAuth, requireRole('admin'), async (req, res) => 
     highlight,
     companyName, jobTitle, joiningDate, industry, location, companyLogoUrl,
     insightTags, impactLevel, impactIcon, snapshot,
-    qrTargetUrl,
+    qrTargetUrl, communityManagerName, coFounderName,
   })
 })
 

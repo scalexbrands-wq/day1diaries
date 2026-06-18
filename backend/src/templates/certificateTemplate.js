@@ -96,13 +96,35 @@ function starsHtml() {
   return colors.map(c => `<span style="color:${c};font-size:16px;font-family:'DejaVu Sans',sans-serif;">★</span>`).join('')
 }
 
-// Full certificate — rendered at 1200x870 viewport (portrait).
+const COMMUNITY_STATS = [
+  ['🔥', '1000+', 'New Stories Daily'],
+  ['🎓', '100+', 'Freshers Joined'],
+  ['💼', '50+', 'Freshers Got Jobs'],
+]
+
+function communityStatsRowHtml() {
+  return `
+    <div style="display:flex;justify-content:space-around;align-items:center;margin-top:18px;
+      padding:14px 10px;background:white;border:1px solid #EADFCF;border-radius:12px;">
+      ${COMMUNITY_STATS.map(([icon, value, label]) => `
+        <div style="text-align:center;">
+          <div style="font-size:20px;">${icon}</div>
+          <div class="heading" style="font-size:20px;font-weight:900;color:${COLORS.navy};margin-top:2px;">${value}</div>
+          <div style="font-size:10px;color:#6B5347;font-weight:600;">${label}</div>
+        </div>
+      `).join('')}
+    </div>
+  `
+}
+
+// Full certificate — rendered at 1200x980 viewport (portrait).
 function renderCertificateHtml(data, fontCss) {
   const {
     fullName, avatarUrl, storyTitle, highlight,
     companyName, jobTitle, joiningDate, companyLogoUrl,
     insightTags, impactLevel, impactIcon,
     certificateNumber, issuedAt, qrCodeDataUri, websiteUrl,
+    communityManagerName, coFounderName,
   } = data
 
   return `<!DOCTYPE html>
@@ -249,9 +271,9 @@ function renderCertificateHtml(data, fontCss) {
 
         <div style="flex:1;display:flex;justify-content:center;align-items:center;gap:34px;padding-top:14px;">
           <div style="text-align:center;">
-            <div class="sig" style="font-size:19px;color:${COLORS.navy};">Rohan Malhotra</div>
+            <div class="sig" style="font-size:19px;color:${COLORS.navy};">${escapeHtml(communityManagerName || 'Community Manager')}</div>
             <div style="width:110px;height:1px;background:#D8CDBF;margin:6px auto;"></div>
-            <div style="font-size:10px;font-weight:700;color:${COLORS.primary};">Rohan Malhotra</div>
+            <div style="font-size:10px;font-weight:700;color:${COLORS.primary};">${escapeHtml(communityManagerName || '—')}</div>
             <div style="font-size:9px;color:#8C7B6E;">Community Manager</div>
           </div>
           <div style="text-align:center;">
@@ -261,9 +283,9 @@ function renderCertificateHtml(data, fontCss) {
             <div style="font-size:8px;color:#8C7B6E;max-width:120px;margin-top:2px;line-height:1.3;">Where every first day becomes experience for the next generation.</div>
           </div>
           <div style="text-align:center;">
-            <div class="sig" style="font-size:19px;color:${COLORS.navy};">Neha Verma</div>
+            <div class="sig" style="font-size:19px;color:${COLORS.navy};">${escapeHtml(coFounderName || 'Co-Founder')}</div>
             <div style="width:110px;height:1px;background:#D8CDBF;margin:6px auto;"></div>
-            <div style="font-size:10px;font-weight:700;color:${COLORS.primary};">Neha Verma</div>
+            <div style="font-size:10px;font-weight:700;color:${COLORS.primary};">${escapeHtml(coFounderName || '—')}</div>
             <div style="font-size:9px;color:#8C7B6E;">Co-Founder</div>
           </div>
         </div>
@@ -280,6 +302,8 @@ function renderCertificateHtml(data, fontCss) {
             font-weight:700;line-height:1.25;padding:6px;">DAY 1 DIARIES · AI-POWERED FRESHERS COMMUNITY</div>
         </div>
       </div>
+
+      ${communityStatsRowHtml()}
 
       <!-- Bottom bar -->
       <div style="margin:24px -52px 0;background:${COLORS.navy};color:white;padding:14px 52px;
