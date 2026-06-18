@@ -119,9 +119,9 @@ function TopicCard({ label, icon, following, onToggle, onClick }) {
 
 const VISIBLE_CATEGORIES = 3
 
-/* ── Categories & Companies — browse + follow ── */
-function TopicsPanel({ categories, departments, followedCategories, followedDepartments, onToggleCategory, onToggleDepartment, onCategoryClick }) {
-  if (!categories.length && !departments.length) return null
+/* ── Categories — browse + follow ── */
+function TopicsPanel({ categories, followedCategories, onToggleCategory, onCategoryClick }) {
+  if (!categories.length) return null
   const shownCategories = categories.slice(0, VISIBLE_CATEGORIES)
   return (
     <div style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, padding:16, marginBottom:14 }}>
@@ -129,39 +129,19 @@ function TopicsPanel({ categories, departments, followedCategories, followedDepa
         .topic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
         @media(max-width:520px){ .topic-grid { grid-template-columns:1fr; } }
       `}</style>
-      {shownCategories.length > 0 && (
-        <div style={{ marginBottom: departments.length ? 16 : 0 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#1A0800', marginBottom:10 }}>📚 Categories</div>
-          <div className="topic-grid">
-            {shownCategories.map(c => (
-              <TopicCard
-                key={c.name}
-                label={c.name}
-                icon={c.icon}
-                following={followedCategories.has(c.name)}
-                onToggle={() => onToggleCategory(c.name)}
-                onClick={() => onCategoryClick(c.name)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      {departments.length > 0 && (
-        <div>
-          <div style={{ fontSize:12, fontWeight:700, color:'#1A0800', marginBottom:10 }}>🏢 Companies</div>
-          <div className="topic-grid">
-            {departments.map(d => (
-              <TopicCard
-                key={d}
-                label={d}
-                icon="🏢"
-                following={followedDepartments.has(d)}
-                onToggle={() => onToggleDepartment(d)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      <div style={{ fontSize:12, fontWeight:700, color:'#1A0800', marginBottom:10 }}>📚 Categories</div>
+      <div className="topic-grid">
+        {shownCategories.map(c => (
+          <TopicCard
+            key={c.name}
+            label={c.name}
+            icon={c.icon}
+            following={followedCategories.has(c.name)}
+            onToggle={() => onToggleCategory(c.name)}
+            onClick={() => onCategoryClick(c.name)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -330,14 +310,11 @@ export default function Feed() {
           {/* Habit Progress */}
           <HabitProgressTile userId={user.id} navigate={navigate}/>
 
-          {/* Categories & Companies — browse + follow */}
+          {/* Categories — browse + follow */}
           <TopicsPanel
             categories={categories}
-            departments={departments}
             followedCategories={followedCategories}
-            followedDepartments={followedDepartments}
             onToggleCategory={handleToggleCategory}
-            onToggleDepartment={handleToggleDepartment}
             onCategoryClick={(name) => navigate(`/discover?category=${encodeURIComponent(name)}`)}
           />
 
