@@ -492,6 +492,27 @@ export const adminGetLandingHero = async () => {
 export const adminUpsertLandingHero = (data) =>
   apiFetch('/landing/admin/hero', { method: 'PATCH', body: JSON.stringify(data) })
 
+// File upload — bypasses apiFetch since it forces a JSON Content-Type;
+// the browser must set its own multipart boundary for FormData.
+export const adminAddHeroImage = async (file) => {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  form.append('image', file)
+  const res = await fetch(`${API_BASE}/landing/admin/hero/images`, {
+    method: 'POST',
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.hero, error: null }
+}
+
+export const adminRemoveHeroImage = async (index) => {
+  const result = await apiFetch(`/landing/admin/hero/images/${index}`, { method: 'DELETE' })
+  return { data: result.data?.hero, error: result.error }
+}
+
 export const adminGetCategories = async () => {
   const result = await apiFetch('/landing/admin/categories')
   return { data: result.data?.categories, error: result.error }
@@ -726,4 +747,118 @@ export const adminUpsertAnnouncement = async (a) => {
 }
 export const adminDeleteAnnouncement = async (id) => {
   return apiFetch(`/announcements/${id}`, { method: 'DELETE' })
+}
+
+// ============================================================
+// EMAIL CENTER (Templates / Audiences / Workflows / Sends)
+// ============================================================
+
+// ── Templates ────────────────────────────────────────────────
+export const adminListEmailTemplates = async (status) => {
+  const result = await apiFetch(`/admin/email/templates${status ? `?status=${status}` : ''}`)
+  return { data: result.data?.templates, error: result.error }
+}
+export const adminGetEmailTemplate = async (id) => {
+  const result = await apiFetch(`/admin/email/templates/${id}`)
+  return { data: result.data?.template, error: result.error }
+}
+export const adminCreateEmailTemplate = async (t) => {
+  const result = await apiFetch('/admin/email/templates', { method: 'POST', body: JSON.stringify(t) })
+  return { data: result.data?.template, error: result.error }
+}
+export const adminUpdateEmailTemplate = async (id, t) => {
+  const result = await apiFetch(`/admin/email/templates/${id}`, { method: 'PUT', body: JSON.stringify(t) })
+  return { data: result.data?.template, error: result.error }
+}
+export const adminCloneEmailTemplate = async (id) => {
+  const result = await apiFetch(`/admin/email/templates/${id}/clone`, { method: 'POST' })
+  return { data: result.data?.template, error: result.error }
+}
+export const adminArchiveEmailTemplate = async (id) => {
+  const result = await apiFetch(`/admin/email/templates/${id}/archive`, { method: 'POST' })
+  return { data: result.data?.template, error: result.error }
+}
+export const adminRestoreEmailTemplate = async (id) => {
+  const result = await apiFetch(`/admin/email/templates/${id}/restore`, { method: 'POST' })
+  return { data: result.data?.template, error: result.error }
+}
+export const adminGetEmailTemplateVersions = async (id) => {
+  const result = await apiFetch(`/admin/email/templates/${id}/versions`)
+  return { data: result.data?.versions, error: result.error }
+}
+export const adminRestoreEmailTemplateVersion = async (id, version) => {
+  const result = await apiFetch(`/admin/email/templates/${id}/versions/${version}/restore`, { method: 'POST' })
+  return { data: result.data?.template, error: result.error }
+}
+export const adminPreviewEmailTemplate = async (id, sampleVariables) => {
+  const result = await apiFetch(`/admin/email/templates/${id}/preview`, { method: 'POST', body: JSON.stringify({ sampleVariables }) })
+  return { data: result.data, error: result.error }
+}
+export const adminTestSendEmailTemplate = async (id, { toEmail, toName, sampleVariables }) => {
+  return apiFetch(`/admin/email/templates/${id}/test-send`, { method: 'POST', body: JSON.stringify({ toEmail, toName, sampleVariables }) })
+}
+
+// ── Audiences ────────────────────────────────────────────────
+export const adminGetEmailAudienceSources = async () => {
+  const result = await apiFetch('/admin/email/audiences/sources')
+  return { data: result.data?.sources, error: result.error }
+}
+export const adminListEmailAudiences = async () => {
+  const result = await apiFetch('/admin/email/audiences')
+  return { data: result.data?.audiences, error: result.error }
+}
+export const adminCreateEmailAudience = async (a) => {
+  const result = await apiFetch('/admin/email/audiences', { method: 'POST', body: JSON.stringify(a) })
+  return { data: result.data?.audience, error: result.error }
+}
+export const adminUpdateEmailAudience = async (id, a) => {
+  const result = await apiFetch(`/admin/email/audiences/${id}`, { method: 'PUT', body: JSON.stringify(a) })
+  return { data: result.data?.audience, error: result.error }
+}
+export const adminDeleteEmailAudience = async (id) => {
+  return apiFetch(`/admin/email/audiences/${id}`, { method: 'DELETE' })
+}
+export const adminPreviewEmailAudienceDraft = async (source, filters) => {
+  return apiFetch('/admin/email/audiences/preview', { method: 'POST', body: JSON.stringify({ source, filters }) })
+}
+export const adminPreviewEmailAudience = async (id) => {
+  return apiFetch(`/admin/email/audiences/${id}/preview`, { method: 'POST' })
+}
+
+// ── Workflows ────────────────────────────────────────────────
+export const adminListEmailWorkflows = async () => {
+  const result = await apiFetch('/admin/email/workflows')
+  return { data: result.data?.workflows, error: result.error }
+}
+export const adminCreateEmailWorkflow = async (w) => {
+  const result = await apiFetch('/admin/email/workflows', { method: 'POST', body: JSON.stringify(w) })
+  return { data: result.data?.workflow, error: result.error }
+}
+export const adminUpdateEmailWorkflow = async (id, w) => {
+  const result = await apiFetch(`/admin/email/workflows/${id}`, { method: 'PUT', body: JSON.stringify(w) })
+  return { data: result.data?.workflow, error: result.error }
+}
+export const adminDeleteEmailWorkflow = async (id) => {
+  return apiFetch(`/admin/email/workflows/${id}`, { method: 'DELETE' })
+}
+export const adminActivateEmailWorkflow = async (id) => {
+  const result = await apiFetch(`/admin/email/workflows/${id}/activate`, { method: 'POST' })
+  return { data: result.data?.workflow, error: result.error }
+}
+export const adminPauseEmailWorkflow = async (id) => {
+  const result = await apiFetch(`/admin/email/workflows/${id}/pause`, { method: 'POST' })
+  return { data: result.data?.workflow, error: result.error }
+}
+export const adminRunEmailWorkflowNow = async (id) => {
+  return apiFetch(`/admin/email/workflows/${id}/run-now`, { method: 'POST' })
+}
+
+// ── Sends (logs) ─────────────────────────────────────────────
+export const adminListEmailSends = async (workflowId) => {
+  const result = await apiFetch(`/admin/email/sends${workflowId ? `?workflow_id=${workflowId}` : ''}`)
+  return { data: result.data?.sends, error: result.error }
+}
+export const adminGetEmailSendRecipients = async (sendId) => {
+  const result = await apiFetch(`/admin/email/sends/${sendId}/recipients`)
+  return { data: result.data?.recipients, error: result.error }
 }

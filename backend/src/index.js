@@ -33,6 +33,7 @@ const landingRoutes = require('./routes/landing')
 const { publicRouter: pagesPublicRoutes, adminRouter: pagesAdminRoutes } = require('./routes/pages')
 const announcementRoutes = require('./routes/announcements')
 const certificateRoutes = require('./routes/certificates')
+const emailRoutes = require('./routes/email')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -82,6 +83,9 @@ app.use(morgan('combined'))
 // ── Health check (used by ALB target group) ──────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
+// ── Local image upload fallback (used when S3 isn't configured) ──
+app.use('/uploads', express.static(require('./utils/imageStorage').UPLOADS_DIR))
+
 // ── Routes ────────────────────────────────────────────────────
 app.use('/auth', authRoutes)
 app.use('/profiles', profileRoutes)
@@ -95,6 +99,7 @@ app.use('/pages', pagesPublicRoutes)
 app.use('/admin/pages', pagesAdminRoutes)
 app.use('/announcements', announcementRoutes)
 app.use('/certificates', certificateRoutes)
+app.use('/admin/email', emailRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))
@@ -107,4 +112,5 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Day1 Diaries API listening on port ${PORT}`)
+  require('./services/emailScheduler').start()
 })

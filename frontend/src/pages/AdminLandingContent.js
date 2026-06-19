@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import {
-  adminGetLandingHero, adminUpsertLandingHero,
+  adminGetLandingHero, adminUpsertLandingHero, adminAddHeroImage, adminRemoveHeroImage,
   adminGetCategories, adminUpsertCategory, adminDeleteCategory,
   adminGetTestimonials, adminUpsertTestimonial, adminDeleteTestimonial,
   adminGetFeaturedStories, adminToggleFeatureStory,
@@ -56,6 +56,7 @@ function HeroEditor() {
   const [form, setForm] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const set = k => e => setForm(f=>({...f,[k]:e.target.value}))
 
   useEffect(()=>{
@@ -70,6 +71,32 @@ function HeroEditor() {
     else toast.success('Hero content saved! ✓')
   }
 
+  const heroImages = form.hero_image_urls || []
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file later
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast.error('Please choose an image file')
+    if (file.size > 5 * 1024 * 1024) return toast.error('Image must be under 5MB')
+    if (heroImages.length >= 3) return toast.error('Maximum 3 images — remove one first')
+
+    setUploading(true)
+    const { data, error } = await adminAddHeroImage(file)
+    setUploading(false)
+    if (error) return toast.error(error.message)
+    setForm(f => ({ ...f, hero_image_urls: data.hero_image_urls }))
+    toast.success('Image added! ✓')
+  }
+
+  const removeImage = async (index) => {
+    if (!window.confirm('Remove this image?')) return
+    const { data, error } = await adminRemoveHeroImage(index)
+    if (error) return toast.error(error.message)
+    setForm(f => ({ ...f, hero_image_urls: data.hero_image_urls }))
+    toast.success('Image removed')
+  }
+
   if(loading) return <div style={{ padding:40, textAlign:'center', color:'#8C7B6E' }}>Loading...</div>
 
   return (
@@ -80,6 +107,30 @@ function HeroEditor() {
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+        <div>
+        <Card>
+          <SectionHead>Hero Image Slideshow ({heroImages.length}/3)</SectionHead>
+          <p style={{ fontSize:12, color:'#8C7B6E', marginTop:0, marginBottom:14 }}>
+            Shown on the right side of the landing page hero, auto-rotating through up to 3 images. Displays on both desktop and mobile. Recommended: a wide image (e.g. 1200×700), under 5MB.
+          </p>
+          {heroImages.length > 0 && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14 }}>
+              {heroImages.map((url, i) => (
+                <div key={url} style={{ position:'relative' }}>
+                  <img src={url} alt={`Hero slide ${i+1}`} style={{ width:'100%', height:90, objectFit:'cover', borderRadius:10, border:'1px solid #F0EAE4', display:'block' }}/>
+                  <button onClick={()=>removeImage(i)} disabled={uploading} title="Remove" style={{ position:'absolute', top:-8, right:-8, width:22, height:22, borderRadius:'50%', background:'#DC2626', color:'white', border:'2px solid white', cursor:'pointer', fontSize:12, lineHeight:1, fontWeight:700 }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {heroImages.length < 3 && (
+            <label style={{ padding:'8px 18px', borderRadius:100, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", background:'#FF6B2B', color:'white', border:'none', display:'inline-block' }}>
+              {uploading ? 'Uploading...' : 'Add Image'}
+              <input type="file" accept="image/*" onChange={handleImageSelect} disabled={uploading} style={{ display:'none' }}/>
+            </label>
+          )}
+        </Card>
+
         <Card>
           <SectionHead>Headlines & Copy</SectionHead>
           <Label>Eyebrow Tag</Label>
@@ -95,6 +146,7 @@ function HeroEditor() {
           <Label>Secondary CTA Button</Label>
           <Input value={form.cta_secondary_text||''} onChange={set('cta_secondary_text')} placeholder="See How It Works →"/>
         </Card>
+        </div>
 
         <div>
           <Card>

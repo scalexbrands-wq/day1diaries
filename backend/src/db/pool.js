@@ -48,6 +48,9 @@ async function initDB() {
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent_at TIMESTAMPTZ`)
     await pool.query(`ALTER TABLE pending_signups ADD COLUMN IF NOT EXISTS phone TEXT`).catch(() => {})
     await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS flag_reason TEXT`)
+    // landing_hero — admin-uploaded hero image(s) — slideshow of up to 3
+    await pool.query(`ALTER TABLE landing_hero ADD COLUMN IF NOT EXISTS hero_image_url TEXT`)
+    await pool.query(`ALTER TABLE landing_hero ADD COLUMN IF NOT EXISTS hero_image_urls JSONB DEFAULT '[]'`)
     // job_applications user tracking columns
     await pool.query(`ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS user_id TEXT`)
     await pool.query(`ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS user_status TEXT NOT NULL DEFAULT 'applied'`)
@@ -115,6 +118,115 @@ async function initDB() {
     `)
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_certificates_user ON certificates(user_id)`)
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_certificates_story ON certificates(story_id)`)
+
+    // ── Email module (Template/Audience/Workflow/Send management via Brevo) ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_templates (
+        id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name            TEXT NOT NULL,
+        category        TEXT NOT NULL CHECK (category IN (
+                          'welcome','story','habit','challenge','event',
+                          'leaderboard','certificate','weekly_digest','monthly_digest','custom')),
+        subject         TEXT NOT NULL,
+        html_body       TEXT NOT NULL,
+        preview_text    TEXT,
+        variables       JSONB DEFAULT '[]',
+        status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','archived')),
+        current_version INT NOT NULL DEFAULT 1,
+        created_by      TEXT,
+        created_at      TIMESTAMPTZ DEFAULT now(),
+        updated_at      TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_template_versions (
+        id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        template_id UUID NOT NULL REFERENCES email_templates(id) ON DELETE CASCADE,
+        version     INT NOT NULL,
+        subject     TEXT NOT NULL,
+        html_body   TEXT NOT NULL,
+        created_by  TEXT,
+        created_at  TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (template_id, version)
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_audiences (
+        id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name        TEXT NOT NULL,
+        description TEXT,
+        source      TEXT NOT NULL CHECK (source IN (
+                      'all_users','story_authors','habit_adopters','habit_streak',
+                      'challenge_participants','event_registrants','certificate_recipients','contact_inquirers',
+                      'leaderboard_top_n')),
+        filters     JSONB DEFAULT '{}',
+        created_by  TEXT,
+        created_at  TIMESTAMPTZ DEFAULT now(),
+        updated_at  TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_workflows (
+        id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name            TEXT NOT NULL,
+        template_id     UUID NOT NULL REFERENCES email_templates(id) ON DELETE CASCADE,
+        audience_id     UUID NOT NULL REFERENCES email_audiences(id) ON DELETE CASCADE,
+        schedule_type   TEXT NOT NULL CHECK (schedule_type IN ('immediate','one_time','recurring')),
+        scheduled_at    TIMESTAMPTZ,
+        cron_expression TEXT,
+        timezone        TEXT DEFAULT 'Asia/Kolkata',
+        status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','paused','archived')),
+        next_run_at     TIMESTAMPTZ,
+        last_run_at     TIMESTAMPTZ,
+        created_by      TEXT,
+        created_at      TIMESTAMPTZ DEFAULT now(),
+        updated_at      TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_sends (
+        id               UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        workflow_id      UUID REFERENCES email_workflows(id) ON DELETE SET NULL,
+        template_id      UUID NOT NULL REFERENCES email_templates(id) ON DELETE CASCADE,
+        template_version INT,
+        trigger_type     TEXT NOT NULL CHECK (trigger_type IN ('manual_test','manual_send_now','scheduled','recurring')),
+        status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','completed','failed','partial')),
+        total_recipients INT DEFAULT 0,
+        sent_count       INT DEFAULT 0,
+        failed_count     INT DEFAULT 0,
+        started_at       TIMESTAMPTZ,
+        completed_at     TIMESTAMPTZ,
+        triggered_by     TEXT,
+        error            TEXT,
+        created_at       TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS email_recipients (
+        id               UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        send_id          UUID NOT NULL REFERENCES email_sends(id) ON DELETE CASCADE,
+        user_id          TEXT,
+        email            TEXT NOT NULL,
+        name             TEXT,
+        variables        JSONB DEFAULT '{}',
+        status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent','failed')),
+        brevo_message_id TEXT,
+        error            TEXT,
+        sent_at          TIMESTAMPTZ
+      )
+    `)
+    // Widen the source CHECK for tables created before 'leaderboard_top_n' existed.
+    await pool.query(`ALTER TABLE email_audiences DROP CONSTRAINT IF EXISTS email_audiences_source_check`)
+    await pool.query(`
+      ALTER TABLE email_audiences ADD CONSTRAINT email_audiences_source_check CHECK (source IN (
+        'all_users','story_authors','habit_adopters','habit_streak',
+        'challenge_participants','event_registrants','certificate_recipients','contact_inquirers',
+        'leaderboard_top_n'))
+    `)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_email_workflows_due ON email_workflows(status, next_run_at)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_email_recipients_send ON email_recipients(send_id, status)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_email_sends_workflow ON email_sends(workflow_id, created_at DESC)`)
+
     console.log('DB schema init OK')
   } catch (err) {
     console.error('DB init error (non-fatal):', err.message)

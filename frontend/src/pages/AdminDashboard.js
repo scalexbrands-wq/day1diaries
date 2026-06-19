@@ -13,6 +13,14 @@ import {
   adminGetContactMessages, adminUpdateContactStatus,
   adminGetCategories, adminUpsertCategory, adminDeleteCategory,
   adminGetAnnouncements, adminUpsertAnnouncement, adminDeleteAnnouncement,
+  adminListEmailTemplates, adminCreateEmailTemplate, adminUpdateEmailTemplate, adminCloneEmailTemplate,
+  adminArchiveEmailTemplate, adminRestoreEmailTemplate, adminGetEmailTemplateVersions, adminRestoreEmailTemplateVersion,
+  adminTestSendEmailTemplate,
+  adminGetEmailAudienceSources, adminListEmailAudiences, adminCreateEmailAudience, adminUpdateEmailAudience,
+  adminDeleteEmailAudience, adminPreviewEmailAudienceDraft, adminPreviewEmailAudience,
+  adminListEmailWorkflows, adminCreateEmailWorkflow, adminUpdateEmailWorkflow, adminDeleteEmailWorkflow,
+  adminActivateEmailWorkflow, adminPauseEmailWorkflow, adminRunEmailWorkflowNow,
+  adminListEmailSends, adminGetEmailSendRecipients,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -45,6 +53,7 @@ const TABS = [
   ['habits','💪 Habits'],
   ['challenges','🏆 Challenges'],
   ['events','📅 Events'],
+  ['email','✉️ Email Center'],
   ['users','👥 Users'],
   ['content','🛡️ Moderation'],
   ['landing','🎯 Landing'],
@@ -68,6 +77,7 @@ export default function AdminDashboard() {
       {tab==='habits'         && <HabitsTab/>}
       {tab==='challenges' && <ChallengesTab/>}
       {tab==='events'     && <EventsTab/>}
+      {tab==='email'      && <EmailCenterTab/>}
       {tab==='users'      && <UsersTab/>}
       {tab==='content'    && <ModerationTab/>}
       {tab==='landing'    && <AdminLandingContent/>}
@@ -1384,6 +1394,441 @@ function CategoriesTab() {
             </label>
           </div>
           <Btn onClick={save} style={{width:'100%',justifyContent:'center'}}>Save Category</Btn>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+/* ══ EMAIL CENTER ══════════════════════════════════════════════ */
+const EMAIL_CATEGORIES = ['welcome','story','habit','challenge','event','leaderboard','certificate','weekly_digest','monthly_digest','custom']
+const EMAIL_SUB_TABS = [['templates','Templates'],['audiences','Audiences'],['workflows','Workflows'],['logs','Logs']]
+const extractTokens = (text) => [...new Set([...(text||'').matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map(m=>m[1]))]
+const Badge = ({children,color}) => <span style={{fontSize:10,padding:'2px 8px',borderRadius:100,background:`${color}1a`,color,fontWeight:700}}>{children}</span>
+const STATUS_COLORS = {draft:'#6B7280',active:'#059669',archived:'#8C7B6E',paused:'#F59E0B',completed:'#059669',failed:'#DC2626',partial:'#F59E0B',pending:'#6B7280',processing:'#2563EB'}
+
+function EmailCenterTab() {
+  const [sub, setSub] = useState('templates')
+  return (
+    <div>
+      <div style={{display:'flex',gap:8,marginBottom:18}}>
+        {EMAIL_SUB_TABS.map(([k,l]) => (
+          <button key={k} onClick={()=>setSub(k)} style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${sub===k?'#FF6B2B':'#DDD3CA'}`,background:sub===k?'#FF6B2B':'white',color:sub===k?'white':'#5C3D2E',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{l}</button>
+        ))}
+      </div>
+      {sub==='templates' && <EmailTemplatesTab/>}
+      {sub==='audiences' && <EmailAudiencesTab/>}
+      {sub==='workflows' && <EmailWorkflowsTab/>}
+      {sub==='logs'      && <EmailLogsTab/>}
+    </div>
+  )
+}
+
+function EmailTemplatesTab() {
+  const [list, setList] = useState([])
+  const [form, setForm] = useState(null) // null = no modal; object = editing/new
+  const [editingId, setEditingId] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [versionsFor, setVersionsFor] = useState(null)
+  const [versions, setVersions] = useState([])
+  const [testSendFor, setTestSendFor] = useState(null)
+  const [testEmail, setTestEmail] = useState('')
+
+  const load = useCallback(() => { adminListEmailTemplates().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const openNew = () => { setEditingId(null); setForm({ name:'', category:'welcome', subject:'', html_body:'', preview_text:'' }) }
+  const openEdit = (t) => { setEditingId(t.id); setForm({ name:t.name, category:t.category, subject:t.subject, html_body:t.html_body, preview_text:t.preview_text||'' }) }
+
+  const save = async () => {
+    if (!form.name.trim() || !form.subject.trim() || !form.html_body.trim()) return toast.error('Name, subject and HTML body are required')
+    setSaving(true)
+    const { error } = editingId ? await adminUpdateEmailTemplate(editingId, form) : await adminCreateEmailTemplate(form)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(editingId ? 'Template updated' : 'Template created')
+    setForm(null)
+    load()
+  }
+
+  const clone = async (id) => { const { error } = await adminCloneEmailTemplate(id); if (error) return toast.error(error.message); toast.success('Cloned'); load() }
+  const archive = async (id) => { await adminArchiveEmailTemplate(id); toast.success('Archived'); load() }
+  const restore = async (id) => { await adminRestoreEmailTemplate(id); toast.success('Restored'); load() }
+  const openVersions = async (t) => { setVersionsFor(t); const { data } = await adminGetEmailTemplateVersions(t.id); setVersions(data||[]) }
+  const restoreVersion = async (version) => { await adminRestoreEmailTemplateVersion(versionsFor.id, version); toast.success('Version restored'); setVersionsFor(null); load() }
+  const sendTest = async () => {
+    if (!testEmail.trim()) return toast.error('Enter a recipient email')
+    const tokens = extractTokens(testSendFor.subject + ' ' + testSendFor.html_body)
+    const sampleVariables = Object.fromEntries(tokens.map(t => [t, `[${t}]`]))
+    const { error } = await adminTestSendEmailTemplate(testSendFor.id, { toEmail: testEmail, toName: 'Test', sampleVariables })
+    if (error) return toast.error(error.message)
+    toast.success('Test email sent')
+    setTestSendFor(null); setTestEmail('')
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Email Templates</h3>
+        <Btn onClick={openNew}>+ New Template</Btn>
+      </div>
+      {list.length===0 && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No templates yet.</p></Card>}
+      {list.map(t => (
+        <Card key={t.id} style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+              <span style={{fontWeight:700,fontSize:14}}>{t.name}</span>
+              <Badge color="#7C3AED">{t.category}</Badge>
+              <Badge color={STATUS_COLORS[t.status]}>{t.status.toUpperCase()}</Badge>
+              <span style={{fontSize:11,color:'#8C7B6E'}}>v{t.current_version}</span>
+            </div>
+            <div style={{fontSize:13,color:'#4A2800',marginBottom:4}}>{t.subject}</div>
+            <div style={{fontSize:11,color:'#8C7B6E'}}>Updated {new Date(t.updated_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end',maxWidth:260}}>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openEdit(t)}>Edit</Btn>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>clone(t.id)}>Clone</Btn>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openVersions(t)}>Versions</Btn>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>{setTestSendFor(t); setTestEmail('')}}>Test Send</Btn>
+            {t.status==='archived'
+              ? <Btn v='green' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>restore(t.id)}>Restore</Btn>
+              : <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>archive(t.id)}>Archive</Btn>}
+          </div>
+        </Card>
+      ))}
+
+      {form && (
+        <Modal title={editingId?'Edit Template':'New Template'} onClose={()=>setForm(null)}>
+          <L c="Name"/>
+          <Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Welcome Email v2"/>
+          <L c="Category"/>
+          <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+            {EMAIL_CATEGORIES.map(c => <option key={c} value={c}>{c.replace('_',' ')}</option>)}
+          </select>
+          <L c="Subject"/>
+          <Inp value={form.subject} onChange={e=>setForm(f=>({...f,subject:e.target.value}))} placeholder="Welcome to Day1 Diaries, {{name}}!"/>
+          <L c="HTML Body"/>
+          <TA value={form.html_body} onChange={e=>setForm(f=>({...f,html_body:e.target.value}))} placeholder="<p>Hi {{name}}, ...</p>" style={{minHeight:160,fontFamily:'monospace',fontSize:12}}/>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
+            {extractTokens(form.subject+' '+form.html_body).map(tok => <Badge key={tok} color="#2563EB">{'{{'+tok+'}}'}</Badge>)}
+            {extractTokens(form.subject+' '+form.html_body).length===0 && <span style={{fontSize:11,color:'#8C7B6E'}}>No {'{{variables}}'} used yet — type tokens like {'{{name}}'} into subject/body.</span>}
+          </div>
+          <L c="Live Preview"/>
+          <iframe title="preview" srcDoc={form.html_body} style={{width:'100%',height:180,border:'1.5px solid #DDD3CA',borderRadius:8,marginBottom:14,background:'white'}}/>
+          <Btn onClick={save} disabled={saving} style={{width:'100%',padding:'11px'}}>{saving?'Saving…':editingId?'Save Changes':'Create Template'}</Btn>
+        </Modal>
+      )}
+
+      {versionsFor && (
+        <Modal title={`Version History — ${versionsFor.name}`} onClose={()=>setVersionsFor(null)}>
+          {versions.length===0 && <p style={{fontSize:13,color:'#8C7B6E'}}>No prior versions — this template hasn't been edited yet.</p>}
+          {versions.map(v => (
+            <div key={v.id} style={{border:'1px solid #F0EAE4',borderRadius:10,padding:12,marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                <span style={{fontWeight:700,fontSize:13}}>v{v.version}</span>
+                <Btn v='secondary' style={{fontSize:11,padding:'4px 10px'}} onClick={()=>restoreVersion(v.version)}>Restore</Btn>
+              </div>
+              <div style={{fontSize:12,color:'#4A2800'}}>{v.subject}</div>
+              <div style={{fontSize:11,color:'#8C7B6E',marginTop:4}}>{new Date(v.created_at).toLocaleString('en-IN')}</div>
+            </div>
+          ))}
+        </Modal>
+      )}
+
+      {testSendFor && (
+        <Modal title={`Test Send — ${testSendFor.name}`} onClose={()=>setTestSendFor(null)}>
+          <L c="Send test email to"/>
+          <Inp value={testEmail} onChange={e=>setTestEmail(e.target.value)} placeholder="you@example.com" type="email"/>
+          <p style={{fontSize:12,color:'#8C7B6E',marginBottom:14}}>Template variables will be filled with placeholder sample values for this test.</p>
+          <Btn onClick={sendTest} style={{width:'100%',padding:'11px'}}>Send Test</Btn>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function EmailAudiencesTab() {
+  const [list, setList] = useState([])
+  const [sources, setSources] = useState([])
+  const [habits, setHabits] = useState([])
+  const [challenges, setChallenges] = useState([])
+  const [events, setEvents] = useState([])
+  const [form, setForm] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(() => { adminListEmailAudiences().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => {
+    load()
+    adminGetEmailAudienceSources().then(({data}) => setSources(data||[]))
+    getHabits().then(({data}) => setHabits(data||[])).catch(()=>{})
+    getChallenges().then(({data}) => setChallenges(data||[])).catch(()=>{})
+    getCommunityUpdates().then(({data}) => setEvents(data||[])).catch(()=>{})
+  }, [load])
+
+  const sourceDef = (id) => sources.find(s => s.id === id)
+
+  const openNew = () => { setEditingId(null); setForm({ name:'', description:'', source: sources[0]?.id||'all_users', filters:{} }); setPreview(null) }
+  const openEdit = (a) => { setEditingId(a.id); setForm({ name:a.name, description:a.description||'', source:a.source, filters:a.filters||{} }); setPreview(null) }
+
+  const setFilter = (key, value) => setForm(f => ({ ...f, filters: { ...f.filters, [key]: value } }))
+
+  const runPreview = async () => {
+    const { data, error } = await adminPreviewEmailAudienceDraft(form.source, form.filters)
+    if (error) return toast.error(error.message)
+    setPreview(data)
+  }
+
+  const save = async () => {
+    if (!form.name.trim()) return toast.error('Name is required')
+    setSaving(true)
+    const { error } = editingId ? await adminUpdateEmailAudience(editingId, form) : await adminCreateEmailAudience(form)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(editingId ? 'Audience updated' : 'Audience created')
+    setForm(null)
+    load()
+  }
+
+  const remove = async (id) => { if (!window.confirm('Delete this audience?')) return; await adminDeleteEmailAudience(id); toast.success('Deleted'); load() }
+
+  const renderFilterField = (f) => {
+    const value = form.filters[f.key] ?? ''
+    if (f.type === 'select') return (
+      <select key={f.key} value={value} onChange={e=>setFilter(f.key, e.target.value||undefined)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+        <option value="">Any</option>
+        {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    )
+    if (f.type === 'boolean') return (
+      <label key={f.key} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,marginBottom:12,cursor:'pointer'}}>
+        <input type="checkbox" checked={!!value} onChange={e=>setFilter(f.key, e.target.checked)}/> {f.label}
+      </label>
+    )
+    if (f.type === 'habit_select') return (
+      <select key={f.key} value={value} onChange={e=>setFilter(f.key, e.target.value||undefined)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+        <option value="">Any habit</option>
+        {habits.map(h => <option key={h.id} value={h.id}>{h.title}</option>)}
+      </select>
+    )
+    if (f.type === 'challenge_select') return (
+      <select key={f.key} value={value} onChange={e=>setFilter(f.key, e.target.value||undefined)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+        <option value="">Select challenge</option>
+        {challenges.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+      </select>
+    )
+    if (f.type === 'event_select') return (
+      <select key={f.key} value={value} onChange={e=>setFilter(f.key, e.target.value||undefined)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+        <option value="">Select event</option>
+        {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+      </select>
+    )
+    return <Inp key={f.key} type={f.type==='number'?'number':'text'} value={value} onChange={e=>setFilter(f.key, f.type==='number' ? (e.target.value?Number(e.target.value):undefined) : e.target.value)} placeholder={f.label}/>
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Audiences (Recipient Sources)</h3>
+        <Btn onClick={openNew}>+ New Audience</Btn>
+      </div>
+      {list.length===0 && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No audiences yet.</p></Card>}
+      {list.map(a => (
+        <Card key={a.id} style={{display:'flex',gap:14,alignItems:'center'}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>{a.name}</div>
+            <div style={{fontSize:12,color:'#8C7B6E'}}>{sourceDef(a.source)?.label || a.source}{a.description ? ` — ${a.description}` : ''}</div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0}}>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openEdit(a)}>Edit</Btn>
+            <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>remove(a.id)}>Delete</Btn>
+          </div>
+        </Card>
+      ))}
+
+      {form && (
+        <Modal title={editingId?'Edit Audience':'New Audience'} onClose={()=>setForm(null)}>
+          <L c="Name"/>
+          <Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Active streak holders"/>
+          <L c="Description (optional)"/>
+          <Inp value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="What is this audience for?"/>
+          <L c="Data Source"/>
+          <select value={form.source} onChange={e=>setForm(f=>({...f,source:e.target.value,filters:{}}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+            {sources.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          {sourceDef(form.source)?.filters?.length > 0 && <L c="Filters"/>}
+          {sourceDef(form.source)?.filters?.map(renderFilterField)}
+
+          <Btn v='secondary' onClick={runPreview} style={{width:'100%',marginBottom:12}}>Preview Matching Recipients</Btn>
+          {preview && (
+            <div style={{background:'#F7F3EF',borderRadius:10,padding:12,marginBottom:14,fontSize:12}}>
+              <div style={{fontWeight:700,marginBottom:6}}>{preview.totalCount} recipient(s) match</div>
+              {preview.sample.slice(0,5).map((r,i) => <div key={i} style={{color:'#5C3D2E'}}>{r.name||'(no name)'} — {r.email}</div>)}
+            </div>
+          )}
+          <Btn onClick={save} disabled={saving} style={{width:'100%',padding:'11px'}}>{saving?'Saving…':editingId?'Save Changes':'Create Audience'}</Btn>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+const CRON_PRESETS = [
+  ['Every day at 9am','0 9 * * *'],
+  ['Every Monday at 9am','0 9 * * 1'],
+  ['Every 1st of the month at 9am','0 9 1 * *'],
+]
+
+function EmailWorkflowsTab() {
+  const [list, setList] = useState([])
+  const [templates, setTemplates] = useState([])
+  const [audiences, setAudiences] = useState([])
+  const [form, setForm] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(() => { adminListEmailWorkflows().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => {
+    load()
+    adminListEmailTemplates().then(({data}) => setTemplates((data||[]).filter(t=>t.status!=='archived')))
+    adminListEmailAudiences().then(({data}) => setAudiences(data||[]))
+  }, [load])
+
+  const openNew = () => { setEditingId(null); setForm({ name:'', template_id:templates[0]?.id||'', audience_id:audiences[0]?.id||'', schedule_type:'immediate', scheduled_at:'', cron_expression:'0 9 * * *', timezone:'Asia/Kolkata' }) }
+  const openEdit = (w) => { setEditingId(w.id); setForm({ name:w.name, template_id:w.template_id, audience_id:w.audience_id, schedule_type:w.schedule_type, scheduled_at:w.scheduled_at?w.scheduled_at.slice(0,16):'', cron_expression:w.cron_expression||'0 9 * * *', timezone:w.timezone||'Asia/Kolkata' }) }
+
+  const save = async () => {
+    if (!form.name.trim() || !form.template_id || !form.audience_id) return toast.error('Name, template and audience are required')
+    setSaving(true)
+    const { error } = editingId ? await adminUpdateEmailWorkflow(editingId, form) : await adminCreateEmailWorkflow(form)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(editingId ? 'Workflow updated' : 'Workflow created')
+    setForm(null)
+    load()
+  }
+
+  const remove = async (id) => { if (!window.confirm('Delete this workflow?')) return; await adminDeleteEmailWorkflow(id); toast.success('Deleted'); load() }
+  const activate = async (id) => { const { error } = await adminActivateEmailWorkflow(id); if (error) return toast.error(error.message); toast.success('Activated'); load() }
+  const pause = async (id) => { await adminPauseEmailWorkflow(id); toast.success('Paused'); load() }
+  const runNow = async (id) => { const { data, error } = await adminRunEmailWorkflowNow(id); if (error) return toast.error(error.message); toast.success(`Sending to ${data?.recipientCount ?? 0} recipients`); load() }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Workflows</h3>
+        <Btn onClick={openNew} disabled={!templates.length || !audiences.length}>+ New Workflow</Btn>
+      </div>
+      {(!templates.length || !audiences.length) && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>Create at least one Template and one Audience before building a workflow.</p></Card>}
+      {list.map(w => (
+        <Card key={w.id}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+            <div>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                <span style={{fontWeight:700,fontSize:14}}>{w.name}</span>
+                <Badge color={STATUS_COLORS[w.status]}>{w.status.toUpperCase()}</Badge>
+              </div>
+              <div style={{fontSize:12,color:'#8C7B6E'}}>{w.template_name} → {w.audience_name} · {w.schedule_type.replace('_',' ')}</div>
+              {w.next_run_at && <div style={{fontSize:11,color:'#8C7B6E',marginTop:2}}>Next run: {new Date(w.next_run_at).toLocaleString('en-IN')}</div>}
+            </div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openEdit(w)}>Edit</Btn>
+              {w.status==='active'
+                ? <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>pause(w.id)}>Pause</Btn>
+                : w.status!=='archived' && <Btn v='green' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>activate(w.id)}>Activate</Btn>}
+              <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>runNow(w.id)}>Run Now</Btn>
+              <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>remove(w.id)}>Delete</Btn>
+            </div>
+          </div>
+        </Card>
+      ))}
+
+      {form && (
+        <Modal title={editingId?'Edit Workflow':'New Workflow'} onClose={()=>setForm(null)}>
+          <L c="Name"/>
+          <Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Weekly Streak Digest"/>
+          <L c="Template"/>
+          <select value={form.template_id} onChange={e=>setForm(f=>({...f,template_id:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <L c="Audience"/>
+          <select value={form.audience_id} onChange={e=>setForm(f=>({...f,audience_id:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+            {audiences.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          <L c="Schedule"/>
+          <div style={{display:'flex',gap:8,marginBottom:12}}>
+            {['immediate','one_time','recurring'].map(s => (
+              <button key={s} onClick={()=>setForm(f=>({...f,schedule_type:s}))} style={{flex:1,padding:'8px',borderRadius:8,border:`1.5px solid ${form.schedule_type===s?'#FF6B2B':'#DDD3CA'}`,background:form.schedule_type===s?'#FFF1EA':'white',fontSize:12,fontWeight:600,cursor:'pointer'}}>{s.replace('_',' ')}</button>
+            ))}
+          </div>
+          {form.schedule_type==='one_time' && (
+            <>
+              <L c="Send at"/>
+              <Inp type="datetime-local" value={form.scheduled_at} onChange={e=>setForm(f=>({...f,scheduled_at:e.target.value}))}/>
+            </>
+          )}
+          {form.schedule_type==='recurring' && (
+            <>
+              <L c="Preset"/>
+              <select onChange={e=>setForm(f=>({...f,cron_expression:e.target.value}))} value={CRON_PRESETS.some(([,c])=>c===form.cron_expression)?form.cron_expression:''} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+                <option value="">Custom</option>
+                {CRON_PRESETS.map(([label,c]) => <option key={c} value={c}>{label}</option>)}
+              </select>
+              <L c="Cron expression"/>
+              <Inp value={form.cron_expression} onChange={e=>setForm(f=>({...f,cron_expression:e.target.value}))} placeholder="0 9 * * *"/>
+              <L c="Timezone"/>
+              <Inp value={form.timezone} onChange={e=>setForm(f=>({...f,timezone:e.target.value}))} placeholder="Asia/Kolkata"/>
+            </>
+          )}
+          {form.schedule_type==='immediate' && <p style={{fontSize:12,color:'#8C7B6E',marginBottom:12}}>Sends immediately once you click Activate.</p>}
+          <Btn onClick={save} disabled={saving} style={{width:'100%',padding:'11px'}}>{saving?'Saving…':editingId?'Save Changes':'Create Workflow'}</Btn>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function EmailLogsTab() {
+  const [list, setList] = useState([])
+  const [recipientsFor, setRecipientsFor] = useState(null)
+  const [recipients, setRecipients] = useState([])
+
+  const load = useCallback(() => { adminListEmailSends().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const openRecipients = async (s) => { setRecipientsFor(s); const { data } = await adminGetEmailSendRecipients(s.id); setRecipients(data||[]) }
+
+  return (
+    <div>
+      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Send Logs</h3>
+      {list.length===0 && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No sends yet.</p></Card>}
+      {list.map(s => (
+        <Card key={s.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,cursor:'pointer'}} onClick={()=>openRecipients(s)}>
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+              <span style={{fontWeight:700,fontSize:13}}>{s.template_name}</span>
+              <Badge color={STATUS_COLORS[s.status]}>{s.status.toUpperCase()}</Badge>
+              <span style={{fontSize:11,color:'#8C7B6E'}}>{s.trigger_type.replace('_',' ')}</span>
+            </div>
+            <div style={{fontSize:11,color:'#8C7B6E'}}>{new Date(s.created_at).toLocaleString('en-IN')}</div>
+          </div>
+          <div style={{fontSize:12,color:'#5C3D2E',whiteSpace:'nowrap'}}>{s.sent_count}/{s.total_recipients} sent{s.failed_count>0?`, ${s.failed_count} failed`:''}</div>
+        </Card>
+      ))}
+
+      {recipientsFor && (
+        <Modal title="Recipients" onClose={()=>setRecipientsFor(null)}>
+          {recipients.length===0 && <p style={{fontSize:13,color:'#8C7B6E'}}>No recipients logged.</p>}
+          {recipients.map(r => (
+            <div key={r.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #F0EAE4',fontSize:12}}>
+              <div>
+                <div style={{fontWeight:600}}>{r.name||'(no name)'}</div>
+                <div style={{color:'#8C7B6E'}}>{r.email}</div>
+              </div>
+              <Badge color={STATUS_COLORS[r.status]}>{r.status.toUpperCase()}</Badge>
+            </div>
+          ))}
         </Modal>
       )}
     </div>

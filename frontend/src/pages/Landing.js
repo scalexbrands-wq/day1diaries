@@ -21,6 +21,35 @@ const JOB_DEPT_ICONS = {
   Sales:'💼', Operations:'⚙️', HR:'🤝', Finance:'📊', Legal:'⚖️', Data:'📈',
 }
 
+function HeroSlideshow({ images }) {
+  const [active, setActive] = useState(0)
+  useEffect(() => {
+    if (images.length < 2) return
+    const id = setInterval(() => setActive(i => (i + 1) % images.length), 4000)
+    return () => clearInterval(id)
+  }, [images.length])
+
+  return (
+    <div style={{ position:'relative', width:'100%', maxWidth:480, height:'min(70vw,520px)', maxHeight:520, borderRadius:24, boxShadow:'0 40px 100px rgba(26,8,0,.15)', overflow:'hidden' }}>
+      {images.map((src, i) => (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity: i===active ? 1 : 0, transition:'opacity 1s ease' }}
+        />
+      ))}
+      {images.length > 1 && (
+        <div style={{ position:'absolute', bottom:14, left:0, right:0, display:'flex', justifyContent:'center', gap:6 }}>
+          {images.map((src, i) => (
+            <span key={src} style={{ width:7, height:7, borderRadius:'50%', background: i===active ? '#FF6B2B' : 'rgba(255,255,255,.6)', boxShadow:'0 0 0 1px rgba(26,8,0,.15)', transition:'background .3s' }}/>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Spinner() {
   return (
     <div style={{ display:'flex', justifyContent:'center', alignItems:'center', padding:'40px 0' }}>
@@ -162,7 +191,6 @@ export default function Landing() {
         .gz-grad-text{background:linear-gradient(120deg,#FF6B2B 0%,#8B5CF6 45%,#06B6D4 100%);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:gradShift 5s ease infinite}
         .lp-ai-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:1040px;margin:0 auto}
         @media(max-width:900px){
-          .lp-hero-r{display:none!important}
           .lp-hero-sec{grid-template-columns:1fr!important;padding:100px 24px 60px!important;gap:36px!important;min-height:auto!important}
           .lp-2col{grid-template-columns:1fr!important}
           .lp-3col{grid-template-columns:1fr!important}
@@ -277,39 +305,12 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* Right – diary card */}
-        <div className="lp-hero-r" style={{ position:'relative', zIndex:2, display:'flex', justifyContent:'center', animation:'heroIn .9s .2s cubic-bezier(.22,1,.36,1) both' }}>
-          <div style={{ position:'relative', display:'inline-block' }}>
-            <div style={{ background:'white', borderRadius:26, padding:30, width:368, boxShadow:'0 40px 100px rgba(26,8,0,.15)', position:'relative', animation:'cardBob 7s ease-in-out infinite', transform:'rotate(2.5deg)' }}>
-              <div style={{ position:'absolute', top:0, left:0, right:0, height:6, borderRadius:'26px 26px 0 0', background:'linear-gradient(90deg,#FF6B2B,#FFD166,#FF6B2B)', backgroundSize:'200% 100%' }}/>
-              <div style={{ fontSize:11, color:'#8C7B6E', textTransform:'uppercase', letterSpacing:'.12em', marginBottom:12, display:'flex', alignItems:'center', gap:6 }}>
-                <span style={{ background:'rgba(255,107,43,.1)', padding:'2px 8px', borderRadius:6, color:'#FF6B2B', fontWeight:700 }}>📅 {hero.diary_date || 'Day 1'}</span>
-              </div>
-              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.2rem', fontWeight:700, lineHeight:1.3, marginBottom:10 }}>{hero.diary_title || '"My Day 1 story..."'}</div>
-              <div style={{ fontSize:13, color:'#4A2800', lineHeight:1.65, marginBottom:16 }}>{hero.diary_content || 'Something unforgettable happened today...'}</div>
-              <div style={{ height:1, background:'rgba(26,8,0,.06)', margin:'12px 0' }}/>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <div style={{ width:36, height:36, borderRadius:'50%', background:'linear-gradient(135deg,#FF6B2B,#FFD166)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:'white', flexShrink:0 }}>{getInitials(hero.diary_author_name)}</div>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:600 }}>{hero.diary_author_name || 'Priya Rao'}</div>
-                  <div style={{ fontSize:11, color:'#8C7B6E' }}>{hero.diary_author_role || 'Software Engineer'}</div>
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:8, marginTop:14, paddingTop:14, borderTop:'1px solid rgba(26,8,0,.06)', flexWrap:'wrap' }}>
-                {[`❤️ ${hero.diary_likes||'3.1K'}`, `💬 ${hero.diary_comments||'284'}`, '🔗 Share'].map(r=>(
-                  <span key={r} style={{ background:'rgba(255,107,43,.08)', borderRadius:100, padding:'4px 12px', fontSize:12, color:'#FF6B2B', fontWeight:500 }}>{r}</span>
-                ))}
-              </div>
-            </div>
-            {/* Floating badges */}
-            {hero.badge_1_text && <div style={{ position:'absolute', top:-14, right:-18, background:'white', borderRadius:100, padding:'9px 16px', fontSize:12, fontWeight:600, boxShadow:'0 8px 28px rgba(26,8,0,.12)', animation:'badgeBob 5s ease-in-out infinite', whiteSpace:'nowrap', border:'1px solid rgba(255,107,43,.1)' }}>{hero.badge_1_text}</div>}
-            {hero.badge_2_text && <div style={{ position:'absolute', bottom:60, left:-28, background:'white', borderRadius:100, padding:'9px 16px', fontSize:12, fontWeight:600, boxShadow:'0 8px 28px rgba(26,8,0,.12)', animation:'badgeBob 7s ease-in-out infinite .5s', whiteSpace:'nowrap', border:'1px solid rgba(255,209,102,.3)' }}>{hero.badge_2_text}</div>}
-            {/* Points badge */}
-            <div style={{ position:'absolute', top:80, left:-36, background:'linear-gradient(135deg,#7C3AED,#2563EB)', borderRadius:14, padding:'10px 14px', fontSize:12, fontWeight:700, boxShadow:'0 8px 24px rgba(124,58,237,.3)', animation:'floatUp 4s ease-in-out infinite', color:'white', whiteSpace:'nowrap' }}>
-              🏆 +10 pts earned!
-            </div>
+        {/* Right – admin-uploaded hero image */}
+        {(hero.hero_image_urls?.length > 0) && (
+          <div className="lp-hero-r" style={{ position:'relative', zIndex:2, display:'flex', justifyContent:'center', animation:'heroIn .9s .2s cubic-bezier(.22,1,.36,1) both' }}>
+            <HeroSlideshow images={hero.hero_image_urls}/>
           </div>
-        </div>
+        )}
       </section>
 
       {/* ── TICKER ── */}

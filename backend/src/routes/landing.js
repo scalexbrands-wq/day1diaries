@@ -1,8 +1,19 @@
 const express = require('express')
+const multer = require('multer')
 const { pool } = require('../db/pool')
 const { requireAuth, requireRole } = require('../middleware/auth')
+const imageStorage = require('../utils/imageStorage')
 
 const router = express.Router()
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) return cb(Object.assign(new Error('Only image files are allowed'), { status: 400 }))
+    cb(null, true)
+  },
+})
 
 // ── GET /landing/data — single call for the whole landing page ──
 router.get('/data', async (req, res) => {
@@ -59,16 +70,59 @@ router.patch('/admin/hero', requireAuth, requireRole('admin'), async (req, res) 
     'cta_primary_text','cta_secondary_text','diary_date','diary_title',
     'diary_content','diary_author_name','diary_author_role',
     'diary_likes','diary_comments','badge_1_text','badge_2_text',
-    'ticker_items','is_active'
+    'ticker_items','is_active','hero_image_url','hero_image_urls'
   ]
   const updates = {}
   for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields' })
+  if (updates.hero_image_urls !== undefined) updates.hero_image_urls = JSON.stringify(updates.hero_image_urls)
 
   const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 1}`).join(', ')
   const { rows } = await pool.query(
     `UPDATE landing_hero SET ${setClauses}, updated_at = now() WHERE id = 1 RETURNING *`,
     Object.values(updates)
+  )
+  res.json({ hero: rows[0] })
+})
+
+const MAX_HERO_IMAGES = 3
+
+// POST /landing/admin/hero/images — add one slideshow image (multipart, field "image"); max 3
+router.post('/admin/hero/images', requireAuth, requireRole('admin'), upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image file uploaded' })
+
+  const { rows: existingRows } = await pool.query('SELECT hero_image_urls FROM landing_hero WHERE id = 1')
+  const current = existingRows[0]?.hero_image_urls || []
+  if (current.length >= MAX_HERO_IMAGES) {
+    return res.status(400).json({ error: `Maximum ${MAX_HERO_IMAGES} images — remove one before adding another` })
+  }
+
+  const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+  const key = `landing/hero-${Date.now()}.${ext}`
+  const baseUrl = `${req.protocol}://${req.get('host')}`
+  const url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl)
+
+  const updated = [...current, url]
+  const { rows } = await pool.query(
+    `UPDATE landing_hero SET hero_image_urls = $1, updated_at = now() WHERE id = 1 RETURNING *`,
+    [JSON.stringify(updated)]
+  )
+  res.json({ hero: rows[0] })
+})
+
+// DELETE /landing/admin/hero/images/:index — remove one slideshow image by its array index
+router.delete('/admin/hero/images/:index', requireAuth, requireRole('admin'), async (req, res) => {
+  const index = parseInt(req.params.index, 10)
+  const { rows: existingRows } = await pool.query('SELECT hero_image_urls FROM landing_hero WHERE id = 1')
+  const current = existingRows[0]?.hero_image_urls || []
+  if (!Number.isInteger(index) || index < 0 || index >= current.length) {
+    return res.status(400).json({ error: 'Invalid image index' })
+  }
+
+  const updated = current.filter((_, i) => i !== index)
+  const { rows } = await pool.query(
+    `UPDATE landing_hero SET hero_image_urls = $1, updated_at = now() WHERE id = 1 RETURNING *`,
+    [JSON.stringify(updated)]
   )
   res.json({ hero: rows[0] })
 })
