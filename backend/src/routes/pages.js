@@ -1,6 +1,7 @@
 const express = require('express')
 const { pool } = require('../db/pool')
 const { requireAuth, optionalAuth, requireRole } = require('../middleware/auth')
+const { requireFeatureAccess } = require('../services/accessControl')
 
 const router = express.Router()
 const adminRouter = express.Router()
@@ -207,7 +208,7 @@ router.get('/careers/:id', async (req, res) => {
 
 // ── POST /pages/careers/:id/apply — submit application (auth optional)
 // body: { full_name, email, phone, resume_url, cover_note }
-router.post('/careers/:id/apply', optionalAuth, async (req, res) => {
+router.post('/careers/:id/apply', optionalAuth, requireFeatureAccess('job_applications'), async (req, res) => {
   const { full_name, email, phone, resume_url, cover_note } = req.body
   if (!full_name || !email) return res.status(400).json({ error: 'full_name and email are required' })
 

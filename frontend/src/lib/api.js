@@ -862,3 +862,161 @@ export const adminGetEmailSendRecipients = async (sendId) => {
   const result = await apiFetch(`/admin/email/sends/${sendId}/recipients`)
   return { data: result.data?.recipients, error: result.error }
 }
+
+// ============================================================
+// MEMBERSHIP MODULE
+// ============================================================
+
+// ── Public / user-facing ─────────────────────────────────────
+export const getMembershipPlans = async () => {
+  const result = await apiFetch('/membership/plans')
+  return { data: result.data?.plans, error: result.error }
+}
+export const getMembershipFormFields = async () => {
+  const result = await apiFetch('/membership/form-fields')
+  return { data: result.data?.fields, error: result.error }
+}
+export const getMembershipPaymentSettings = async () => {
+  return apiFetch('/membership/payment-settings')
+}
+export const getMyMembershipApplication = async () => {
+  const result = await apiFetch('/membership/my-application')
+  return { data: result.data?.application, error: result.error }
+}
+export const getMyMembership = async () => {
+  return apiFetch('/membership/my-membership')
+}
+export const getMyMembershipPayments = async () => {
+  const result = await apiFetch('/membership/my-payments')
+  return { data: result.data?.payments, error: result.error }
+}
+export const getMyFeatureUsage = async () => {
+  const result = await apiFetch('/membership/usage')
+  return { data: result.data?.usage, error: result.error }
+}
+
+// Submits a membership application. `fields` = { field_key: textValue }.
+// `files` = { field_key: File } for image/file form fields.
+// `paymentProofFile` = File, required unless paymentMethod === 'manual'.
+export const submitMembershipApplication = async ({ planId, paymentMethod, fields, files, paymentProofFile }) => {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  form.append('planId', planId)
+  form.append('paymentMethod', paymentMethod)
+  Object.entries(fields || {}).forEach(([k, v]) => form.append(k, v ?? ''))
+  Object.entries(files || {}).forEach(([k, file]) => { if (file) form.append(k, file) })
+  if (paymentProofFile) form.append('payment_proof', paymentProofFile)
+
+  const res = await fetch(`${API_BASE}/membership/apply`, {
+    method: 'POST',
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.application, error: null }
+}
+
+// ── Admin: Plans ──────────────────────────────────────────────
+export const adminListMembershipPlans = async () => {
+  const result = await apiFetch('/admin/membership/plans')
+  return { data: result.data?.plans, error: result.error }
+}
+export const adminCreateMembershipPlan = async (plan) => {
+  const result = await apiFetch('/admin/membership/plans', { method: 'POST', body: JSON.stringify(plan) })
+  return { data: result.data?.plan, error: result.error }
+}
+export const adminUpdateMembershipPlan = async (id, plan) => {
+  const result = await apiFetch(`/admin/membership/plans/${id}`, { method: 'PUT', body: JSON.stringify(plan) })
+  return { data: result.data?.plan, error: result.error }
+}
+export const adminCloneMembershipPlan = async (id) => {
+  const result = await apiFetch(`/admin/membership/plans/${id}/clone`, { method: 'POST' })
+  return { data: result.data?.plan, error: result.error }
+}
+export const adminSetMembershipPlanStatus = async (id, action) => {
+  const result = await apiFetch(`/admin/membership/plans/${id}/${action}`, { method: 'POST' })
+  return { data: result.data?.plan, error: result.error }
+}
+
+// ── Admin: Form Builder ──────────────────────────────────────
+export const adminListMembershipFormFields = async () => {
+  const result = await apiFetch('/admin/membership/form-fields')
+  return { data: result.data?.fields, error: result.error }
+}
+export const adminCreateMembershipFormField = async (field) => {
+  const result = await apiFetch('/admin/membership/form-fields', { method: 'POST', body: JSON.stringify(field) })
+  return { data: result.data?.field, error: result.error }
+}
+export const adminUpdateMembershipFormField = async (id, field) => {
+  const result = await apiFetch(`/admin/membership/form-fields/${id}`, { method: 'PUT', body: JSON.stringify(field) })
+  return { data: result.data?.field, error: result.error }
+}
+export const adminDeleteMembershipFormField = async (id) => {
+  return apiFetch(`/admin/membership/form-fields/${id}`, { method: 'DELETE' })
+}
+
+// ── Admin: Applications ───────────────────────────────────────
+export const adminListMembershipApplications = async (status) => {
+  const result = await apiFetch(`/admin/membership/applications${status ? `?status=${status}` : ''}`)
+  return { data: result.data?.applications, error: result.error }
+}
+export const adminGetMembershipApplication = async (id) => {
+  return apiFetch(`/admin/membership/applications/${id}`)
+}
+export const adminApproveMembershipApplication = async (id) => {
+  return apiFetch(`/admin/membership/applications/${id}/approve`, { method: 'POST' })
+}
+export const adminRejectMembershipApplication = async (id, notes) => {
+  return apiFetch(`/admin/membership/applications/${id}/reject`, { method: 'POST', body: JSON.stringify({ notes }) })
+}
+
+// ── Admin: Payments ───────────────────────────────────────────
+export const adminListMembershipPayments = async (status) => {
+  const result = await apiFetch(`/admin/membership/payments${status ? `?status=${status}` : ''}`)
+  return { data: result.data?.payments, error: result.error }
+}
+export const adminVerifyMembershipPayment = async (id) => {
+  return apiFetch(`/admin/membership/payments/${id}/verify`, { method: 'POST' })
+}
+export const adminRejectMembershipPayment = async (id) => {
+  return apiFetch(`/admin/membership/payments/${id}/reject`, { method: 'POST' })
+}
+
+// ── Admin: Access Control ─────────────────────────────────────
+export const adminListAccessRules = async () => {
+  const result = await apiFetch('/admin/membership/access-rules')
+  return { data: result.data?.rules, error: result.error }
+}
+export const adminUpdateAccessRule = async (id, rule) => {
+  const result = await apiFetch(`/admin/membership/access-rules/${id}`, { method: 'PUT', body: JSON.stringify(rule) })
+  return { data: result.data?.rule, error: result.error }
+}
+
+// ── Admin: Settings ───────────────────────────────────────────
+export const adminGetMembershipSettings = async () => {
+  const result = await apiFetch('/admin/membership/settings')
+  return { data: result.data?.settings, error: result.error }
+}
+export const adminUpdateMembershipSettings = async (settings) => {
+  const result = await apiFetch('/admin/membership/settings', { method: 'PATCH', body: JSON.stringify(settings) })
+  return { data: result.data?.settings, error: result.error }
+}
+export const adminUploadMembershipUpiQr = async (file) => {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  form.append('image', file)
+  const res = await fetch(`${API_BASE}/admin/membership/settings/upi-qr`, {
+    method: 'POST',
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.upiQrUrl, error: null }
+}
+
+// ── Admin: Dashboard ───────────────────────────────────────────
+export const adminGetMembershipStats = async () => {
+  return apiFetch('/admin/membership/stats')
+}

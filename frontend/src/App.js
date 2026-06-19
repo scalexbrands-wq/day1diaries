@@ -31,6 +31,7 @@ import Careers from './pages/Careers'
 import JobDetail from './pages/JobDetail'
 import Contact from './pages/Contact'
 import CertificateViewer from './pages/CertificateViewer'
+import Membership from './pages/Membership'
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth()
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="/leaderboard"         element={<PrivateRoute><AppLayout><Leaderboard/></AppLayout></PrivateRoute>} />
           <Route path="/profile/:username"   element={<PrivateRoute><AppLayout><Profile/></AppLayout></PrivateRoute>} />
           <Route path="/jobs"                element={<PrivateRoute><AppLayout><Jobs/></AppLayout></PrivateRoute>} />
+          <Route path="/membership"          element={<PrivateRoute><AppLayout><Membership/></AppLayout></PrivateRoute>} />
           <Route path="/saved"               element={<PrivateRoute><AppLayout><SavedStories/></AppLayout></PrivateRoute>} />
           <Route path="/admin"               element={<AdminRoute><AppLayout><AdminDashboard/></AppLayout></AdminRoute>} />
           <Route path="/privacy"             element={<PrivacyPolicy/>} />

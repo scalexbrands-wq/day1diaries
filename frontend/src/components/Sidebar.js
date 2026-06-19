@@ -9,6 +9,7 @@ const NAV = [
   { to:'/community',   icon:'🌍', label:'Community' },
   { to:'/habits',      icon:'◈', label:'Habits' },
   { to:'/jobs',        icon:'💼', label:'Jobs' },
+  { to:'/membership',  icon:'🎫', label:'Membership' },
   { to:'/leaderboard', icon:'◎', label:'Leaderboard' },
   { to:'/saved',       icon:'◇', label:'Saved' },
 ]

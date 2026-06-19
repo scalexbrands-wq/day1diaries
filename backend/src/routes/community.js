@@ -1,6 +1,7 @@
 const express = require('express')
 const { pool } = require('../db/pool')
 const { requireAuth, requireRole, optionalAuth } = require('../middleware/auth')
+const { requireFeatureAccess } = require('../services/accessControl')
 
 const router = express.Router()
 
@@ -36,7 +37,7 @@ router.get('/:id/registration-status', requireAuth, async (req, res) => {
 })
 
 // POST /community/:id/register
-router.post('/:id/register', requireAuth, async (req, res) => {
+router.post('/:id/register', requireAuth, requireFeatureAccess('event_registration'), async (req, res) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO event_registrations (event_id, user_id) VALUES ($1, $2)

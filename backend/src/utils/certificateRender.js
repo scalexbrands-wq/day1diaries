@@ -84,4 +84,21 @@ async function renderSocialPreview(html) {
   })
 }
 
-module.exports = { renderCertificate, renderSocialPreview }
+// Membership card — standard landscape ID-card ratio, laid out at 1050x660
+// CSS px (~CR80 card proportions, scaled up for crisp PNG/PDF output).
+const CARD_WIDTH = 1050
+const CARD_HEIGHT = 660
+const CARD_SCALE = 2 // -> 2100x1320 PNG
+
+async function renderMembershipCard(html) {
+  return withPage({ width: CARD_WIDTH, height: CARD_HEIGHT, deviceScaleFactor: CARD_SCALE }, async (page) => {
+    await page.setContent(html, { waitUntil: 'networkidle0' })
+    const pngBuffer = await page.screenshot({ type: 'png' })
+    const pdfBuffer = await page.pdf({
+      width: `${CARD_WIDTH}px`, height: `${CARD_HEIGHT}px`, printBackground: true, pageRanges: '1',
+    })
+    return { pngBuffer, pdfBuffer }
+  })
+}
+
+module.exports = { renderCertificate, renderSocialPreview, renderMembershipCard }

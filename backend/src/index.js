@@ -34,6 +34,8 @@ const { publicRouter: pagesPublicRoutes, adminRouter: pagesAdminRoutes } = requi
 const announcementRoutes = require('./routes/announcements')
 const certificateRoutes = require('./routes/certificates')
 const emailRoutes = require('./routes/email')
+const membershipRoutes = require('./routes/membership')
+const adminMembershipRoutes = require('./routes/admin-membership')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -100,6 +102,8 @@ app.use('/admin/pages', pagesAdminRoutes)
 app.use('/announcements', announcementRoutes)
 app.use('/certificates', certificateRoutes)
 app.use('/admin/email', emailRoutes)
+app.use('/membership', membershipRoutes)
+app.use('/admin/membership', adminMembershipRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))
@@ -113,4 +117,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Day1 Diaries API listening on port ${PORT}`)
   require('./services/emailScheduler').start()
+  require('./services/membershipScheduler').start()
 })

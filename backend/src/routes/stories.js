@@ -2,6 +2,7 @@ const express = require('express')
 const { pool } = require('../db/pool')
 const { requireAuth, optionalAuth } = require('../middleware/auth')
 const { scanBadWords } = require('../utils/badWords')
+const { requireFeatureAccess } = require('../services/accessControl')
 
 const router = express.Router()
 
@@ -160,7 +161,9 @@ router.get('/my-unlocks', requireAuth, async (req, res) => {
 })
 
 // ── GET /stories/:id ───────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+// optionalAuth so logged-in free users can be metered on story_viewing —
+// anonymous visitors are untracked/unrestricted (see services/accessControl.js).
+router.get('/:id', optionalAuth, requireFeatureAccess('story_viewing'), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT s.*, json_build_object(
         'id', p.id, 'username', p.username, 'full_name', p.full_name,
@@ -176,7 +179,7 @@ router.get('/:id', async (req, res) => {
 
 // ── POST /stories ───────────────────────────────────────────────
 // body: { title, content, category, tags, cover_image_url, status }
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, requireFeatureAccess('story_creation'), async (req, res) => {
   const { title, content: body, category, tags, cover_image_url, status, visibility } = req.body
   if (!title || !body || !category) {
     return res.status(400).json({ error: 'title, content, and category are required' })
@@ -322,7 +325,7 @@ router.get('/:id/comments', async (req, res) => {
 })
 
 // POST /stories/:id/comments  body: { content }
-router.post('/:id/comments', requireAuth, async (req, res) => {
+router.post('/:id/comments', requireAuth, requireFeatureAccess('community_post'), async (req, res) => {
   const { content } = req.body
   if (!content?.trim()) return res.status(400).json({ error: 'content required' })
 

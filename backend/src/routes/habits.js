@@ -1,6 +1,7 @@
 const express = require('express')
 const { pool } = require('../db/pool')
 const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireFeatureAccess } = require('../services/accessControl')
 
 const router = express.Router()
 
@@ -27,7 +28,7 @@ router.get('/mine', requireAuth, async (req, res) => {
 })
 
 // ── POST /habits/:id/adopt ──────────────────────────────────────
-router.post('/:id/adopt', requireAuth, async (req, res) => {
+router.post('/:id/adopt', requireAuth, requireFeatureAccess('habit_adoption'), async (req, res) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO user_habits (user_id, habit_id, current_day, streak, last_updated)
@@ -130,7 +131,7 @@ router.get('/challenges/:id/participants', async (req, res) => {
 })
 
 // POST /habits/challenges/:id/join
-router.post('/challenges/:id/join', requireAuth, async (req, res) => {
+router.post('/challenges/:id/join', requireAuth, requireFeatureAccess('challenge_join'), async (req, res) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO challenge_participations (challenge_id, user_id) VALUES ($1, $2)

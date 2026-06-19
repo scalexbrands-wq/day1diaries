@@ -21,6 +21,13 @@ import {
   adminListEmailWorkflows, adminCreateEmailWorkflow, adminUpdateEmailWorkflow, adminDeleteEmailWorkflow,
   adminActivateEmailWorkflow, adminPauseEmailWorkflow, adminRunEmailWorkflowNow,
   adminListEmailSends, adminGetEmailSendRecipients,
+  adminListMembershipPlans, adminCreateMembershipPlan, adminUpdateMembershipPlan, adminCloneMembershipPlan, adminSetMembershipPlanStatus,
+  adminListMembershipFormFields, adminCreateMembershipFormField, adminUpdateMembershipFormField, adminDeleteMembershipFormField,
+  adminListMembershipApplications, adminGetMembershipApplication, adminApproveMembershipApplication, adminRejectMembershipApplication,
+  adminListMembershipPayments, adminVerifyMembershipPayment, adminRejectMembershipPayment,
+  adminListAccessRules, adminUpdateAccessRule,
+  adminGetMembershipSettings, adminUpdateMembershipSettings, adminUploadMembershipUpiQr,
+  adminGetMembershipStats,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -54,6 +61,7 @@ const TABS = [
   ['challenges','🏆 Challenges'],
   ['events','📅 Events'],
   ['email','✉️ Email Center'],
+  ['membership','🎫 Membership'],
   ['users','👥 Users'],
   ['content','🛡️ Moderation'],
   ['landing','🎯 Landing'],
@@ -78,6 +86,7 @@ export default function AdminDashboard() {
       {tab==='challenges' && <ChallengesTab/>}
       {tab==='events'     && <EventsTab/>}
       {tab==='email'      && <EmailCenterTab/>}
+      {tab==='membership' && <MembershipTab/>}
       {tab==='users'      && <UsersTab/>}
       {tab==='content'    && <ModerationTab/>}
       {tab==='landing'    && <AdminLandingContent/>}
@@ -1405,7 +1414,8 @@ const EMAIL_CATEGORIES = ['welcome','story','habit','challenge','event','leaderb
 const EMAIL_SUB_TABS = [['templates','Templates'],['audiences','Audiences'],['workflows','Workflows'],['logs','Logs']]
 const extractTokens = (text) => [...new Set([...(text||'').matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map(m=>m[1]))]
 const Badge = ({children,color}) => <span style={{fontSize:10,padding:'2px 8px',borderRadius:100,background:`${color}1a`,color,fontWeight:700}}>{children}</span>
-const STATUS_COLORS = {draft:'#6B7280',active:'#059669',archived:'#8C7B6E',paused:'#F59E0B',completed:'#059669',failed:'#DC2626',partial:'#F59E0B',pending:'#6B7280',processing:'#2563EB'}
+const STATUS_COLORS = {draft:'#6B7280',active:'#059669',archived:'#8C7B6E',paused:'#F59E0B',completed:'#059669',failed:'#DC2626',partial:'#F59E0B',pending:'#6B7280',processing:'#2563EB',
+  verified:'#059669',rejected:'#DC2626',expired:'#8C7B6E',cancelled:'#6B7280',suspended:'#DC2626',under_review:'#2563EB',renewal_due:'#F59E0B',approved:'#059669'}
 
 function EmailCenterTab() {
   const [sub, setSub] = useState('templates')
@@ -1831,6 +1841,476 @@ function EmailLogsTab() {
           ))}
         </Modal>
       )}
+    </div>
+  )
+}
+
+/* ══ MEMBERSHIP ═════════════════════════════════════════════════ */
+const MEMBERSHIP_SUB_TABS = [['dashboard','Dashboard'],['plans','Plans'],['formbuilder','Form Builder'],['applications','Applications'],['payments','Payments'],['access','Access Control'],['settings','Settings']]
+const DURATION_TYPES = ['monthly','quarterly','annual','lifetime','custom']
+const FIELD_TYPES = ['text','textarea','email','phone','number','dropdown','checkbox','radio','file','image','linkedin_url','company_name']
+const RESET_FREQS = ['daily','weekly','monthly','yearly','never']
+
+function MembershipTab() {
+  const [sub, setSub] = useState('dashboard')
+  return (
+    <div>
+      <div style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
+        {MEMBERSHIP_SUB_TABS.map(([k,l]) => (
+          <button key={k} onClick={()=>setSub(k)} style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${sub===k?'#FF6B2B':'#DDD3CA'}`,background:sub===k?'#FF6B2B':'white',color:sub===k?'white':'#5C3D2E',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{l}</button>
+        ))}
+      </div>
+      {sub==='dashboard'    && <MembershipDashboardTab/>}
+      {sub==='plans'        && <MembershipPlansTab/>}
+      {sub==='formbuilder'  && <MembershipFormBuilderTab/>}
+      {sub==='applications' && <MembershipApplicationsTab/>}
+      {sub==='payments'     && <MembershipPaymentsTab/>}
+      {sub==='access'       && <MembershipAccessControlTab/>}
+      {sub==='settings'     && <MembershipSettingsTab/>}
+    </div>
+  )
+}
+
+function MembershipDashboardTab() {
+  const [stats, setStats] = useState(null)
+  const [planPerf, setPlanPerf] = useState([])
+  useEffect(() => { adminGetMembershipStats().then(({data}) => { setStats(data?.stats||null); setPlanPerf(data?.planPerformance||[]) }) }, [])
+  if (!stats) return <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>Loading…</p></Card>
+  const cards = [
+    ['Total Members', stats.total_members, '🎫'],
+    ['Pending Approvals', stats.pending_approvals, '⏳'],
+    ['Approved (all-time)', stats.approved_members, '✅'],
+    ['Expired Members', stats.expired_members, '⌛'],
+    ['Total Revenue', `₹${stats.total_revenue}`, '💰'],
+    ['Monthly Revenue', `₹${stats.monthly_revenue}`, '📈'],
+    ['Total Applications', stats.total_applications, '📝'],
+    ['Rejected', stats.rejected_applications, '❌'],
+  ]
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:20}}>
+        {cards.map(([label,value,icon]) => (
+          <Card key={label} style={{textAlign:'center'}}>
+            <div style={{fontSize:24,marginBottom:6}}>{icon}</div>
+            <div style={{fontSize:20,fontWeight:800,color:'#1A0800'}}>{value}</div>
+            <div style={{fontSize:11,color:'#8C7B6E',marginTop:2}}>{label}</div>
+          </Card>
+        ))}
+      </div>
+      <SH c="Plan Performance"/>
+      {planPerf.map(p => (
+        <Card key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{fontWeight:700,fontSize:13}}>{p.name}</div>
+          <div style={{fontSize:12,color:'#5C3D2E'}}>{p.member_count} active members · ₹{p.revenue} revenue</div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function MembershipPlansTab() {
+  const [list, setList] = useState([])
+  const [form, setForm] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(() => { adminListMembershipPlans().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const openNew = () => { setEditingId(null); setForm({ name:'', description:'', price:99, currency:'INR', duration_type:'monthly', duration_days:30, benefits:[], badge_emoji:'⭐', badge_color:'#FF6B2B', priority_level:0 }) }
+  const openEdit = (p) => { setEditingId(p.id); setForm({ ...p, benefits: p.benefits||[] }) }
+
+  const save = async () => {
+    if (!form.name.trim()) return toast.error('Plan name is required')
+    setSaving(true)
+    const { error } = editingId ? await adminUpdateMembershipPlan(editingId, form) : await adminCreateMembershipPlan(form)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(editingId ? 'Plan updated' : 'Plan created')
+    setForm(null); load()
+  }
+  const clone = async (id) => { const {error} = await adminCloneMembershipPlan(id); if(error) return toast.error(error.message); toast.success('Cloned'); load() }
+  const setStatus = async (id, action) => { const {error} = await adminSetMembershipPlanStatus(id, action); if(error) return toast.error(error.message); toast.success('Updated'); load() }
+
+  const benefitsText = (form?.benefits||[]).join('\n')
+  const setBenefitsText = (text) => setForm(f => ({...f, benefits: text.split('\n').map(s=>s.trim()).filter(Boolean)}))
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Membership Plans</h3>
+        <Btn onClick={openNew}>+ New Plan</Btn>
+      </div>
+      {list.length===0 && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No plans yet.</p></Card>}
+      {list.map(p => (
+        <Card key={p.id} style={{display:'flex',gap:14,alignItems:'center'}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+              <span style={{fontWeight:700,fontSize:14}}>{p.badge_emoji} {p.name}</span>
+              <Badge color={STATUS_COLORS[p.status]}>{p.status.toUpperCase()}</Badge>
+              <span style={{fontSize:12,color:'#8C7B6E'}}>{p.duration_type}</span>
+            </div>
+            <div style={{fontSize:13,color:'#4A2800'}}>{p.currency} {p.price}{p.duration_days ? ` / ${p.duration_days}d` : ''}</div>
+          </div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openEdit(p)}>Edit</Btn>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>clone(p.id)}>Clone</Btn>
+            {p.status==='active'
+              ? <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>setStatus(p.id,'deactivate')}>Deactivate</Btn>
+              : <Btn v='green' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>setStatus(p.id,'activate')}>Activate</Btn>}
+            {p.status!=='archived' && <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>setStatus(p.id,'archive')}>Archive</Btn>}
+          </div>
+        </Card>
+      ))}
+
+      {form && (
+        <Modal title={editingId?'Edit Plan':'New Plan'} onClose={()=>setForm(null)}>
+          <L c="Plan Name"/>
+          <Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Monthly Membership"/>
+          <L c="Description"/>
+          <TA value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div><L c="Price"/><Inp type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:Number(e.target.value)}))}/></div>
+            <div><L c="Currency"/><Inp value={form.currency} onChange={e=>setForm(f=>({...f,currency:e.target.value}))}/></div>
+          </div>
+          <L c="Duration Type"/>
+          <select value={form.duration_type} onChange={e=>setForm(f=>({...f,duration_type:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+            {DURATION_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          {form.duration_type!=='lifetime' && (<><L c="Duration (days)"/><Inp type="number" value={form.duration_days||''} onChange={e=>setForm(f=>({...f,duration_days:Number(e.target.value)}))}/></>)}
+          <L c="Benefits (one per line)"/>
+          <TA value={benefitsText} onChange={e=>setBenefitsText(e.target.value)} placeholder={'Unlimited stories\nUnlimited habits\nFull community access'} style={{minHeight:90}}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+            <div><L c="Badge Emoji"/><Inp value={form.badge_emoji} onChange={e=>setForm(f=>({...f,badge_emoji:e.target.value}))}/></div>
+            <div><L c="Badge Color"/><Inp type="color" value={form.badge_color} onChange={e=>setForm(f=>({...f,badge_color:e.target.value}))} style={{padding:2,height:38}}/></div>
+            <div><L c="Priority"/><Inp type="number" value={form.priority_level} onChange={e=>setForm(f=>({...f,priority_level:Number(e.target.value)}))}/></div>
+          </div>
+          <Btn onClick={save} disabled={saving} style={{width:'100%',padding:'11px'}}>{saving?'Saving…':editingId?'Save Changes':'Create Plan'}</Btn>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function MembershipFormBuilderTab() {
+  const [list, setList] = useState([])
+  const [form, setForm] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(() => { adminListMembershipFormFields().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const openNew = () => { setEditingId(null); setForm({ field_key:'', label:'', field_type:'text', is_required:false, options:[], sort_order:(list.length+1)*10 }) }
+  const openEdit = (f) => { setEditingId(f.id); setForm({ ...f, options: f.options||[] }) }
+
+  const save = async () => {
+    if (!form.label.trim() || (!editingId && !form.field_key.trim())) return toast.error('Label and field key are required')
+    setSaving(true)
+    const { error } = editingId ? await adminUpdateMembershipFormField(editingId, form) : await adminCreateMembershipFormField(form)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(editingId ? 'Field updated' : 'Field added')
+    setForm(null); load()
+  }
+  const remove = async (id) => { if(!window.confirm('Delete this field?')) return; await adminDeleteMembershipFormField(id); toast.success('Deleted'); load() }
+  const toggleActive = async (f) => { await adminUpdateMembershipFormField(f.id, { ...f, is_active: !f.is_active }); load() }
+
+  const optionsText = (form?.options||[]).join('\n')
+  const setOptionsText = (text) => setForm(f => ({...f, options: text.split('\n').map(s=>s.trim()).filter(Boolean)}))
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Application Form Builder</h3>
+        <Btn onClick={openNew}>+ Add Field</Btn>
+      </div>
+      {list.map(f => (
+        <Card key={f.id} style={{display:'flex',gap:14,alignItems:'center'}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+              <span style={{fontWeight:700,fontSize:14}}>{f.label}</span>
+              <Badge color="#7C3AED">{f.field_type}</Badge>
+              {f.is_required && <Badge color="#DC2626">REQUIRED</Badge>}
+              <Badge color={f.is_active?'#059669':'#8C7B6E'}>{f.is_active?'ACTIVE':'INACTIVE'}</Badge>
+            </div>
+            <div style={{fontSize:11,color:'#8C7B6E',marginTop:2}}>key: {f.field_key} · order: {f.sort_order}</div>
+          </div>
+          <div style={{display:'flex',gap:6,flexShrink:0}}>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>toggleActive(f)}>{f.is_active?'Disable':'Enable'}</Btn>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openEdit(f)}>Edit</Btn>
+            <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>remove(f.id)}>Delete</Btn>
+          </div>
+        </Card>
+      ))}
+
+      {form && (
+        <Modal title={editingId?'Edit Field':'New Field'} onClose={()=>setForm(null)}>
+          <L c="Field Key (snake_case, immutable)"/>
+          <Inp value={form.field_key} disabled={!!editingId} onChange={e=>setForm(f=>({...f,field_key:e.target.value.replace(/\s+/g,'_').toLowerCase()}))} placeholder="e.g. portfolio_url"/>
+          <L c="Label"/>
+          <Inp value={form.label} onChange={e=>setForm(f=>({...f,label:e.target.value}))} placeholder="e.g. Portfolio URL"/>
+          <L c="Field Type"/>
+          <select value={form.field_type} onChange={e=>setForm(f=>({...f,field_type:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12}}>
+            {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          {(form.field_type==='dropdown' || form.field_type==='radio') && (
+            <><L c="Options (one per line)"/><TA value={optionsText} onChange={e=>setOptionsText(e.target.value)}/></>
+          )}
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,marginBottom:12,cursor:'pointer'}}>
+            <input type="checkbox" checked={!!form.is_required} onChange={e=>setForm(f=>({...f,is_required:e.target.checked}))}/> Required
+          </label>
+          <L c="Sort Order"/>
+          <Inp type="number" value={form.sort_order} onChange={e=>setForm(f=>({...f,sort_order:Number(e.target.value)}))}/>
+          <Btn onClick={save} disabled={saving} style={{width:'100%',padding:'11px'}}>{saving?'Saving…':editingId?'Save Changes':'Add Field'}</Btn>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function MembershipApplicationsTab() {
+  const [list, setList] = useState([])
+  const [filter, setFilter] = useState('')
+  const [detail, setDetail] = useState(null)
+  const [rejectNotes, setRejectNotes] = useState('')
+
+  const load = useCallback(() => { adminListMembershipApplications(filter||undefined).then(({data}) => setList(data||[])) }, [filter])
+  useEffect(() => { load() }, [load])
+
+  const openDetail = async (id) => { const {data} = await adminGetMembershipApplication(id); setDetail(data); setRejectNotes('') }
+  const approve = async (id) => {
+    const { error } = await adminApproveMembershipApplication(id)
+    if (error) return toast.error(error.message)
+    toast.success('Approved — membership activated, card generating')
+    setDetail(null); load()
+  }
+  const reject = async (id) => {
+    const { error } = await adminRejectMembershipApplication(id, rejectNotes)
+    if (error) return toast.error(error.message)
+    toast.success('Rejected')
+    setDetail(null); load()
+  }
+
+  const STATUSES = ['','pending','under_review','approved','rejected','expired','cancelled','suspended','renewal_due']
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Applications</h3>
+        <select value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:'7px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12,fontFamily:'inherit'}}>
+          {STATUSES.map(s => <option key={s} value={s}>{s||'All statuses'}</option>)}
+        </select>
+      </div>
+      {list.length===0 && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No applications.</p></Card>}
+      {list.map(a => (
+        <Card key={a.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,cursor:'pointer'}} onClick={()=>openDetail(a.id)}>
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+              <span style={{fontWeight:700,fontSize:13}}>{a.profile?.full_name || a.profile?.username}</span>
+              <Badge color={STATUS_COLORS[a.status]}>{a.status.toUpperCase()}</Badge>
+              <span style={{fontSize:11,color:'#8C7B6E'}}>{a.plan_name}</span>
+            </div>
+            <div style={{fontSize:11,color:'#8C7B6E'}}>{a.profile?.email} · {new Date(a.created_at).toLocaleDateString('en-IN')}</div>
+          </div>
+          <div style={{fontSize:12,color:'#5C3D2E'}}>{a.payment_method}</div>
+        </Card>
+      ))}
+
+      {detail && (
+        <Modal title={`Application — ${detail.application.profile?.full_name||''}`} onClose={()=>setDetail(null)}>
+          <div style={{marginBottom:14}}>
+            <Badge color={STATUS_COLORS[detail.application.status]}>{detail.application.status.toUpperCase()}</Badge>
+            <span style={{marginLeft:8,fontSize:12,color:'#8C7B6E'}}>{detail.application.plan_name} · {detail.application.payment_method}</span>
+          </div>
+          <div style={{background:'#F7F3EF',borderRadius:10,padding:12,marginBottom:14,fontSize:12}}>
+            {Object.entries(detail.application.form_responses||{}).map(([k,v]) => (
+              <div key={k} style={{marginBottom:6}}><b>{k}:</b> {String(v).startsWith('http') ? <a href={v} target="_blank" rel="noreferrer">View</a> : String(v)}</div>
+            ))}
+          </div>
+          {detail.application.payment_proof_url && (
+            <div style={{marginBottom:14}}>
+              <L c="Payment Proof"/>
+              <a href={detail.application.payment_proof_url} target="_blank" rel="noreferrer"><img src={detail.application.payment_proof_url} alt="proof" style={{maxWidth:'100%',borderRadius:8,border:'1px solid #F0EAE4'}}/></a>
+            </div>
+          )}
+          {detail.application.status==='pending' || detail.application.status==='under_review' ? (
+            <>
+              <L c="Rejection notes (optional, sent to applicant if rejecting)"/>
+              <TA value={rejectNotes} onChange={e=>setRejectNotes(e.target.value)} style={{minHeight:60}}/>
+              <div style={{display:'flex',gap:10}}>
+                <Btn v='green' onClick={()=>approve(detail.application.id)} style={{flex:1,justifyContent:'center'}}>Approve</Btn>
+                <Btn v='danger' onClick={()=>reject(detail.application.id)} style={{flex:1,justifyContent:'center'}}>Reject</Btn>
+              </div>
+            </>
+          ) : detail.application.admin_notes && <p style={{fontSize:12,color:'#8C7B6E'}}>Admin notes: {detail.application.admin_notes}</p>}
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function MembershipPaymentsTab() {
+  const [list, setList] = useState([])
+  const [filter, setFilter] = useState('')
+
+  const load = useCallback(() => { adminListMembershipPayments(filter||undefined).then(({data}) => setList(data||[])) }, [filter])
+  useEffect(() => { load() }, [load])
+
+  const verify = async (id) => { const {error} = await adminVerifyMembershipPayment(id); if(error) return toast.error(error.message); toast.success('Verified'); load() }
+  const reject = async (id) => { const {error} = await adminRejectMembershipPayment(id); if(error) return toast.error(error.message); toast.success('Rejected'); load() }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Payments</h3>
+        <select value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:'7px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12,fontFamily:'inherit'}}>
+          {['','pending','verified','rejected','refunded'].map(s => <option key={s} value={s}>{s||'All statuses'}</option>)}
+        </select>
+      </div>
+      {list.length===0 && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No payments.</p></Card>}
+      {list.map(p => (
+        <Card key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+              <span style={{fontWeight:700,fontSize:13}}>{p.profile?.full_name||p.profile?.username}</span>
+              <Badge color={STATUS_COLORS[p.status]}>{p.status.toUpperCase()}</Badge>
+              <span style={{fontSize:11,color:'#8C7B6E'}}>{p.method}</span>
+            </div>
+            <div style={{fontSize:12,color:'#5C3D2E'}}>{p.currency} {p.amount} · {p.plan_name}</div>
+          </div>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            {p.proof_url && <a href={p.proof_url} target="_blank" rel="noreferrer" style={{fontSize:11,color:'#FF6B2B',fontWeight:600}}>View Proof</a>}
+            {p.status==='pending' && (
+              <>
+                <Btn v='green' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>verify(p.id)}>Verify</Btn>
+                <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>reject(p.id)}>Reject</Btn>
+              </>
+            )}
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function MembershipAccessControlTab() {
+  const [list, setList] = useState([])
+  const load = useCallback(() => { adminListAccessRules().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const update = async (rule, patch) => {
+    const { error } = await adminUpdateAccessRule(rule.id, { ...rule, ...patch })
+    if (error) return toast.error(error.message)
+    load()
+  }
+
+  return (
+    <div>
+      <h3 style={{margin:'0 0 6px',fontSize:15,fontWeight:700}}>Feature Access Control</h3>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:16}}>Limit: -1 = unlimited, 0 = disabled, N = N per reset period.</p>
+      {list.map(r => (
+        <Card key={r.id}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+            <span style={{fontWeight:700,fontSize:13}}>{r.label}</span>
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+              <input type="checkbox" checked={r.is_active} onChange={e=>update(r,{is_active:e.target.checked})}/> Enforced
+            </label>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+            <div><L c="Free Limit"/><Inp type="number" defaultValue={r.free_limit} onBlur={e=>update(r,{free_limit:Number(e.target.value)})}/></div>
+            <div><L c="Member Limit"/><Inp type="number" defaultValue={r.member_limit} onBlur={e=>update(r,{member_limit:Number(e.target.value)})}/></div>
+            <div>
+              <L c="Reset Frequency"/>
+              <select defaultValue={r.reset_frequency} onChange={e=>update(r,{reset_frequency:e.target.value})} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit'}}>
+                {RESET_FREQS.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function MembershipSettingsTab() {
+  const [settings, setSettings] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  const load = useCallback(() => { adminGetMembershipSettings().then(({data}) => setSettings(data||{})) }, [])
+  useEffect(() => { load() }, [load])
+
+  const bank = settings['membership.bank_details'] || {}
+  const setBank = (k,v) => setSettings(s => ({...s, 'membership.bank_details': {...bank, [k]:v}}))
+  const methodsEnabled = settings['membership.payment_methods_enabled'] || ['manual','upi','bank_transfer']
+  const toggleMethod = (m) => setSettings(s => ({...s, 'membership.payment_methods_enabled': methodsEnabled.includes(m) ? methodsEnabled.filter(x=>x!==m) : [...methodsEnabled,m]}))
+
+  const save = async () => {
+    setSaving(true)
+    const { error } = await adminUpdateMembershipSettings(settings)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success('Settings saved')
+  }
+
+  const handleQrUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploading(true)
+    const { data, error } = await adminUploadMembershipUpiQr(file)
+    setUploading(false)
+    if (error) return toast.error(error.message)
+    setSettings(s => ({...s, 'membership.upi_qr_url': data}))
+    toast.success('UPI QR uploaded')
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Membership Settings</h3>
+        <Btn onClick={save} disabled={saving}>{saving?'Saving…':'Save Changes'}</Btn>
+      </div>
+
+      <Card>
+        <SH c="Payment Methods Enabled"/>
+        <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
+          {['manual','upi','bank_transfer'].map(m => (
+            <label key={m} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+              <input type="checkbox" checked={methodsEnabled.includes(m)} onChange={()=>toggleMethod(m)}/> {m.replace('_',' ')}
+            </label>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <SH c="UPI QR Code"/>
+        {settings['membership.upi_qr_url'] && <img src={settings['membership.upi_qr_url']} alt="UPI QR" style={{width:160,height:160,objectFit:'contain',border:'1px solid #F0EAE4',borderRadius:10,marginBottom:12,display:'block'}}/>}
+        <label style={{padding:'8px 18px',borderRadius:100,fontSize:12,fontWeight:600,cursor:'pointer',background:'#FF6B2B',color:'white',border:'none',display:'inline-block'}}>
+          {uploading?'Uploading…':'Upload QR Image'}
+          <input type="file" accept="image/*" onChange={handleQrUpload} disabled={uploading} style={{display:'none'}}/>
+        </label>
+      </Card>
+
+      <Card>
+        <SH c="Bank Transfer Details"/>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div><L c="Bank Name"/><Inp value={bank.bank_name||''} onChange={e=>setBank('bank_name',e.target.value)}/></div>
+          <div><L c="Account Name"/><Inp value={bank.account_name||''} onChange={e=>setBank('account_name',e.target.value)}/></div>
+          <div><L c="Account Number"/><Inp value={bank.account_number||''} onChange={e=>setBank('account_number',e.target.value)}/></div>
+          <div><L c="IFSC"/><Inp value={bank.ifsc||''} onChange={e=>setBank('ifsc',e.target.value)}/></div>
+          <div><L c="Branch"/><Inp value={bank.branch||''} onChange={e=>setBank('branch',e.target.value)}/></div>
+        </div>
+      </Card>
+
+      <Card>
+        <SH c="Renewal & Grace Period"/>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div><L c="Grace Period (days)"/><Inp type="number" value={settings['membership.grace_period_days']||0} onChange={e=>setSettings(s=>({...s,'membership.grace_period_days':Number(e.target.value)}))}/></div>
+          <div><L c="Renewal Reminder (days before expiry)"/><Inp type="number" value={settings['membership.renewal_reminder_days']||7} onChange={e=>setSettings(s=>({...s,'membership.renewal_reminder_days':Number(e.target.value)}))}/></div>
+        </div>
+      </Card>
     </div>
   )
 }
