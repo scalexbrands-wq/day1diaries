@@ -2415,7 +2415,7 @@ function SeoTab() {
           The sitemap is generated live from published stories/posts/jobs — nothing to configure here.
         </p>
         <div style={{fontSize:13,marginBottom:6}}><a href="https://api.day1diaries.com/sitemap.xml" target="_blank" rel="noreferrer">https://api.day1diaries.com/sitemap.xml</a></div>
-        <div style={{fontSize:13,marginBottom:10}}><a href="https://day1diaries.com/robots.txt" target="_blank" rel="noreferrer">https://day1diaries.com/robots.txt</a></div>
+        <div style={{fontSize:13,marginBottom:10}}><a href="https://www.day1diaries.com/robots.txt" target="_blank" rel="noreferrer">https://www.day1diaries.com/robots.txt</a></div>
         <p style={{fontSize:12,color:'#8C7B6E',margin:0}}>
           To submit the sitemap in Google Search Console: verify <b>day1diaries.com</b> using <b>domain-level verification</b> (DNS TXT record), not a single-subdomain property — domain verification covers <code>api.day1diaries.com</code> too, so the sitemap there is accepted.
         </p>

@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 
-const SITE_URL = 'https://day1diaries.com'
+// www, not bare apex — day1diaries.com only redirects "/" to www and
+// 404s on every other path.
+const SITE_URL = 'https://www.day1diaries.com'
 
 function upsertMeta(attr, key, content) {
   if (!content) return

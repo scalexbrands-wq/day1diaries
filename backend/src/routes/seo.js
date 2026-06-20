@@ -11,11 +11,12 @@ const { pool } = require('../db/pool')
 
 const router = express.Router()
 
-// SITE_URL is the canonical apex domain — deliberately NOT the
-// CloudFront default domain, so OG/canonical URLs always point at the
-// real site. No Terraform change needed: this just needs an env var
-// override if the domain ever changes.
-const SITE_URL = process.env.SITE_URL || 'https://day1diaries.com'
+// SITE_URL is the canonical www domain — NOT the CloudFront default
+// domain, and NOT the bare apex (day1diaries.com only redirects "/" to
+// www and 404s on every other path, e.g. /story/:id, /robots.txt).
+// No Terraform change needed: this just needs an env var override if
+// the domain setup ever changes.
+const SITE_URL = process.env.SITE_URL || 'https://www.day1diaries.com'
 
 function escapeXml(s) {
   return String(s ?? '').replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]))

@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { toast } from './Toast'
 
-const APP_URL = 'https://day1diaries.com'
+// www, not bare apex — day1diaries.com only redirects "/" to www and
+// 404s on every other path.
+const APP_URL = 'https://www.day1diaries.com'
 // Share links point at the API's server-rendered preview pages (not the
 // raw SPA URL) — social bots (WhatsApp/Facebook/Twitter/LinkedIn) mostly
 // don't run JS, so they need static OG tags to show a rich preview card.
