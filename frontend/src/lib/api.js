@@ -450,6 +450,35 @@ export const getLandingData = async () => {
   return { data: result.data, error: result.error }
 }
 
+// ============================================================
+// SEO
+// ============================================================
+
+export const getSeoDefaults = async () => {
+  return apiFetch('/seo/defaults')
+}
+export const adminGetSeoSettings = async () => {
+  const result = await apiFetch('/admin/seo/settings')
+  return { data: result.data?.settings, error: result.error }
+}
+export const adminUpdateSeoSettings = async (settings) => {
+  const result = await apiFetch('/admin/seo/settings', { method: 'PATCH', body: JSON.stringify(settings) })
+  return { data: result.data?.settings, error: result.error }
+}
+export const adminUploadSeoOgImage = async (file) => {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  form.append('image', file)
+  const res = await fetch(`${API_BASE}/admin/seo/settings/og-image`, {
+    method: 'POST',
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.ogImageUrl, error: null }
+}
+
 // Individual getters (kept for compatibility with existing Landing.js)
 export const getLandingStats = async () => {
   const { data } = await getLandingData()

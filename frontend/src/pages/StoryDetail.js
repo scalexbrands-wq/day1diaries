@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { getStory, getComments, addComment, toggleLike, toggleSave, deleteStory, unlockStory, getMyCoins, recordStoryView, getStories } from '../lib/api'
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
-import ShareButton, { storyShareText } from '../components/ShareButton'
+import ShareButton, { storyShareText, storyShareUrl } from '../components/ShareButton'
+import Seo from '../components/Seo'
 import { formatDistanceToNow } from 'date-fns'
 
 export default function StoryDetail() {
@@ -109,6 +110,14 @@ export default function StoryDetail() {
 
   return (
     <div style={{ padding: '16px', maxWidth: 1080, margin: '0 auto', fontFamily: "'DM Sans',sans-serif" }}>
+      {!isLocked && (
+        <Seo
+          title={`${story.title} — Day1 Diaries`}
+          description={(story.content || '').replace(/\s+/g, ' ').trim().slice(0, 160)}
+          image={story.cover_image_url}
+          path={`/story/${id}`}
+        />
+      )}
       <style>{`
         @keyframes sd-in { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
         .sd-card { background:white; border:1px solid #F0EAE4; border-radius:20px; margin-bottom:20px; animation:sd-in .4s ease both; }
@@ -286,7 +295,7 @@ export default function StoryDetail() {
                 <div style={{ marginLeft: 'auto' }}>
                   <ShareButton
                     text={storyShareText(story.title, id)}
-                    url={`https://d1kxji3yv78nbx.cloudfront.net/story/${id}`}
+                    url={storyShareUrl(id)}
                     label="Share"
                   />
                 </div>

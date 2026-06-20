@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import SiteLayout from './SiteLayout'
 import { getBlogPost } from '../lib/api'
 import { format } from 'date-fns'
+import Seo from '../components/Seo'
 
 export default function BlogPost() {
   const { slug } = useParams()
@@ -40,6 +41,12 @@ export default function BlogPost() {
       title={post.title}
       subtitle={[post.author_name, post.published_at && format(new Date(post.published_at), 'MMMM d, yyyy')].filter(Boolean).join(' · ')}
     >
+      <Seo
+        title={`${post.title} — Day1 Diaries Blog`}
+        description={post.excerpt || (post.content || '').replace(/\s+/g, ' ').trim().slice(0, 160)}
+        image={post.cover_image}
+        path={`/blog/${slug}`}
+      />
       {post.cover_image && (
         <img src={post.cover_image} alt={post.title} style={{ width:'100%', maxHeight:400, objectFit:'cover', borderRadius:16, marginBottom:24 }} />
       )}

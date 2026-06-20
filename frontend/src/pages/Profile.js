@@ -9,8 +9,9 @@ import {
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
 import { formatDistanceToNow } from 'date-fns'
-import ShareButton, { profileShareText } from '../components/ShareButton'
+import ShareButton, { profileShareText, profileShareUrl } from '../components/ShareButton'
 import ProfileQRCard from '../components/ProfileQRCard'
+import Seo from '../components/Seo'
 
 const LEVELS = {
   Beginner:'🥉', Explorer:'🥈', Achiever:'🥇',
@@ -202,6 +203,12 @@ export default function Profile() {
 
   return (
     <div style={{ maxWidth: 860, padding: '0 0 32px' }}>
+      <Seo
+        title={`${profile.full_name || profile.username} on Day1 Diaries`}
+        description={profile.bio || `Check out ${profile.full_name || profile.username}'s journey on Day1 Diaries.`}
+        image={profile.avatar_url}
+        path={`/profile/${profile.username}`}
+      />
       <style>{`
         @keyframes prof-in { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
         .prof-story-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
@@ -260,7 +267,7 @@ export default function Profile() {
                 </button>
                 <ShareButton
                   text={profileShareText(profile.full_name || profile.username, profile.username, profile.bio)}
-                  url={`https://d1kxji3yv78nbx.cloudfront.net/profile/${profile.username}`}
+                  url={profileShareUrl(profile.username)}
                   label="Share"
                   size="sm"
                 />
@@ -278,7 +285,7 @@ export default function Profile() {
                 </button>
                 <ShareButton
                   text={profileShareText(profile.full_name || profile.username, profile.username, profile.bio)}
-                  url={`https://d1kxji3yv78nbx.cloudfront.net/profile/${profile.username}`}
+                  url={profileShareUrl(profile.username)}
                   label="Share"
                   size="sm"
                 />

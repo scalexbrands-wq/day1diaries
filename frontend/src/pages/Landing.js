@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { getLandingData } from '../lib/api'
+import { getLandingData, getSeoDefaults } from '../lib/api'
+import Seo from '../components/Seo'
 
 /* ── helpers ─────────────────────────────────────────────── */
 const COLORS = ['#FF6B2B','#7C3AED','#059669','#2563EB','#EC4899','#0EA5E9','#F59E0B','#DC2626']
@@ -87,6 +88,7 @@ export default function Landing() {
   const [showAllJobs, setShowAllJobs] = useState(false)
   const proofRef = useRef(null)
   const [countRun, setCountRun] = useState(false)
+  const [seo, setSeo] = useState(null)
 
   const c1 = useCountUp(data?.stats?.total_users    || 0, '+', countRun)
   const c2 = useCountUp(data?.stats?.total_stories  || 0, '+', countRun)
@@ -100,6 +102,7 @@ export default function Landing() {
       if (!error && d) setData(d)
       setLoading(false)
     })
+    getSeoDefaults().then(({ data: d }) => { if (d) setSeo(d) })
   }, [])
 
   useEffect(() => {
@@ -148,6 +151,7 @@ export default function Landing() {
 
   return (
     <div style={{ fontFamily:"'DM Sans',sans-serif", background:'#FDF6EE', color:'#1A0800', overflowX:'hidden' }}>
+      {seo && <Seo title={seo.title} description={seo.description} image={seo.image} path="/"/>}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
         @keyframes lp-spin{to{transform:rotate(360deg)}}

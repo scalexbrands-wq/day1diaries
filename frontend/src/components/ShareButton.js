@@ -1,17 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { toast } from './Toast'
 
-const APP_URL = 'https://d1kxji3yv78nbx.cloudfront.net'
+const APP_URL = 'https://day1diaries.com'
+// Share links point at the API's server-rendered preview pages (not the
+// raw SPA URL) — social bots (WhatsApp/Facebook/Twitter/LinkedIn) mostly
+// don't run JS, so they need static OG tags to show a rich preview card.
+// See backend/src/routes/seo.js. Real visitors bounce through to the SPA
+// page almost instantly.
+const SHARE_API_URL = 'https://api.day1diaries.com'
 const APP_NAME = 'Day1 Diaries'
 const APP_TAGLINE = "India's community where freshers share their real Day 1 stories 🚀"
 
+export const storyShareUrl = (storyId) => `${SHARE_API_URL}/share/story/${storyId}`
+export const profileShareUrl = (username) => `${SHARE_API_URL}/share/profile/${username}`
+
 export function storyShareText(title, storyId) {
-  return `📖 "${title}"\n\nRead this story on ${APP_NAME} — ${APP_TAGLINE}\n${APP_URL}/story/${storyId}`
+  return `📖 "${title}"\n\nRead this story on ${APP_NAME} — ${APP_TAGLINE}\n${storyShareUrl(storyId)}`
 }
 
 export function profileShareText(name, username, bio) {
   const bioLine = bio ? `\n"${bio}"` : ''
-  return `✨ Check out ${name}'s journey on ${APP_NAME}!${bioLine}\n\nJoin 10,000+ freshers sharing their real professional stories.\n${APP_URL}/profile/${username}`
+  return `✨ Check out ${name}'s journey on ${APP_NAME}!${bioLine}\n\nJoin 10,000+ freshers sharing their real professional stories.\n${profileShareUrl(username)}`
 }
 
 const PLATFORMS = [

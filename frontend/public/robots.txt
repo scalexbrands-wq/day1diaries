@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+Allow: /story/
+Allow: /blog
+Allow: /blog/
+Allow: /careers
+Allow: /careers/
+Allow: /about
+Allow: /contact
+Allow: /membership
+
+Disallow: /feed
+Disallow: /discover
+Disallow: /habits
+Disallow: /community
+Disallow: /jobs
+Disallow: /saved
+Disallow: /leaderboard
+Disallow: /profile/
+Disallow: /admin
+Disallow: /write
+Disallow: /edit/
+Disallow: /login
+Disallow: /register
+
+Sitemap: https://api.day1diaries.com/sitemap.xml

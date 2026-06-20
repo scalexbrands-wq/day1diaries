@@ -28,6 +28,7 @@ import {
   adminListAccessRules, adminUpdateAccessRule,
   adminGetMembershipSettings, adminUpdateMembershipSettings, adminUploadMembershipUpiQr,
   adminGetMembershipStats,
+  adminGetSeoSettings, adminUpdateSeoSettings, adminUploadSeoOgImage,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -62,6 +63,7 @@ const TABS = [
   ['events','📅 Events'],
   ['email','✉️ Email Center'],
   ['membership','🎫 Membership'],
+  ['seo','🔎 SEO'],
   ['users','👥 Users'],
   ['content','🛡️ Moderation'],
   ['landing','🎯 Landing'],
@@ -87,6 +89,7 @@ export default function AdminDashboard() {
       {tab==='events'     && <EventsTab/>}
       {tab==='email'      && <EmailCenterTab/>}
       {tab==='membership' && <MembershipTab/>}
+      {tab==='seo' && <SeoTab/>}
       {tab==='users'      && <UsersTab/>}
       {tab==='content'    && <ModerationTab/>}
       {tab==='landing'    && <AdminLandingContent/>}
@@ -2340,6 +2343,82 @@ function MembershipSettingsTab() {
           <div><L c="Grace Period (days)"/><Inp type="number" value={settings['membership.grace_period_days']||0} onChange={e=>setSettings(s=>({...s,'membership.grace_period_days':Number(e.target.value)}))}/></div>
           <div><L c="Renewal Reminder (days before expiry)"/><Inp type="number" value={settings['membership.renewal_reminder_days']||7} onChange={e=>setSettings(s=>({...s,'membership.renewal_reminder_days':Number(e.target.value)}))}/></div>
         </div>
+      </Card>
+    </div>
+  )
+}
+
+/* ══ SEO ════════════════════════════════════════════════════════ */
+function SeoTab() {
+  const [settings, setSettings] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+
+  const load = useCallback(() => { adminGetSeoSettings().then(({data}) => setSettings(data||{})) }, [])
+  useEffect(() => { load() }, [load])
+
+  const save = async () => {
+    setSaving(true)
+    const { error } = await adminUpdateSeoSettings(settings)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success('SEO settings saved')
+  }
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast.error('Please choose an image file')
+    if (file.size > 5 * 1024 * 1024) return toast.error('Image must be under 5MB')
+    setUploading(true)
+    const { data, error } = await adminUploadSeoOgImage(file)
+    setUploading(false)
+    if (error) return toast.error(error.message)
+    setSettings(s => ({ ...s, 'seo.default_og_image': data }))
+    toast.success('OG image uploaded! ✓')
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>SEO Settings</h3>
+        <Btn onClick={save} disabled={saving}>{saving?'Saving…':'Save Changes'}</Btn>
+      </div>
+
+      <Card>
+        <SH c="Default Meta Tags"/>
+        <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:14}}>
+          Used on the homepage and as a fallback wherever a more specific title/description isn't set (e.g. a story with no cover image falls back to this OG image).
+        </p>
+        <L c="Default Title"/>
+        <Inp value={settings['seo.default_title']||''} onChange={e=>setSettings(s=>({...s,'seo.default_title':e.target.value}))} placeholder="Day1 Diaries — Share Your First Day Story"/>
+        <L c="Default Meta Description"/>
+        <TA value={settings['seo.default_description']||''} onChange={e=>setSettings(s=>({...s,'seo.default_description':e.target.value}))} placeholder="Day1 Diaries — Share your first day at work story..."/>
+        <L c="Google Site Verification"/>
+        <Inp value={settings['seo.google_site_verification']||''} onChange={e=>setSettings(s=>({...s,'seo.google_site_verification':e.target.value}))} placeholder="Paste just the content value from Google's verification meta tag"/>
+      </Card>
+
+      <Card>
+        <SH c="Default OG Image"/>
+        <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:14}}>Shown when a story/page has no cover image of its own. Recommended: 1200×630.</p>
+        {settings['seo.default_og_image'] && <img src={settings['seo.default_og_image']} alt="Default OG" style={{width:'100%',maxWidth:320,borderRadius:10,border:'1px solid #F0EAE4',marginBottom:12,display:'block'}}/>}
+        <label style={{padding:'8px 18px',borderRadius:100,fontSize:12,fontWeight:600,cursor:'pointer',background:'#FF6B2B',color:'white',border:'none',display:'inline-block'}}>
+          {uploading?'Uploading…':'Upload Image'}
+          <input type="file" accept="image/*" onChange={handleImageSelect} disabled={uploading} style={{display:'none'}}/>
+        </label>
+      </Card>
+
+      <Card>
+        <SH c="Sitemap & Robots"/>
+        <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:10}}>
+          The sitemap is generated live from published stories/posts/jobs — nothing to configure here.
+        </p>
+        <div style={{fontSize:13,marginBottom:6}}><a href="https://api.day1diaries.com/sitemap.xml" target="_blank" rel="noreferrer">https://api.day1diaries.com/sitemap.xml</a></div>
+        <div style={{fontSize:13,marginBottom:10}}><a href="https://day1diaries.com/robots.txt" target="_blank" rel="noreferrer">https://day1diaries.com/robots.txt</a></div>
+        <p style={{fontSize:12,color:'#8C7B6E',margin:0}}>
+          To submit the sitemap in Google Search Console: verify <b>day1diaries.com</b> using <b>domain-level verification</b> (DNS TXT record), not a single-subdomain property — domain verification covers <code>api.day1diaries.com</code> too, so the sitemap there is accepted.
+        </p>
       </Card>
     </div>
   )

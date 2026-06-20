@@ -36,6 +36,8 @@ const certificateRoutes = require('./routes/certificates')
 const emailRoutes = require('./routes/email')
 const membershipRoutes = require('./routes/membership')
 const adminMembershipRoutes = require('./routes/admin-membership')
+const seoRoutes = require('./routes/seo')
+const adminSeoRoutes = require('./routes/admin-seo')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -107,6 +109,8 @@ app.use('/certificates', certificateRoutes)
 app.use('/admin/email', emailRoutes)
 app.use('/membership', membershipRoutes)
 app.use('/admin/membership', adminMembershipRoutes)
+app.use('/', seoRoutes)
+app.use('/admin/seo', adminSeoRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))
