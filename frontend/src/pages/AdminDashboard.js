@@ -2120,6 +2120,14 @@ function GiftOrdersTab() {
     setSelected(null); load()
   }
 
+  const generateClaimCertificate = async (id) => {
+    if (!window.confirm('Generate the certificate for this wallet-claim gift now?')) return
+    const { error } = await adminSetGiftPaymentStatus(id, 'free')
+    if (error) return toast.error(error.message)
+    toast.success('Generating — gift is being created')
+    setSelected(null); load()
+  }
+
   const applyManualStatus = async () => {
     if (manualStatus === selected.order.payment_status) return toast.error('Pick a different status to apply')
     setApplying(true)
@@ -2175,6 +2183,11 @@ function GiftOrdersTab() {
           </div>
           {selected.order.payment_method === 'cod' && selected.order.payment_status === 'pending' && (
             <Btn onClick={()=>confirmCod(selected.order.id)} style={{marginTop:14}}>✓ Confirm Cash Collected</Btn>
+          )}
+          {selected.order.payment_method === 'claim' && ['pending_payment','failed'].includes(selected.order.status) && (
+            <Btn onClick={()=>generateClaimCertificate(selected.order.id)} style={{marginTop:14}}>
+              🎁 {selected.order.status === 'failed' ? 'Retry Generate Certificate' : 'Generate Certificate'}
+            </Btn>
           )}
           {selected.order.payment_status === 'paid' && (
             <Btn v="danger" onClick={()=>refund(selected.order.id)} style={{marginTop:14}}>Refund Payment</Btn>
