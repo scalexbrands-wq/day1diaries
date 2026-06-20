@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   getGiftCategories, getGiftTypes, getGiftTemplates, getGiftTributeOptions,
   searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment, getMyFeatureUsage, getMyCoins,
+  getGiftOrder, getGiftDownloadUrl,
 } from '../lib/api'
 import { toast } from './Toast'
 
@@ -36,8 +37,9 @@ function loadRazorpayScript() {
 const STEPS = ['Select Story', 'Category', 'Gift Type', 'Design', 'Message', 'Review & Pay']
 
 export default function SurpriseWizard({ initialStoryId, initialStoryTitle, initialAuthorName, lockedAuthorUsername, onClose }) {
-  const navigate = useNavigate()
   const [step, setStep] = useState(initialStoryId ? 1 : 0)
+  const [result, setResult] = useState(null)
+  const pollRef = useRef(null)
   const [submitting, setSubmitting] = useState(false)
 
   const [categories, setCategories] = useState([])
@@ -71,6 +73,22 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
     getMyFeatureUsage().then(({ data }) => setUsage((data || []).find(u => u.feature_key === 'gift_sending') || null))
     getMyCoins().then(({ data }) => setCoins(data || 0))
   }, [])
+
+  useEffect(() => () => clearInterval(pollRef.current), [])
+
+  // Rendering (Puppeteer + S3 upload) happens in the background, so once an
+  // order is created/paid we poll until status leaves 'processing' and show
+  // the download buttons here instead of making the sender hunt for them.
+  const startPolling = (orderId) => {
+    clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      const { data } = await getGiftOrder(orderId)
+      if (data && data.status !== 'processing') {
+        clearInterval(pollRef.current)
+        setResult(data)
+      }
+    }, 3000)
+  }
 
   const runSearch = useCallback(() => {
     searchGiftStories(query, scope, lockedAuthorUsername).then(({ data }) => setStoryResults(data || []))
@@ -109,12 +127,11 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
     setOrder(data)
     if (data.payment_status === 'free' || data.payment_status === 'paid') {
       toast.success(effectiveMethod === 'coins' ? 'Redeemed! Your gift is being created 🎁' : 'Your gift is being created! 🎁')
-      navigate('/gifts')
-      onClose()
+      setResult(data)
+      startPolling(data.id)
     } else if (effectiveMethod === 'cod') {
       toast.success("Order placed — we'll confirm once payment is collected.")
-      navigate('/gifts')
-      onClose()
+      setResult(data)
     } else {
       payViaRazorpay(data)
     }
@@ -144,8 +161,11 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
           setSubmitting(false)
           if (verifyError) return toast.error(verifyError.message)
           toast.success('Payment confirmed — your gift is being created! 🎁')
-          navigate('/gifts')
-          onClose()
+          // giftOrder here is the pre-payment snapshot (status: 'pending_payment') —
+          // verify already flipped it server-side, so show 'processing' until the
+          // poll below fetches the real row.
+          setResult({ ...giftOrder, status: 'processing', payment_status: 'paid' })
+          startPolling(giftOrder.id)
         },
         modal: { ondismiss: () => setSubmitting(false) },
         theme: { color: '#FF6B2B' },
@@ -173,6 +193,10 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
           <div style={{ fontSize: 18, fontWeight: 800, color: '#1A0800' }}>🎁 Surprise A Friend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: '#8C7B6E', cursor: 'pointer' }}>×</button>
         </div>
+        {result ? (
+          <GiftResultView result={result} onClose={onClose} />
+        ) : (
+        <>
         <div style={{ fontSize: 12, color: '#8C7B6E', marginBottom: 12 }}>Step {step + 1} of {STEPS.length} — {STEPS[step]}</div>
 
         {usage && usage.limit !== -1 && (
@@ -200,7 +224,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
               style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #DDD3CA', borderRadius: 8, fontSize: 13, marginBottom: 14, fontFamily: 'inherit' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
               {storyResults.map(s => (
-                <div key={s.id} onClick={() => setSelectedStory(s)}
+                <div key={s.id} onClick={e => { e.stopPropagation(); setSelectedStory(s) }}
                   style={{ display: 'flex', gap: 10, alignItems: 'center', padding: 10, borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${selectedStory?.id === s.id ? '#FF6B2B' : '#F0EAE4'}`, background: selectedStory?.id === s.id ? '#FFF1EA' : 'white' }}>
                   {s.cover_image_url
                     ? <img src={s.cover_image_url} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
@@ -341,7 +365,58 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
           {step > 0 && step < 5 && <Btn variant="secondary" onClick={goBack}>Back</Btn>}
           {step < 5 && <Btn onClick={goNext} style={{ flex: 1, justifyContent: 'center', display: 'flex' }}>Next</Btn>}
         </div>
+        </>
+        )}
       </div>
     </div>
   ), document.body)
+}
+
+// Shown after a successful order — polls in the background (see
+// startPolling above) until the certificate render finishes, then surfaces
+// download/share actions right here instead of making the sender hunt
+// for them on the My Gifts page.
+function GiftResultView({ result, onClose }) {
+  const processing = result.status === 'processing'
+  const failed = result.status === 'failed'
+  const awaitingCod = result.payment_method === 'cod' && result.payment_status === 'pending'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center', paddingTop: 40 }}>
+      {awaitingCod && (
+        <>
+          <div style={{ fontSize: 40 }}>📦</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1A0800' }}>Order placed!</div>
+          <div style={{ fontSize: 13, color: '#8C7B6E' }}>We'll create the certificate as soon as your Cash on Delivery payment is confirmed.</div>
+        </>
+      )}
+      {!awaitingCod && processing && (
+        <>
+          <div style={{ width: 36, height: 36, border: '3px solid rgba(255,107,43,.2)', borderTopColor: '#FF6B2B', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1A0800' }}>Creating your gift…</div>
+          <div style={{ fontSize: 12, color: '#8C7B6E' }}>This usually takes a few seconds. You can keep this open or close it — it'll keep going either way.</div>
+        </>
+      )}
+      {!awaitingCod && failed && (
+        <>
+          <div style={{ fontSize: 40 }}>⚠️</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#DC2626' }}>Something went wrong generating this gift.</div>
+          <div style={{ fontSize: 12, color: '#8C7B6E' }}>Please try again, or contact support if it keeps happening.</div>
+        </>
+      )}
+      {!awaitingCod && !processing && !failed && (
+        <>
+          <div style={{ fontSize: 40 }}>🎉</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1A0800' }}>Your gift is ready!</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <a href={getGiftDownloadUrl(result.id, 'png')} className="btn btn-primary" style={{ textDecoration: 'none' }}>⬇ Download PNG</a>
+            <a href={getGiftDownloadUrl(result.id, 'pdf')} className="btn btn-secondary" style={{ textDecoration: 'none' }}>⬇ Download PDF</a>
+          </div>
+          <Link to={`/tribute/${result.tribute_slug}`} onClick={onClose} style={{ fontSize: 13, fontWeight: 600, color: '#FF6B2B' }}>View Tribute Page →</Link>
+        </>
+      )}
+      <Link to="/gifts" onClick={onClose} style={{ fontSize: 12, color: '#8C7B6E', marginTop: 10 }}>View All My Gifts</Link>
+    </div>
+  )
 }
