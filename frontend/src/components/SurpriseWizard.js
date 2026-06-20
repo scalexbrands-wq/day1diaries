@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   getGiftCategories, getGiftTypes, getGiftTemplates, getGiftTributeOptions,
   searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment, getMyFeatureUsage, getMyCoins,
 } from '../lib/api'
+import { toast } from './Toast'
 
 const COIN_REDEMPTION_COST = 10000
 const COIN_REDEMPTION_GIFT_TYPE_KEY = 'digital_certificate'
-import { toast } from './Toast'
 
 const Btn = ({ children, variant = 'primary', ...p }) => {
   const styles = {
@@ -156,14 +157,17 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
     }
   }
 
-  return (
+  return createPortal((
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(26,8,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto', boxSizing: 'border-box' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(26,8,0,.55)', zIndex: 1000, display: 'flex', justifyContent: 'flex-end', boxSizing: 'border-box' }}
     >
+      <style>{`
+        @keyframes surpriseDrawerIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+      `}</style>
       <div
         onClick={e => e.stopPropagation()}
-        style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 'min(620px, calc(100vw - 32px))', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', padding: 28, boxSizing: 'border-box', margin: 'auto' }}
+        style={{ background: 'white', height: '100%', width: '100%', maxWidth: 460, overflowY: 'auto', padding: 28, boxSizing: 'border-box', boxShadow: '-8px 0 32px rgba(26,8,0,.18)', animation: 'surpriseDrawerIn .25s ease' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#1A0800' }}>🎁 Surprise A Friend</div>
@@ -339,5 +343,5 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }
