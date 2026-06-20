@@ -2146,7 +2146,10 @@ function GiftOrdersTab() {
         <Card key={o.id} style={{cursor:'pointer'}} onClick={()=>openDetail(o.id)}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
             <div>
-              <div style={{fontWeight:700,fontSize:13}}>{o.category_label} — {o.recipient_name}</div>
+              <div style={{fontWeight:700,fontSize:13}}>
+                {o.category_label} — {o.recipient_name}
+                {o.payment_method === 'claim' && <span style={{marginLeft:8,fontSize:10,fontWeight:700,color:'#7C3AED',background:'rgba(124,58,237,.1)',padding:'2px 8px',borderRadius:100}}>🎁 WALLET CLAIM</span>}
+              </div>
               <div style={{fontSize:11.5,color:'#8C7B6E',marginTop:2}}>{o.story_title} · {o.gift_type_label} · from {o.sender_name}</div>
             </div>
             <div style={{textAlign:'right'}}>
@@ -2247,6 +2250,11 @@ function GiftClaimsTab() {
                 <div style={{display:'flex',gap:6,marginTop:8}}>
                   <Btn onClick={()=>approve(c)} disabled={busyId===c.id}>Approve</Btn>
                   <Btn v="danger" onClick={()=>reject(c)} disabled={busyId===c.id}>Reject</Btn>
+                </div>
+              )}
+              {c.status === 'fulfilled' && c.tier_kind === 'free_gift' && (
+                <div style={{fontSize:10.5,color:c.gift_order_id?'#2563EB':'#8C7B6E',marginTop:6,maxWidth:160}}>
+                  {c.gift_order_id ? 'Gift details submitted — see Orders tab' : 'Awaiting user to submit gift details'}
                 </div>
               )}
             </div>

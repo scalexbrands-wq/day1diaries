@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import {
   getGiftCategories, getGiftTypes, getGiftTemplates, getGiftTributeOptions,
   searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment, getMyFeatureUsage, getMyCoins,
-  getGiftOrder, getGiftDownloadUrl, previewGiftCertificate, getGiftWallet, uploadGiftImage,
+  getGiftOrder, getGiftDownloadUrl, previewGiftCertificate, getGiftWallet, uploadGiftImage, redeemWalletClaim,
 } from '../lib/api'
 import { toast } from './Toast'
 
@@ -33,7 +33,8 @@ function loadRazorpayScript() {
 
 const STEPS = ['Select Story', 'Category', 'Gift Type', 'Design', 'Message', 'Review & Pay']
 
-export default function SurpriseWizard({ initialStoryId, initialStoryTitle, initialAuthorName, lockedAuthorUsername, onClose }) {
+export default function SurpriseWizard({ initialStoryId, initialStoryTitle, initialAuthorName, lockedAuthorUsername, onClose, claimId, lockedGiftTypeKey, claimTierLabel }) {
+  const claimMode = !!claimId
   const [step, setStep] = useState(initialStoryId ? 1 : 0)
   const [result, setResult] = useState(null)
   const pollRef = useRef(null)
@@ -50,7 +51,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
   const [selectedStory, setSelectedStory] = useState(initialStoryId ? { id: initialStoryId, title: initialStoryTitle, author_name: initialAuthorName } : null)
 
   const [categoryKey, setCategoryKey] = useState(null)
-  const [giftTypeKey, setGiftTypeKey] = useState(null)
+  const [giftTypeKey, setGiftTypeKey] = useState(lockedGiftTypeKey || null)
   const [templateKey, setTemplateKey] = useState(null)
 
   const [recipientName, setRecipientName] = useState('')
@@ -111,9 +112,16 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
     if (step === 2 && !giftTypeKey) return toast.error('Choose a gift type')
     if (step === 3 && !templateKey) return toast.error('Choose a design template')
     if (step === 4 && !recipientName.trim()) return toast.error("Enter the recipient's name")
-    setStep(s => Math.min(s + 1, STEPS.length - 1))
+    // Claim redemptions have the gift type fixed by the approved tier — skip that step.
+    setStep(s => {
+      const next = Math.min(s + 1, STEPS.length - 1)
+      return claimMode && next === 2 ? 3 : next
+    })
   }
-  const goBack = () => setStep(s => Math.max(s - 1, 0))
+  const goBack = () => setStep(s => {
+    const prev = Math.max(s - 1, 0)
+    return claimMode && prev === 2 ? 1 : prev
+  })
 
   const selectedType = types.find(t => t.key === giftTypeKey)
   const applicableTiers = walletTiers.filter(t => t.kind === 'discount' || t.giftTypeKey === giftTypeKey)
@@ -139,6 +147,22 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
     setPreviewLoading(false)
     if (error) return toast.error(error.message)
     setPreviewImage(data)
+  }
+
+  // Claim redemptions are already "paid" (coins were deducted when the
+  // admin approved the claim) — submitting just hands the gift details
+  // (story/recipient/message) to admin to manually process, same as
+  // every other admin-gated flow in this module.
+  const handleClaimRedeemSubmit = async () => {
+    if (message.length > 1000) return toast.error('Message must be 1000 characters or fewer')
+    setSubmitting(true)
+    const { data, error } = await redeemWalletClaim(claimId, {
+      storyId: selectedStory.id, categoryKey, templateKey, recipientName, recipientEmail, message, aiTributeKind, imageUrl,
+    })
+    setSubmitting(false)
+    if (error) return toast.error(error.message)
+    toast.success('Submitted! Our team will create your gift shortly.')
+    setResult({ ...data, payment_method: 'claim' })
   }
 
   const handleCreate = async () => {
@@ -219,7 +243,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
         style={{ background: 'white', height: '100%', width: '100%', maxWidth: 460, overflowY: 'auto', padding: 28, boxSizing: 'border-box', boxShadow: '-8px 0 32px rgba(26,8,0,.18)', animation: 'surpriseDrawerIn .25s ease' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#1A0800' }}>🎁 Surprise A Friend</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#1A0800' }}>{claimMode ? `🎁 Claim Your ${claimTierLabel || 'Gift'}` : '🎁 Surprise A Friend'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: '#8C7B6E', cursor: 'pointer' }}>×</button>
         </div>
         {result ? (
@@ -378,7 +402,14 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
               )}
             </div>
 
-            {selectedType?.base_price > 0 && (
+            {claimMode && (
+              <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: '#F0FDF4', border: '1.5px solid #BBF7D0' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#059669' }}>🎁 Already paid via your approved claim — {claimTierLabel}</div>
+                <div style={{ fontSize: 11.5, color: '#5C7C6E', marginTop: 4 }}>Submitting sends these details to our team — they'll create and deliver your gift.</div>
+              </div>
+            )}
+
+            {!claimMode && selectedType?.base_price > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#5C3D2E', marginBottom: 8 }}>Payment Method</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -418,12 +449,18 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
               </div>
             )}
 
-            <Btn onClick={handleCreate} disabled={submitting || (paymentMethod === 'coins' && !coinTierCost)} style={{ width: '100%', justifyContent: 'center', display: 'flex' }}>
-              {submitting ? 'Processing…' : selectedType?.base_price > 0
-                ? (paymentMethod === 'coins'
-                    ? (selectedTier?.kind === 'free_gift' ? 'Redeem & Send Gift' : `Redeem ${selectedTier ? '₹' + Number(Math.max(0, selectedType.base_price - selectedTier.amount)).toFixed(0) + ' Remaining & Send' : '& Send Gift'}`)
-                    : paymentMethod === 'cod' ? 'Place Order (Pay on Delivery)' : `Pay ₹${Number(selectedType.base_price).toFixed(0)} & Send Gift`)
-                : 'Send Gift'}
+            <Btn
+              onClick={claimMode ? handleClaimRedeemSubmit : handleCreate}
+              disabled={submitting || (!claimMode && paymentMethod === 'coins' && !coinTierCost)}
+              style={{ width: '100%', justifyContent: 'center', display: 'flex' }}
+            >
+              {submitting ? 'Submitting…' : claimMode
+                ? 'Submit to Admin'
+                : selectedType?.base_price > 0
+                  ? (paymentMethod === 'coins'
+                      ? (selectedTier?.kind === 'free_gift' ? 'Redeem & Send Gift' : `Redeem ${selectedTier ? '₹' + Number(Math.max(0, selectedType.base_price - selectedTier.amount)).toFixed(0) + ' Remaining & Send' : '& Send Gift'}`)
+                      : paymentMethod === 'cod' ? 'Place Order (Pay on Delivery)' : `Pay ₹${Number(selectedType.base_price).toFixed(0)} & Send Gift`)
+                  : 'Send Gift'}
             </Btn>
           </div>
         )}
@@ -447,17 +484,25 @@ function GiftResultView({ result, onClose }) {
   const processing = result.status === 'processing'
   const failed = result.status === 'failed'
   const awaitingCod = result.payment_method === 'cod' && result.payment_status === 'pending'
+  const awaitingClaim = result.payment_method === 'claim'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center', paddingTop: 40 }}>
-      {awaitingCod && (
+      {awaitingClaim && (
+        <>
+          <div style={{ fontSize: 40 }}>🎁</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1A0800' }}>Submitted to our team!</div>
+          <div style={{ fontSize: 13, color: '#8C7B6E' }}>We'll create your gift and notify you once it's ready — usually within a day.</div>
+        </>
+      )}
+      {!awaitingClaim && awaitingCod && (
         <>
           <div style={{ fontSize: 40 }}>📦</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#1A0800' }}>Order placed!</div>
           <div style={{ fontSize: 13, color: '#8C7B6E' }}>We'll create the certificate as soon as your Cash on Delivery payment is confirmed.</div>
         </>
       )}
-      {!awaitingCod && processing && (
+      {!awaitingClaim && !awaitingCod && processing && (
         <>
           <div style={{ width: 36, height: 36, border: '3px solid rgba(255,107,43,.2)', borderTopColor: '#FF6B2B', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -465,14 +510,14 @@ function GiftResultView({ result, onClose }) {
           <div style={{ fontSize: 12, color: '#8C7B6E' }}>This usually takes a few seconds. You can keep this open or close it — it'll keep going either way.</div>
         </>
       )}
-      {!awaitingCod && failed && (
+      {!awaitingClaim && !awaitingCod && failed && (
         <>
           <div style={{ fontSize: 40 }}>⚠️</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#DC2626' }}>Something went wrong generating this gift.</div>
           <div style={{ fontSize: 12, color: '#8C7B6E' }}>Please try again, or contact support if it keeps happening.</div>
         </>
       )}
-      {!awaitingCod && !processing && !failed && (
+      {!awaitingClaim && !awaitingCod && !processing && !failed && (
         <>
           <div style={{ fontSize: 40 }}>🎉</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#1A0800' }}>Your gift is ready!</div>

@@ -84,6 +84,80 @@ router.get('/wallet/claims', requireAuth, async (req, res) => {
   res.json({ claims: rows })
 })
 
+// POST /gift/wallet/claims/:id/redeem — once an admin approves a free_gift
+// claim, the user submits the actual gift details here (story, recipient,
+// message). This does NOT render anything immediately — it creates a
+// gift_orders row in 'pending_payment' so it lands in Admin > Gifting >
+// Orders for manual processing, same as the online-payment-reconciliation
+// flow (admin sets payment_status to 'free' to kick off rendering).
+router.post('/wallet/claims/:id/redeem', requireAuth, async (req, res) => {
+  const { storyId, categoryKey, templateKey, recipientName, recipientEmail, message, aiTributeKind, imageUrl } = req.body
+  if (!storyId || !categoryKey || !templateKey || !recipientName) {
+    return res.status(400).json({ error: 'storyId, categoryKey, templateKey, and recipientName are required' })
+  }
+  if (message && message.length > 1000) {
+    return res.status(400).json({ error: 'Message must be 1000 characters or fewer' })
+  }
+
+  const { rows: claimRows } = await pool.query(
+    `SELECT * FROM wallet_claims WHERE id = $1 AND user_id = $2`,
+    [req.params.id, req.profile.id]
+  )
+  const claim = claimRows[0]
+  if (!claim) return res.status(404).json({ error: 'Claim not found' })
+  if (claim.status !== 'fulfilled') return res.status(400).json({ error: 'This claim has not been approved yet.' })
+  if (claim.tier_kind !== 'free_gift') return res.status(400).json({ error: 'This claim type cannot be redeemed this way.' })
+  if (claim.gift_order_id) return res.status(400).json({ error: 'This claim has already been submitted.' })
+
+  const { rows: storyRows } = await pool.query(
+    `SELECT s.*, p.full_name AS author_name FROM stories s JOIN profiles p ON p.id = s.user_id WHERE s.id = $1 AND s.status = 'published'`,
+    [storyId]
+  )
+  const story = storyRows[0]
+  if (!story) return res.status(404).json({ error: 'Story not found or not published' })
+
+  const { rows: catRows } = await pool.query('SELECT * FROM gift_categories WHERE key = $1 AND is_active = true', [categoryKey])
+  const category = catRows[0]
+  if (!category) return res.status(404).json({ error: 'Gift category not found' })
+
+  const { rows: typeRows } = await pool.query('SELECT * FROM gift_types WHERE key = $1 AND is_active = true', [claim.gift_type_key])
+  const giftType = typeRows[0]
+  if (!giftType) return res.status(404).json({ error: 'Gift type not found' })
+
+  const { rows: tmplRows } = await pool.query('SELECT * FROM gift_templates WHERE key = $1 AND is_active = true', [templateKey])
+  const template = tmplRows[0]
+  if (!template) return res.status(404).json({ error: 'Design template not found' })
+
+  let recipientUserId = null
+  if (recipientEmail) {
+    const { rows: recRows } = await pool.query('SELECT id FROM profiles WHERE email = $1', [recipientEmail])
+    recipientUserId = recRows[0]?.id || null
+  }
+
+  const aiTributeText = aiTributeKind
+    ? generateTribute(categoryKey, aiTributeKind, { name: story.author_name, storyTitle: story.title })
+    : null
+
+  const { rows: inserted } = await pool.query(
+    `INSERT INTO gift_orders (
+       sender_user_id, recipient_name, recipient_email, recipient_user_id,
+       story_id, category_id, gift_type_id, template_id,
+       message, image_message_url, ai_tribute_text, ai_tribute_kind,
+       amount, currency, payment_status, status, tribute_slug, payment_method
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0,$13,'pending','pending_payment',$14,'claim')
+     RETURNING *`,
+    [
+      req.profile.id, recipientName, recipientEmail || null, recipientUserId,
+      storyId, category.id, giftType.id, template.id,
+      message || null, imageUrl || null, aiTributeText, aiTributeKind || null,
+      giftType.currency, generateTributeSlug(),
+    ]
+  )
+  const order = inserted[0]
+  await pool.query('UPDATE wallet_claims SET gift_order_id = $1 WHERE id = $2', [order.id, claim.id])
+  res.status(201).json({ order })
+})
+
 // ════════════════════════════════════════════════════════════
 // CATALOG — public, active rows only
 // ════════════════════════════════════════════════════════════

@@ -738,6 +738,11 @@ async function initDB() {
         created_at    TIMESTAMPTZ DEFAULT now()
       )
     `)
+    // Set once the user submits the actual gift details (story, recipient,
+    // message) for an approved free_gift claim — links to the gift_orders
+    // row an admin then manually processes (same "Apply Status" tooling
+    // used for online-payment reconciliation).
+    await pool.query(`ALTER TABLE wallet_claims ADD COLUMN IF NOT EXISTS gift_order_id UUID REFERENCES gift_orders(id)`)
 
     console.log('DB schema init OK')
   } catch (err) {

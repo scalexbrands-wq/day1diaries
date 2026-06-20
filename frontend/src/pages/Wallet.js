@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { getGiftWallet, claimWalletTier, getMyWalletClaims } from '../lib/api'
 import { toast } from '../components/Toast'
+import SurpriseWizard from '../components/SurpriseWizard'
 
 export default function Wallet() {
   const [wallet, setWallet] = useState(null)
   const [claims, setClaims] = useState([])
   const [claimingCost, setClaimingCost] = useState(null)
+  const [redeemingClaim, setRedeemingClaim] = useState(null)
 
   const load = useCallback(() => {
     getGiftWallet().then(({ data }) => setWallet(data))
@@ -17,7 +19,14 @@ export default function Wallet() {
 
   const { coins, tiers, unlimitedSending } = wallet
   const nextTier = tiers.find(t => !t.unlocked)
-  const pendingCosts = new Set(claims.filter(c => c.status === 'pending').map(c => c.tier_cost))
+
+  // Most recent claim per tier cost — drives the per-tier button state.
+  const latestClaimByCost = {}
+  for (const c of claims) {
+    if (!latestClaimByCost[c.tier_cost] || new Date(c.created_at) > new Date(latestClaimByCost[c.tier_cost].created_at)) {
+      latestClaimByCost[c.tier_cost] = c
+    }
+  }
 
   const handleClaim = async (tier) => {
     setClaimingCost(tier.cost)
@@ -77,22 +86,40 @@ export default function Wallet() {
               <div style={{ fontSize: 12, fontWeight: 700, color: tier.unlocked ? '#059669' : '#8C7B6E' }}>
                 {tier.unlocked ? 'Unlocked' : 'Locked'}
               </div>
-              {tier.unlocked && (
-                pendingCosts.has(tier.cost)
-                  ? <div style={{ fontSize: 11, color: '#F59E0B', fontWeight: 700, marginTop: 6 }}>Claim pending review</div>
-                  : <button
-                      onClick={() => handleClaim(tier)}
-                      disabled={claimingCost === tier.cost}
-                      className="btn btn-primary btn-sm"
-                      style={{ marginTop: 6 }}
-                    >
-                      {claimingCost === tier.cost ? 'Submitting…' : 'Claim Now'}
-                    </button>
-              )}
+              {tier.unlocked && (() => {
+                const claim = latestClaimByCost[tier.cost]
+                if (claim?.status === 'pending') {
+                  return <div style={{ fontSize: 11, color: '#F59E0B', fontWeight: 700, marginTop: 6 }}>Claim pending review</div>
+                }
+                if (claim?.status === 'fulfilled' && tier.kind === 'free_gift') {
+                  return claim.gift_order_id
+                    ? <div style={{ fontSize: 11, color: '#2563EB', fontWeight: 700, marginTop: 6 }}>Submitted — awaiting processing</div>
+                    : <button onClick={() => setRedeemingClaim(claim)} className="btn btn-primary btn-sm" style={{ marginTop: 6 }}>
+                        🎁 Claim Your {tier.label.replace(/^Free /, '')}
+                      </button>
+                }
+                if (claim?.status === 'fulfilled') {
+                  return <div style={{ fontSize: 11, color: '#059669', fontWeight: 700, marginTop: 6 }}>✓ Approved</div>
+                }
+                return (
+                  <button onClick={() => handleClaim(tier)} disabled={claimingCost === tier.cost} className="btn btn-primary btn-sm" style={{ marginTop: 6 }}>
+                    {claimingCost === tier.cost ? 'Submitting…' : 'Claim Now'}
+                  </button>
+                )
+              })()}
             </div>
           </div>
         ))}
       </div>
+
+      {redeemingClaim && (
+        <SurpriseWizard
+          claimId={redeemingClaim.id}
+          lockedGiftTypeKey={redeemingClaim.gift_type_key}
+          claimTierLabel={redeemingClaim.tier_label}
+          onClose={() => { setRedeemingClaim(null); load() }}
+        />
+      )}
     </div>
   )
 }

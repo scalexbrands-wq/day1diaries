@@ -1304,6 +1304,10 @@ export const getMyWalletClaims = async () => {
   const result = await apiFetch('/gift/wallet/claims')
   return { data: result.data?.claims, error: result.error }
 }
+export const redeemWalletClaim = async (claimId, payload) => {
+  const result = await apiFetch(`/gift/wallet/claims/${claimId}/redeem`, { method: 'POST', body: JSON.stringify(payload) })
+  return { data: result.data?.order, error: result.error }
+}
 export const adminGetWalletClaims = async (params = {}) => {
   const qs = new URLSearchParams(params)
   const result = await apiFetch(`/admin/gift/claims?${qs}`)
