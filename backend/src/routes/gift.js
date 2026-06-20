@@ -1,5 +1,6 @@
 const express = require('express')
 const crypto = require('crypto')
+const multer = require('multer')
 const { pool } = require('../db/pool')
 const { requireAuth, optionalAuth } = require('../middleware/auth')
 const { requireFeatureAccess, peekUsage, hasActiveMembership } = require('../services/accessControl')
@@ -8,6 +9,9 @@ const { listTributeOptions, generateTribute } = require('../utils/giftInsights')
 const { renderGiftAssets, renderGiftPreview } = require('../services/giftRenderService')
 const { WALLET_TIERS, findTier } = require('../utils/walletTiers')
 const brevo = require('../utils/brevo')
+const imageStorage = require('../utils/imageStorage')
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
 
 const router = express.Router()
 const WEBSITE_URL = process.env.SITE_URL || 'https://www.day1diaries.com'
@@ -162,12 +166,23 @@ router.get('/stories/search', optionalAuth, async (req, res) => {
   res.json({ stories: rows })
 })
 
+// POST /gift/upload-image — multipart `image`, used by the wizard to let
+// the sender pick a custom hero photo (e.g. for the Magazine Cover
+// template) instead of falling back to the story author's avatar.
+router.post('/upload-image', requireAuth, upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image uploaded' })
+  const baseUrl = `${req.protocol}://${req.get('host')}`
+  const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+  const url = await imageStorage.saveImage(`gift-images/${req.profile.id}-${Date.now()}.${ext}`, req.file.buffer, req.file.mimetype, baseUrl)
+  res.json({ imageUrl: url })
+})
+
 // ════════════════════════════════════════════════════════════
 // PREVIEW — accurate render before payment, no DB write
 // ════════════════════════════════════════════════════════════
 
 router.post('/preview', requireAuth, async (req, res) => {
-  const { storyId, categoryKey, templateKey, message, aiTributeKind, aiTributeText } = req.body
+  const { storyId, categoryKey, templateKey, message, aiTributeKind, aiTributeText, imageUrl } = req.body
   if (!storyId || !categoryKey || !templateKey) {
     return res.status(400).json({ error: 'storyId, categoryKey, and templateKey are required' })
   }
@@ -188,6 +203,7 @@ router.post('/preview', requireAuth, async (req, res) => {
     const pngBuffer = await renderGiftPreview({
       storyId, categoryKey, templateStyleKey: template.style_key,
       message, aiTributeText: tributeText, senderName: req.profile.full_name || req.profile.username,
+      heroImageUrl: imageUrl || null,
     })
     res.json({ previewImage: `data:image/png;base64,${pngBuffer.toString('base64')}` })
   } catch (err) {
@@ -220,7 +236,7 @@ router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAcces
   const {
     storyId, categoryKey, giftTypeKey, templateKey,
     recipientName, recipientEmail, message,
-    voiceMessageUrl, videoMessageUrl, imageMessageUrl,
+    voiceMessageUrl, videoMessageUrl, imageUrl: imageMessageUrl,
     aiTributeKind, paymentMethod,
   } = req.body
 

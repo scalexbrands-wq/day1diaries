@@ -1159,6 +1159,19 @@ export const previewGiftCertificate = async (payload) => {
   const result = await apiFetch('/gift/preview', { method: 'POST', body: JSON.stringify(payload) })
   return { data: result.data?.previewImage, error: result.error }
 }
+export const uploadGiftImage = async (file) => {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  form.append('image', file)
+  const res = await fetch(`${API_BASE}/gift/upload-image`, {
+    method: 'POST',
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || 'Upload failed' } }
+  return { data: data.imageUrl, error: null }
+}
 export const createGiftOrder = async (payload) => {
   const result = await apiFetch('/gift/create', { method: 'POST', body: JSON.stringify(payload) })
   return { data: result.data?.order, error: result.error }

@@ -63,15 +63,33 @@ const PNG_SCALE = TARGET_PNG_WIDTH / LAYOUT_WIDTH
 const CLIP_HEIGHT = TARGET_PNG_HEIGHT / PNG_SCALE
 const PDF_HEIGHT = 1200 // generous buffer over the template's ~1132px natural height — keeps everything on one page
 
-async function renderCertificate(html) {
-  return withPage({ width: LAYOUT_WIDTH, height: Math.ceil(CLIP_HEIGHT) + 40, deviceScaleFactor: PNG_SCALE }, async (page) => {
+// The Magazine Cover gift template is a tall poster, not a landscape
+// certificate — same A4 paper, just rotated, output as A4-portrait
+// @300dpi (2480x3508) from a 1240px-wide layout (clean x2 scale factor).
+const PORTRAIT_LAYOUT_WIDTH = 1240
+const PORTRAIT_TARGET_PNG_WIDTH = 2480
+const PORTRAIT_TARGET_PNG_HEIGHT = 3508
+const PORTRAIT_PNG_SCALE = PORTRAIT_TARGET_PNG_WIDTH / PORTRAIT_LAYOUT_WIDTH
+const PORTRAIT_CLIP_HEIGHT = PORTRAIT_TARGET_PNG_HEIGHT / PORTRAIT_PNG_SCALE
+const PORTRAIT_PDF_HEIGHT = 1800
+
+// `styleKey` selects orientation — only the Magazine Cover style is a
+// portrait poster; every other gift/story certificate stays A4 landscape.
+async function renderCertificate(html, styleKey) {
+  const portrait = styleKey === 'magazine_cover'
+  const width = portrait ? PORTRAIT_LAYOUT_WIDTH : LAYOUT_WIDTH
+  const clipHeight = portrait ? PORTRAIT_CLIP_HEIGHT : CLIP_HEIGHT
+  const scale = portrait ? PORTRAIT_PNG_SCALE : PNG_SCALE
+  const pdfHeight = portrait ? PORTRAIT_PDF_HEIGHT : PDF_HEIGHT
+
+  return withPage({ width, height: Math.ceil(clipHeight) + 40, deviceScaleFactor: scale }, async (page) => {
     await page.setContent(html, { waitUntil: 'networkidle0' })
     const pngBuffer = await page.screenshot({
       type: 'png',
-      clip: { x: 0, y: 0, width: LAYOUT_WIDTH, height: CLIP_HEIGHT },
+      clip: { x: 0, y: 0, width, height: clipHeight },
     })
     const pdfBuffer = await page.pdf({
-      width: `${LAYOUT_WIDTH}px`, height: `${PDF_HEIGHT}px`, printBackground: true, pageRanges: '1',
+      width: `${width}px`, height: `${pdfHeight}px`, printBackground: true, pageRanges: '1',
     })
     return { pngBuffer, pdfBuffer }
   })

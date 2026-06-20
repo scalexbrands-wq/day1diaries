@@ -19,6 +19,14 @@ function formatDate(value) {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+function truncate(str, n) {
+  const s = String(str || '').trim()
+  if (s.length <= n) return s
+  const cut = s.slice(0, n)
+  const lastSpace = cut.lastIndexOf(' ')
+  return `${(lastSpace > n * 0.6 ? cut.slice(0, lastSpace) : cut).trim()}…`
+}
+
 function formatMonthYear(value) {
   if (!value) return ''
   const d = new Date(value)
@@ -299,43 +307,136 @@ function renderExecutiveBlackGold(data, fontCss) {
   </body></html>`
 }
 
-// ── 5. Magazine Cover — Forbes-inspired masthead, glossy recognition ──
+// ── 5. Magazine Cover — tall poster, Day1-branded recognition cover ──
+// Unlike the other 4 (landscape A4 certificates), this renders as an
+// A4-portrait poster — see certificateRender.js's styleKey === 'magazine_cover'
+// branch for the matching output dimensions.
+function magazineBulletHtml(emoji, ringColor, title, desc) {
+  return `
+    <div style="display:flex;gap:14px;align-items:flex-start;">
+      <div style="width:34px;height:34px;border-radius:10px;background:${ringColor};flex-shrink:0;
+        display:flex;align-items:center;justify-content:center;font-size:16px;">${emoji}</div>
+      <div style="min-width:0;">
+        <div class="heading" style="font-size:14px;font-weight:800;color:white;line-height:1.25;">${title}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:3px;line-height:1.4;">${desc}</div>
+      </div>
+    </div>
+  `
+}
+
 function renderMagazineCover(data, fontCss) {
-  const theme = {
-    heading: '#1A1A1A', accent: '#C0152F', muted: '#6B6358', body: '#2A2A2A',
-    panelBg: '#F7F5F0', panelBorder: '#E5E0D5',
-    tributeBg: '#FCEAEA', tributeAccent: '#C0152F', tributeText: '#2A2A2A',
-    ring: 'white', avatarBg: '#1A1A1A',
-    ribbonBg: '#F7F5F0', ribbonBorder: '#E5E0D5', ribbonText: '#C0152F', ribbonSub: '#6B6358',
-  }
+  const {
+    fullName, heroImageUrl, avatarUrl, storyTitle, storyExcerpt, categoryLabel, categoryEmoji,
+    friendMessage, senderName, senderAvatarUrl, aiTributeText, certificateNumber, qrCodeDataUri, websiteUrl,
+  } = data
+  const photoUrl = heroImageUrl || avatarUrl
+  const caption = escapeHtml(truncate(storyExcerpt, 64)) || `${escapeHtml(fullName || 'This')}'s story changed everything.`
+  const aiInsight = truncate(aiTributeText || storyExcerpt || 'A story worth celebrating.', 90)
+  const pullQuote = truncate(friendMessage || storyExcerpt || 'A surprise, just for you.', 110)
+  const catLabel = escapeHtml((categoryLabel || 'Special Recognition').replace(/ Certificate$/i, ''))
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8" /><style>${baseStyles(fontCss)}
-    body { width:1600px; background:white; }
-    .sheet { padding:0; min-height:1100px; display:flex; flex-direction:column; }
-    .masthead { background:#C0152F; padding:26px 70px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+    body { width:1240px; height:1754px; background:#0A0E1A; overflow:hidden; }
+    .sheet { width:1240px; height:1754px; padding:34px 46px 26px; display:flex; flex-direction:column; overflow:hidden; box-sizing:border-box;
+      background: radial-gradient(circle at 85% 0%, rgba(255,107,43,.18), transparent 50%), linear-gradient(165deg,#0A0E1A 0%,#10162A 60%,#0A0E1A 100%); }
   </style></head><body>
     <div class="sheet">
-      <div class="masthead">
-        <div class="heading" style="font-size:34px;font-weight:900;color:white;letter-spacing:1px;">DAY1 DIARIES</div>
-        ${partnerBadgesHtml('white', 'rgba(255,255,255,.5)')}
-      </div>
-      <div style="padding:46px 70px 36px;flex:1;display:flex;flex-direction:column;justify-content:space-between;">
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-            <div>
-              <div class="heading" style="font-size:13px;letter-spacing:.3em;color:#C0152F;font-weight:800;">PROFESSIONAL RECOGNITION</div>
-              <div class="heading" style="font-size:48px;font-weight:900;color:#1A1A1A;line-height:1.05;margin-top:6px;max-width:900px;">
-                ${escapeHtml((data.categoryLabel || 'Recognition').toUpperCase())}: ${escapeHtml(data.fullName || '')}
-              </div>
-              <div style="width:60px;height:4px;background:#C0152F;margin-top:16px;"></div>
-            </div>
-            <div style="font-size:38px;">${escapeHtml(data.categoryEmoji || '⭐')}</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div style="width:30px;height:30px;border-radius:7px;background:#FF6B2B;display:flex;align-items:center;justify-content:center;font-weight:900;color:white;font-size:14px;">1</div>
+            <div class="heading" style="font-size:14px;font-weight:900;color:white;letter-spacing:.04em;">DAY 1 <span style="color:#F2B705;">DIARIES</span></div>
           </div>
-          ${contentBlockHtml(data, theme)}
-          ${ribbonHtml(data, theme)}
+          <div class="sig" style="font-size:13px;color:rgba(255,255,255,.6);margin-top:6px;">Special Edition</div>
         </div>
-        ${footerHtml(data, theme)}
+        <div style="background:#D6336C;padding:8px 16px 12px;border-radius:0 0 10px 10px;text-align:center;">
+          <div style="font-size:8px;font-weight:800;letter-spacing:.05em;color:#FFE8EF;">★★★★★</div>
+          <div style="font-size:10px;font-weight:800;color:white;letter-spacing:.02em;margin-top:2px;">COMMUNITY<br/>FAVORITE</div>
+        </div>
       </div>
-      <div style="height:34px;background:#C0152F;flex-shrink:0;"></div>
+
+      <!-- Title -->
+      <div style="margin-top:18px;display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="heading" style="font-size:54px;font-weight:900;color:white;line-height:.95;letter-spacing:-1px;">DAY 1</div>
+          <div class="heading" style="font-size:54px;font-weight:900;color:#F2B705;line-height:.95;letter-spacing:-1px;">DIARIES</div>
+        </div>
+        <div style="flex-shrink:0;width:96px;height:96px;border-radius:50%;border:2px solid #F2B705;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;text-align:center;margin-top:6px;">
+          <div style="font-size:16px;">👑</div>
+          <div style="font-size:7px;font-weight:800;color:#F2B705;line-height:1.2;margin-top:2px;">TOP STORY<br/>OF THE WEEK</div>
+        </div>
+      </div>
+
+      <!-- Bullets + Photo -->
+      <div style="display:flex;gap:24px;margin-top:24px;flex:1;min-height:0;">
+        <div style="width:280px;flex-shrink:0;display:flex;flex-direction:column;gap:18px;padding-top:6px;">
+          ${magazineBulletHtml('⭐', 'rgba(242,183,5,.18)', catLabel, escapeHtml(truncate(storyExcerpt, 60)) || 'A heartfelt surprise.')}
+          ${magazineBulletHtml('📖', 'rgba(45,212,191,.18)', escapeHtml(truncate(storyTitle, 34)), 'The story behind this tribute.')}
+          ${magazineBulletHtml('💌', 'rgba(214,51,108,.18)', 'A PERSONAL MESSAGE', escapeHtml(truncate(friendMessage, 60)) || 'From the heart.')}
+          ${magazineBulletHtml('❤️', 'rgba(255,107,43,.18)', `GIFTED BY ${escapeHtml((senderName || 'A Friend').toUpperCase())}`, 'A surprise, just for you.')}
+        </div>
+        <div style="flex:1;min-width:0;position:relative;border-radius:18px;overflow:hidden;background:#1A2238;">
+          ${photoUrl
+            ? `<img src="${escapeHtml(photoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;" />`
+            : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:64px;">${escapeHtml(categoryEmoji || '🎁')}</div>`}
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:24px 22px;
+            background:linear-gradient(180deg,transparent,rgba(0,0,0,.85) 70%);">
+            <div class="heading" style="font-size:21px;font-weight:900;color:white;line-height:1.25;">${caption}</div>
+          </div>
+          <div style="position:absolute;top:14px;right:14px;width:150px;background:rgba(10,14,26,.85);border:1px solid rgba(45,212,191,.4);
+            border-radius:12px;padding:12px;backdrop-filter:blur(4px);">
+            <div style="font-size:18px;">🤖</div>
+            <div style="font-size:9px;font-weight:800;color:#2DD4BF;letter-spacing:.05em;margin-top:4px;">AI KEY INSIGHT</div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,.85);line-height:1.4;margin-top:4px;">${escapeHtml(aiInsight)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Featured On -->
+      <div style="text-align:center;margin-top:22px;display:flex;align-items:center;justify-content:center;gap:10px;">
+        <span style="color:#2DD4BF;font-size:13px;">🌿</span>
+        <span style="font-size:9px;font-weight:800;letter-spacing:.15em;color:rgba(255,255,255,.5);">FEATURED ON DAY 1 DIARIES</span>
+        <span style="color:#2DD4BF;font-size:13px;">🌿</span>
+      </div>
+
+      <!-- Gifted by + Quote -->
+      <div style="display:flex;gap:16px;margin-top:18px;align-items:stretch;">
+        <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;display:flex;gap:12px;align-items:center;">
+          ${avatarHtml(senderAvatarUrl, senderName, 46, '#F2B705', '#FF6B2B')}
+          <div style="min-width:0;">
+            <div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.5);letter-spacing:.05em;">GIFTED BY</div>
+            <div class="sig" style="font-size:16px;color:#F2B705;margin-top:2px;">${escapeHtml(senderName || 'A Friend')}</div>
+          </div>
+        </div>
+        <div style="flex:1.3;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;">
+          <div style="font-size:24px;color:#2DD4BF;line-height:.6;">"</div>
+          <div style="font-size:12px;color:white;font-style:italic;line-height:1.45;margin-top:2px;">${escapeHtml(pullQuote)}</div>
+        </div>
+      </div>
+
+      <!-- QR -->
+      <div style="display:flex;align-items:center;gap:14px;margin-top:18px;border:1.5px dashed rgba(255,255,255,.25);border-radius:14px;padding:14px 18px;">
+        <div>
+          <div style="font-size:11px;font-weight:800;color:white;">READ FULL STORY</div>
+          <div style="font-size:9.5px;color:rgba(255,255,255,.5);margin-top:2px;">Scan to explore this inspiring journey.</div>
+          <div style="font-size:8.5px;color:rgba(255,255,255,.35);margin-top:8px;">Certificate ${escapeHtml(certificateNumber)} · ${escapeHtml((websiteUrl || '').replace(/^https?:\/\//, ''))}</div>
+        </div>
+        <div style="flex-shrink:0;margin-left:auto;">
+          ${qrCodeDataUri ? `<img src="${qrCodeDataUri}" alt="" style="width:64px;height:64px;border-radius:6px;background:white;padding:4px;" />` : ''}
+        </div>
+      </div>
+
+      <!-- Bottom bar -->
+      <div style="margin-top:18px;background:#F2B705;border-radius:14px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:18px;font-size:9.5px;font-weight:800;color:#1A1206;">
+          <span>📤 SHARE YOUR STORY</span>
+          <span>👥 LEARN FROM OTHERS</span>
+          <span>🌱 GROW TOGETHER</span>
+        </div>
+        <div class="sig" style="font-size:11px;color:#1A1206;">Join the movement · day1diaries.com</div>
+      </div>
     </div>
   </body></html>`
 }

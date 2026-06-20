@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import {
   getGiftCategories, getGiftTypes, getGiftTemplates, getGiftTributeOptions,
   searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment, getMyFeatureUsage, getMyCoins,
-  getGiftOrder, getGiftDownloadUrl, previewGiftCertificate, getGiftWallet,
+  getGiftOrder, getGiftDownloadUrl, previewGiftCertificate, getGiftWallet, uploadGiftImage,
 } from '../lib/api'
 import { toast } from './Toast'
 
@@ -66,6 +66,8 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
   const [walletTiers, setWalletTiers] = useState([])
   const [previewImage, setPreviewImage] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [imageUrl, setImageUrl] = useState(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   useEffect(() => {
     getGiftCategories().then(({ data }) => setCategories(data || []))
@@ -117,11 +119,22 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
   const applicableTiers = walletTiers.filter(t => t.kind === 'discount' || t.giftTypeKey === giftTypeKey)
   const selectedTier = walletTiers.find(t => t.cost === coinTierCost)
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingImage(true)
+    const { data, error } = await uploadGiftImage(file)
+    setUploadingImage(false)
+    if (error) return toast.error(error.message)
+    setImageUrl(data)
+    setPreviewImage(null) // photo changed — old preview is stale
+  }
+
   const handlePreview = async () => {
     setPreviewLoading(true)
     setPreviewImage(null)
     const { data, error } = await previewGiftCertificate({
-      storyId: selectedStory.id, categoryKey, templateKey, message, aiTributeKind,
+      storyId: selectedStory.id, categoryKey, templateKey, message, aiTributeKind, imageUrl,
     })
     setPreviewLoading(false)
     if (error) return toast.error(error.message)
@@ -134,7 +147,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
     setSubmitting(true)
     const { data, error } = await createGiftOrder({
       storyId: selectedStory.id, categoryKey, giftTypeKey, templateKey,
-      recipientName, recipientEmail, message, aiTributeKind,
+      recipientName, recipientEmail, message, aiTributeKind, imageUrl,
       paymentMethod: effectiveMethod,
       coinTierCost: effectiveMethod === 'coins' ? coinTierCost : undefined,
     })
@@ -310,6 +323,16 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#5C3D2E', marginBottom: 5 }}>Your Message ({message.length}/1000)</label>
             <textarea value={message} onChange={e => setMessage(e.target.value.slice(0, 1000))} placeholder="Proud of your journey."
               style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #DDD3CA', borderRadius: 8, fontSize: 13, minHeight: 70, marginBottom: 14, fontFamily: 'inherit', resize: 'vertical' }} />
+
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#5C3D2E', marginBottom: 5 }}>Photo (optional — used as the certificate's hero image)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              {imageUrl && <img src={imageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />}
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 100, border: '1.5px solid #DDD3CA', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#5C3D2E' }}>
+                {uploadingImage ? 'Uploading…' : imageUrl ? 'Change Photo' : '📷 Upload Photo'}
+                <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} style={{ display: 'none' }} />
+              </label>
+              {imageUrl && <button onClick={() => { setImageUrl(null); setPreviewImage(null) }} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Remove</button>}
+            </div>
 
             <div style={{ fontSize: 12, fontWeight: 700, color: '#5C3D2E', marginBottom: 6 }}>✨ Add an AI Tribute (optional)</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

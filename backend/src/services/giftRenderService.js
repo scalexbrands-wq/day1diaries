@@ -27,7 +27,7 @@ async function renderGiftAssets(orderId) {
     `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, tm.style_key AS template_key,
             s.title AS story_title, s.content AS story_content, s.cover_image_url,
             p.full_name AS author_name, p.avatar_url AS author_avatar_url,
-            sender.full_name AS sender_name
+            sender.full_name AS sender_name, sender.avatar_url AS sender_avatar_url
      FROM gift_orders g
      JOIN gift_categories gc ON gc.id = g.category_id
      JOIN gift_templates tm ON tm.id = g.template_id
@@ -59,6 +59,7 @@ async function renderGiftAssets(orderId) {
     const data = {
       fullName: order.author_name,
       avatarUrl: order.author_avatar_url,
+      heroImageUrl: order.image_message_url || order.cover_image_url || order.author_avatar_url,
       storyTitle: order.story_title,
       storyExcerpt: extractHighlight(order.story_content),
       companyName: certInfo.company_name || '',
@@ -68,6 +69,7 @@ async function renderGiftAssets(orderId) {
       categoryEmoji: order.category_emoji,
       friendMessage: order.message || '',
       senderName: order.sender_name,
+      senderAvatarUrl: order.sender_avatar_url,
       aiTributeText: order.ai_tribute_text,
       certificateNumber,
       issuedAt: new Date().toISOString(),
@@ -76,7 +78,7 @@ async function renderGiftAssets(orderId) {
     }
 
     const html = renderGiftCertificateHtml(data, fontCss, order.template_key)
-    const { pngBuffer, pdfBuffer } = await renderCertificate(html)
+    const { pngBuffer, pdfBuffer } = await renderCertificate(html, order.template_key)
 
     const [giftImageUrl, giftPdfUrl] = await Promise.all([
       uploadBuffer(`gifts/${certificateNumber}.png`, pngBuffer, 'image/png'),
@@ -112,9 +114,9 @@ async function renderGiftAssets(orderId) {
 // upload, no QR (a real tribute URL doesn't exist yet). Returns a PNG
 // buffer the caller can hand back as a data URI. Used by the wizard's
 // "preview before you pay" step.
-async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, message, aiTributeText, senderName }) {
+async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, message, aiTributeText, senderName, senderAvatarUrl, heroImageUrl }) {
   const { rows: storyRows } = await pool.query(
-    `SELECT s.title, s.content, p.full_name AS author_name, p.avatar_url AS author_avatar_url
+    `SELECT s.title, s.content, s.cover_image_url, p.full_name AS author_name, p.avatar_url AS author_avatar_url
      FROM stories s JOIN profiles p ON p.id = s.user_id WHERE s.id = $1`,
     [storyId]
   )
@@ -128,6 +130,7 @@ async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, messa
   const data = {
     fullName: story.author_name,
     avatarUrl: story.author_avatar_url,
+    heroImageUrl: heroImageUrl || story.cover_image_url || story.author_avatar_url,
     storyTitle: story.title,
     storyExcerpt: extractHighlight(story.content),
     companyName: '', jobTitle: '', joiningDate: null,
@@ -135,6 +138,7 @@ async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, messa
     categoryEmoji: category.emoji,
     friendMessage: message || '',
     senderName: senderName || 'A Friend',
+    senderAvatarUrl: senderAvatarUrl || null,
     aiTributeText: aiTributeText || '',
     certificateNumber: 'PREVIEW',
     issuedAt: new Date().toISOString(),
@@ -142,7 +146,7 @@ async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, messa
     websiteUrl: WEBSITE_URL,
   }
   const html = renderGiftCertificateHtml(data, fontCss, templateStyleKey)
-  const { pngBuffer } = await renderCertificate(html)
+  const { pngBuffer } = await renderCertificate(html, templateStyleKey)
   return pngBuffer
 }
 

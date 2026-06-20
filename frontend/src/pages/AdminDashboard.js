@@ -623,13 +623,14 @@ function UsersTab() {
       location: u.location || '',
       role: u.role || 'user',
       is_blocked: u.is_blocked || false,
+      coins: u.coins || 0,
     })
     setEditing(u)
   }
 
   const saveEdit = async () => {
     setSaving(true)
-    const { data, error } = await adminUpdateUser(editing.id, form)
+    const { data, error } = await adminUpdateUser(editing.id, { ...form, coins: Number(form.coins) || 0 })
     setSaving(false)
     if (error) { toast.error(error.message || 'Failed to update'); return }
     setUsers(us => us.map(u => u.id === editing.id ? { ...u, ...data } : u))
@@ -694,7 +695,7 @@ function UsersTab() {
                 {u.is_blocked && <span style={{ fontSize: 9, padding: '1px 7px', borderRadius: 100, background: '#FEE2E2', color: '#DC2626', fontWeight: 700 }}>BLOCKED</span>}
               </div>
               <div style={{ fontSize: 11, color: '#8C7B6E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                @{u.username} · {u.location || '—'} · {(u.score || 0).toLocaleString()} pts · joined {u.created_at ? formatDistanceToNow(new Date(u.created_at), { addSuffix: true }) : '—'}
+                @{u.username} · {u.location || '—'} · {(u.score || 0).toLocaleString()} pts · 🪙 {(u.coins || 0).toLocaleString()} coins · joined {u.created_at ? formatDistanceToNow(new Date(u.created_at), { addSuffix: true }) : '—'}
               </div>
             </div>
 
@@ -756,6 +757,8 @@ function UsersTab() {
               </select>
             </div>
           </div>
+          <L c="Coins (wallet balance)" />
+          <Inp type="number" min="0" value={form.coins} onChange={set('coins')} placeholder="0" />
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 20, padding: '10px 12px', background: form.is_blocked ? '#FEF2F2' : '#F0FDF4', borderRadius: 8 }}>
             <input type="checkbox" checked={form.is_blocked} onChange={set('is_blocked')} />
             <span style={{ fontWeight: 600, color: form.is_blocked ? '#DC2626' : '#059669' }}>

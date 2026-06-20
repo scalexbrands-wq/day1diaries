@@ -61,7 +61,7 @@ router.patch('/users/:id/role', requireAuth, requireRole('admin'), async (req, r
 // ── PATCH /admin/users/:id ─────────────────────────────────────
 // body: { full_name, username, bio, location, role, is_blocked }
 router.patch('/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
-  const allowed = ['full_name', 'username', 'bio', 'location', 'role', 'is_blocked']
+  const allowed = ['full_name', 'username', 'bio', 'location', 'role', 'is_blocked', 'coins']
   const updates = {}
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key]
@@ -69,6 +69,11 @@ router.patch('/users/:id', requireAuth, requireRole('admin'), async (req, res) =
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields' })
   if (updates.role && !['user', 'contributor', 'admin'].includes(updates.role)) {
     return res.status(400).json({ error: 'Invalid role' })
+  }
+  if (updates.coins !== undefined) {
+    const coins = Number(updates.coins)
+    if (!Number.isInteger(coins) || coins < 0) return res.status(400).json({ error: 'Coins must be a non-negative whole number' })
+    updates.coins = coins
   }
   const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`).join(', ')
   const { rows } = await pool.query(
