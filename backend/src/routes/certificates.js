@@ -8,6 +8,7 @@ const { renderCertificate, renderSocialPreview } = require('../utils/certificate
 const { renderCertificateHtml, renderSocialPreviewHtml } = require('../templates/certificateTemplate')
 const {
   computeImpactLevel, IMPACT_LEVEL_ICONS, extractInsightTags, extractHighlight, generateCertificateNumber,
+  computeImpactScore, impactScoreLabel, keyLessonFor, careerInsightFor,
 } = require('../utils/certificateInsights')
 
 const router = express.Router()
@@ -97,6 +98,12 @@ router.post('/generate', requireAuth, requireRole('admin'), async (req, res) => 
     viewsCount: viewRows[0]?.count || 0,
   }
 
+  const impactScore = computeImpactScore({
+    wordCount, tagCount: insightTags.length,
+    likesCount: snapshot.likesCount, commentsCount: snapshot.commentsCount,
+    savesCount: snapshot.savesCount, sharesCount: snapshot.sharesCount, viewsCount: snapshot.viewsCount,
+  })
+
   const qrTargetUrl = `${WEBSITE_URL}/story/${storyId}`
 
   let certificateNumber, insertedRow
@@ -134,6 +141,8 @@ router.post('/generate', requireAuth, requireRole('admin'), async (req, res) => 
     highlight,
     companyName, jobTitle, joiningDate, industry, location, companyLogoUrl,
     insightTags, impactLevel, impactIcon, snapshot,
+    impactScore, impactScoreLabel: impactScoreLabel(impactScore),
+    keyLesson: keyLessonFor(insightTags), careerInsight: careerInsightFor(insightTags),
     qrTargetUrl, communityManagerName, coFounderName,
   })
 })
