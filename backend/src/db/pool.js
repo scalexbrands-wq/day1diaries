@@ -47,6 +47,7 @@ async function initDB() {
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT`)
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent_at TIMESTAMPTZ`)
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS banner_url TEXT`)
+    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS gift_unlimited_sending BOOLEAN DEFAULT false`)
     await pool.query(`ALTER TABLE pending_signups ADD COLUMN IF NOT EXISTS phone TEXT`).catch(() => {})
     await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS flag_reason TEXT`)
     // landing_hero — admin-uploaded hero image(s) — slideshow of up to 3
@@ -527,15 +528,26 @@ async function initDB() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS gift_templates (
         id                UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-        key               TEXT UNIQUE NOT NULL CHECK (key IN (
-                            'luxury_gold','glassmorphism_orange','scrapbook_warm',
-                            'executive_black_gold','magazine_cover')),
+        key               TEXT UNIQUE NOT NULL,
         label             TEXT NOT NULL,
         preview_image_url TEXT,
         is_active         BOOLEAN DEFAULT true,
         created_at        TIMESTAMPTZ DEFAULT now(),
         updated_at        TIMESTAMPTZ DEFAULT now()
       )
+    `)
+    // `key` used to be restricted to exactly the 5 coded visual styles, which
+    // blocked admins from cataloguing new templates under their own name. Now
+    // `key` is any unique admin-chosen slug, and `style_key` (always one of the
+    // 5 coded renderers) decides which actual design renders. Existing rows'
+    // style_key defaults to their original key so they keep rendering the same.
+    await pool.query(`ALTER TABLE gift_templates DROP CONSTRAINT IF EXISTS gift_templates_key_check`)
+    await pool.query(`ALTER TABLE gift_templates ADD COLUMN IF NOT EXISTS style_key TEXT`)
+    await pool.query(`UPDATE gift_templates SET style_key = key WHERE style_key IS NULL`)
+    await pool.query(`ALTER TABLE gift_templates DROP CONSTRAINT IF EXISTS gift_templates_style_key_check`)
+    await pool.query(`
+      ALTER TABLE gift_templates ADD CONSTRAINT gift_templates_style_key_check CHECK (style_key IN (
+        'luxury_gold','glassmorphism_orange','scrapbook_warm','executive_black_gold','magazine_cover'))
     `)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS gift_orders (
@@ -669,7 +681,7 @@ async function initDB() {
       ]
       for (const [key, label] of defaultTemplates) {
         await pool.query(
-          `INSERT INTO gift_templates (key, label) VALUES ($1,$2)`,
+          `INSERT INTO gift_templates (key, label, style_key) VALUES ($1,$2,$1)`,
           [key, label]
         )
       }

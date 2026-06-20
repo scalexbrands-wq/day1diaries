@@ -24,7 +24,7 @@ function generateGiftCertNumber() {
 
 async function renderGiftAssets(orderId) {
   const { rows } = await pool.query(
-    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, tm.key AS template_key,
+    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, tm.style_key AS template_key,
             s.title AS story_title, s.content AS story_content, s.cover_image_url,
             p.full_name AS author_name, p.avatar_url AS author_avatar_url,
             sender.full_name AS sender_name
@@ -108,4 +108,42 @@ async function renderGiftAssets(orderId) {
   }
 }
 
-module.exports = { renderGiftAssets, generateGiftCertNumber }
+// Ephemeral preview — same renderer as the real gift, but no DB row, no S3
+// upload, no QR (a real tribute URL doesn't exist yet). Returns a PNG
+// buffer the caller can hand back as a data URI. Used by the wizard's
+// "preview before you pay" step.
+async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, message, aiTributeText, senderName }) {
+  const { rows: storyRows } = await pool.query(
+    `SELECT s.title, s.content, p.full_name AS author_name, p.avatar_url AS author_avatar_url
+     FROM stories s JOIN profiles p ON p.id = s.user_id WHERE s.id = $1`,
+    [storyId]
+  )
+  const story = storyRows[0]
+  if (!story) throw Object.assign(new Error('Story not found'), { status: 404 })
+
+  const { rows: catRows } = await pool.query('SELECT label, emoji FROM gift_categories WHERE key = $1', [categoryKey])
+  const category = catRows[0] || { label: 'Recognition', emoji: '🎁' }
+
+  const fontCss = await getEmbeddedFontCss()
+  const data = {
+    fullName: story.author_name,
+    avatarUrl: story.author_avatar_url,
+    storyTitle: story.title,
+    storyExcerpt: extractHighlight(story.content),
+    companyName: '', jobTitle: '', joiningDate: null,
+    categoryLabel: `${category.label} Certificate`,
+    categoryEmoji: category.emoji,
+    friendMessage: message || '',
+    senderName: senderName || 'A Friend',
+    aiTributeText: aiTributeText || '',
+    certificateNumber: 'PREVIEW',
+    issuedAt: new Date().toISOString(),
+    qrCodeDataUri: null,
+    websiteUrl: WEBSITE_URL,
+  }
+  const html = renderGiftCertificateHtml(data, fontCss, templateStyleKey)
+  const { pngBuffer } = await renderCertificate(html)
+  return pngBuffer
+}
+
+module.exports = { renderGiftAssets, renderGiftPreview, generateGiftCertNumber }

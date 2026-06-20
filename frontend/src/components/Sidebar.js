@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { signOut, getMembershipStatus } from '../lib/api'
+import { signOut, getMembershipStatus, getGiftModuleStatus } from '../lib/api'
 
 const BASE_NAV = [
   { to:'/feed',        icon:'⌂', label:'My Feed' },
@@ -13,6 +13,10 @@ const BASE_NAV = [
   { to:'/saved',       icon:'◇', label:'Saved' },
 ]
 const MEMBERSHIP_NAV_ITEM = { to:'/membership', icon:'🎫', label:'Membership' }
+const GIFT_NAV_ITEMS = [
+  { to:'/gifts',  icon:'🎁', label:'Gifts' },
+  { to:'/wallet', icon:'🪙', label:'Wallet' },
+]
 
 export const COLORS = ['#FF6B2B','#7C3AED','#059669','#2563EB','#EC4899','#0EA5E9','#F59E0B']
 export const getAvatarColor = (name='') => COLORS[name.charCodeAt(0) % COLORS.length]
@@ -29,9 +33,16 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [membershipEnabled, setMembershipEnabled] = useState(true)
+  const [giftEnabled, setGiftEnabled] = useState(true)
 
   useEffect(() => { getMembershipStatus().then(({ data }) => setMembershipEnabled(data !== false)) }, [])
-  const NAV = membershipEnabled ? [...BASE_NAV.slice(0, 5), MEMBERSHIP_NAV_ITEM, ...BASE_NAV.slice(5)] : BASE_NAV
+  useEffect(() => { getGiftModuleStatus().then(({ data }) => setGiftEnabled(data?.enabled !== false)) }, [])
+  const NAV = [
+    ...BASE_NAV.slice(0, 5),
+    ...(membershipEnabled ? [MEMBERSHIP_NAV_ITEM] : []),
+    ...(giftEnabled ? GIFT_NAV_ITEMS : []),
+    ...BASE_NAV.slice(5),
+  ]
 
   const handleSignOut = async () => {
     await signOut()

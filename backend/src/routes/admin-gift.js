@@ -7,6 +7,28 @@ const { renderGiftAssets } = require('../services/giftRenderService')
 const router = express.Router()
 router.use(requireAuth, requireRole('admin'))
 
+const STYLE_KEYS = ['luxury_gold', 'glassmorphism_orange', 'scrapbook_warm', 'executive_black_gold', 'magazine_cover']
+
+function slugify(label) {
+  return String(label || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'item'
+}
+
+// Wraps a delete so a foreign-key violation (the row is referenced by past
+// gift_orders) comes back as a clear message instead of a raw 500 — admins
+// should deactivate instead of delete once a catalog entry has real orders.
+async function deleteOrExplain(res, table, id, label) {
+  try {
+    const { rowCount } = await pool.query(`DELETE FROM ${table} WHERE id = $1`, [id])
+    if (!rowCount) return res.status(404).json({ error: `${label} not found` })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(409).json({ error: `Can't delete — it's used by existing gift orders. Deactivate it instead.` })
+    }
+    throw err
+  }
+}
+
 // ════════════════════════════════════════════════════════════
 // CATEGORIES
 // ════════════════════════════════════════════════════════════
@@ -14,6 +36,17 @@ router.use(requireAuth, requireRole('admin'))
 router.get('/categories', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM gift_categories ORDER BY sort_order')
   res.json({ categories: rows })
+})
+
+router.post('/categories', async (req, res) => {
+  const { label, emoji, sort_order } = req.body
+  if (!label) return res.status(400).json({ error: 'label is required' })
+  const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next FROM gift_categories')
+  const { rows } = await pool.query(
+    `INSERT INTO gift_categories (key, label, emoji, sort_order) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [`${slugify(label)}_${Date.now().toString(36)}`, label, emoji || '🎁', sort_order ?? maxRows[0].next]
+  )
+  res.status(201).json({ category: rows[0] })
 })
 
 router.put('/categories/:id', async (req, res) => {
@@ -27,6 +60,8 @@ router.put('/categories/:id', async (req, res) => {
   res.json({ category: rows[0] })
 })
 
+router.delete('/categories/:id', (req, res) => deleteOrExplain(res, 'gift_categories', req.params.id, 'Category'))
+
 // ════════════════════════════════════════════════════════════
 // TYPES & PRICING
 // ════════════════════════════════════════════════════════════
@@ -34,6 +69,17 @@ router.put('/categories/:id', async (req, res) => {
 router.get('/types', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM gift_types ORDER BY sort_order')
   res.json({ types: rows })
+})
+
+router.post('/types', async (req, res) => {
+  const { label, description, base_price, currency, sort_order } = req.body
+  if (!label) return res.status(400).json({ error: 'label is required' })
+  const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next FROM gift_types')
+  const { rows } = await pool.query(
+    `INSERT INTO gift_types (key, label, description, base_price, currency, sort_order) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [`${slugify(label)}_${Date.now().toString(36)}`, label, description || null, base_price || 0, currency || 'INR', sort_order ?? maxRows[0].next]
+  )
+  res.status(201).json({ type: rows[0] })
 })
 
 router.put('/types/:id', async (req, res) => {
@@ -48,25 +94,41 @@ router.put('/types/:id', async (req, res) => {
   res.json({ type: rows[0] })
 })
 
+router.delete('/types/:id', (req, res) => deleteOrExplain(res, 'gift_types', req.params.id, 'Gift type'))
+
 // ════════════════════════════════════════════════════════════
 // TEMPLATES
 // ════════════════════════════════════════════════════════════
 
 router.get('/templates', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM gift_templates ORDER BY created_at')
-  res.json({ templates: rows })
+  res.json({ templates: rows, styleKeys: STYLE_KEYS })
+})
+
+router.post('/templates', async (req, res) => {
+  const { label, style_key, preview_image_url } = req.body
+  if (!label) return res.status(400).json({ error: 'label is required' })
+  if (!STYLE_KEYS.includes(style_key)) return res.status(400).json({ error: `style_key must be one of: ${STYLE_KEYS.join(', ')}` })
+  const { rows } = await pool.query(
+    `INSERT INTO gift_templates (key, label, style_key, preview_image_url) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [`${slugify(label)}_${Date.now().toString(36)}`, label, style_key, preview_image_url || null]
+  )
+  res.status(201).json({ template: rows[0] })
 })
 
 router.put('/templates/:id', async (req, res) => {
-  const { label, preview_image_url, is_active } = req.body
+  const { label, style_key, preview_image_url, is_active } = req.body
+  if (style_key && !STYLE_KEYS.includes(style_key)) return res.status(400).json({ error: `style_key must be one of: ${STYLE_KEYS.join(', ')}` })
   const { rows } = await pool.query(
-    `UPDATE gift_templates SET label=COALESCE($1,label), preview_image_url=COALESCE($2,preview_image_url),
-       is_active=COALESCE($3,is_active), updated_at=now() WHERE id=$4 RETURNING *`,
-    [label, preview_image_url, is_active, req.params.id]
+    `UPDATE gift_templates SET label=COALESCE($1,label), style_key=COALESCE($2,style_key),
+       preview_image_url=COALESCE($3,preview_image_url), is_active=COALESCE($4,is_active), updated_at=now() WHERE id=$5 RETURNING *`,
+    [label, style_key, preview_image_url, is_active, req.params.id]
   )
   if (!rows.length) return res.status(404).json({ error: 'Template not found' })
   res.json({ template: rows[0] })
 })
+
+router.delete('/templates/:id', (req, res) => deleteOrExplain(res, 'gift_templates', req.params.id, 'Template'))
 
 // ════════════════════════════════════════════════════════════
 // ORDERS

@@ -5,7 +5,8 @@ const { requireAuth, optionalAuth } = require('../middleware/auth')
 const { requireFeatureAccess, peekUsage, hasActiveMembership } = require('../services/accessControl')
 const razorpay = require('../utils/razorpay')
 const { listTributeOptions, generateTribute } = require('../utils/giftInsights')
-const { renderGiftAssets } = require('../services/giftRenderService')
+const { renderGiftAssets, renderGiftPreview } = require('../services/giftRenderService')
+const { WALLET_TIERS, findTier } = require('../utils/walletTiers')
 const brevo = require('../utils/brevo')
 
 const router = express.Router()
@@ -14,11 +15,6 @@ const WEBSITE_URL = process.env.SITE_URL || 'https://www.day1diaries.com'
 function generateTributeSlug() {
   return crypto.randomBytes(5).toString('hex')
 }
-
-// Coin redemption — fixed rule: 10,000 coins unlocks one free Digital
-// Certificate gift (the cheapest tier). Other gift types still need payment.
-const COIN_REDEMPTION_COST = 10000
-const COIN_REDEMPTION_GIFT_TYPE_KEY = 'digital_certificate'
 
 // ════════════════════════════════════════════════════════════
 // STATUS — public, lets the frontend hide the CTA if disabled or if
@@ -42,6 +38,13 @@ router.get('/status', optionalAuth, async (req, res) => {
   const enabled = rows.length === 0 ? true : rows[0].value !== false
   const allowedForMe = enabled ? await isAudienceAllowed(req.profile) : false
   res.json({ enabled, allowedForMe })
+})
+
+// ── GET /gift/wallet — coin balance + the unlock ladder ──────────
+router.get('/wallet', requireAuth, async (req, res) => {
+  const coins = req.profile.coins || 0
+  const tiers = WALLET_TIERS.map(t => ({ ...t, unlocked: coins >= t.cost }))
+  res.json({ coins, tiers, unlimitedSending: !!req.profile.gift_unlimited_sending })
 })
 
 // ════════════════════════════════════════════════════════════
@@ -127,6 +130,39 @@ router.get('/stories/search', optionalAuth, async (req, res) => {
 })
 
 // ════════════════════════════════════════════════════════════
+// PREVIEW — accurate render before payment, no DB write
+// ════════════════════════════════════════════════════════════
+
+router.post('/preview', requireAuth, async (req, res) => {
+  const { storyId, categoryKey, templateKey, message, aiTributeKind, aiTributeText } = req.body
+  if (!storyId || !categoryKey || !templateKey) {
+    return res.status(400).json({ error: 'storyId, categoryKey, and templateKey are required' })
+  }
+  const { rows: tmplRows } = await pool.query('SELECT style_key FROM gift_templates WHERE key = $1', [templateKey])
+  const template = tmplRows[0]
+  if (!template) return res.status(404).json({ error: 'Design template not found' })
+
+  let tributeText = aiTributeText || null
+  if (!tributeText && aiTributeKind) {
+    const { rows: storyRows } = await pool.query(
+      `SELECT s.title, p.full_name AS author_name FROM stories s JOIN profiles p ON p.id = s.user_id WHERE s.id = $1`,
+      [storyId]
+    )
+    if (storyRows[0]) tributeText = generateTribute(categoryKey, aiTributeKind, { name: storyRows[0].author_name, storyTitle: storyRows[0].title })
+  }
+
+  try {
+    const pngBuffer = await renderGiftPreview({
+      storyId, categoryKey, templateStyleKey: template.style_key,
+      message, aiTributeText: tributeText, senderName: req.profile.full_name || req.profile.username,
+    })
+    res.json({ previewImage: `data:image/png;base64,${pngBuffer.toString('base64')}` })
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Could not render preview' })
+  }
+})
+
+// ════════════════════════════════════════════════════════════
 // CREATE — Steps 2-5 submit here as one payload
 // ════════════════════════════════════════════════════════════
 
@@ -140,7 +176,14 @@ async function requireGiftAudience(req, res, next) {
   next()
 }
 
-router.post('/create', requireAuth, requireGiftAudience, requireFeatureAccess('gift_sending'), async (req, res) => {
+// The top wallet tier permanently waives the free-tier send limit for that
+// user — skip the consume-on-attempt feature-access check entirely for them.
+function requireGiftSendingAccess(req, res, next) {
+  if (req.profile?.gift_unlimited_sending) return next()
+  return requireFeatureAccess('gift_sending')(req, res, next)
+}
+
+router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAccess, async (req, res) => {
   const {
     storyId, categoryKey, giftTypeKey, templateKey,
     recipientName, recipientEmail, message,
@@ -188,23 +231,27 @@ router.post('/create', requireAuth, requireGiftAudience, requireFeatureAccess('g
     : null
 
   const tributeSlug = generateTributeSlug()
-  const amount = giftType.base_price
+  let amount = giftType.base_price
   const wantsCoinRedemption = paymentMethod === 'coins'
   const wantsCod = paymentMethod === 'cod'
 
+  let tier = null
+  let coinsToSpend = 0
   if (wantsCoinRedemption) {
-    if (giftTypeKey !== COIN_REDEMPTION_GIFT_TYPE_KEY) {
-      return res.status(400).json({ error: 'Coin redemption is only available for the Digital Certificate gift.' })
+    tier = findTier(Number(req.body.coinTierCost))
+    if (!tier) return res.status(400).json({ error: 'Invalid coin tier' })
+    if ((req.profile.coins || 0) < tier.cost) {
+      return res.status(400).json({ error: `You need ${tier.cost.toLocaleString()} coins for this — you have ${(req.profile.coins || 0).toLocaleString()}.` })
     }
-    if ((req.profile.coins || 0) < COIN_REDEMPTION_COST) {
-      return res.status(400).json({ error: `You need ${COIN_REDEMPTION_COST.toLocaleString()} coins to redeem this gift.` })
+    if (tier.kind === 'free_gift' && tier.giftTypeKey !== giftTypeKey) {
+      return res.status(400).json({ error: `This tier only applies to ${tier.giftTypeKey.replace(/_/g, ' ')}.` })
     }
+    coinsToSpend = tier.cost
+    amount = tier.kind === 'free_gift' ? 0 : Math.max(0, Number(amount) - tier.amount)
   }
 
   let paymentStatus, status
-  if (Number(amount) <= 0) { paymentStatus = 'free'; status = 'processing' }
-  else if (wantsCoinRedemption) { paymentStatus = 'paid'; status = 'processing' }
-  else if (wantsCod) { paymentStatus = 'pending'; status = 'pending_payment' }
+  if (Number(amount) <= 0) { paymentStatus = wantsCoinRedemption ? 'paid' : 'free'; status = 'processing' }
   else { paymentStatus = 'pending'; status = 'pending_payment' }
 
   const { rows: inserted } = await pool.query(
@@ -220,22 +267,27 @@ router.post('/create', requireAuth, requireGiftAudience, requireFeatureAccess('g
       storyId, category.id, giftType.id, template.id,
       message || null, voiceMessageUrl || null, videoMessageUrl || null, imageMessageUrl || null,
       aiTributeText, aiTributeKind || null, amount, giftType.currency, paymentStatus, status, tributeSlug,
-      wantsCoinRedemption ? 'coins' : wantsCod ? 'cod' : Number(amount) <= 0 ? 'free' : 'razorpay',
+      wantsCoinRedemption ? 'coins' : wantsCod ? 'cod' : Number(giftType.base_price) <= 0 ? 'free' : 'razorpay',
     ]
   )
   const order = inserted[0]
 
-  if (paymentStatus === 'free') {
+  if (wantsCoinRedemption) {
+    await pool.query('UPDATE profiles SET coins = coins - $1 WHERE id = $2', [coinsToSpend, req.profile.id])
+    if (tier.grantsUnlimitedSending) {
+      await pool.query('UPDATE profiles SET gift_unlimited_sending = true WHERE id = $1', [req.profile.id])
+    }
+    await pool.query(
+      `INSERT INTO gift_payments (gift_order_id, amount, currency, method, status, coins_spent) VALUES ($1,0,$2,'coins','verified',$3)`,
+      [order.id, giftType.currency, coinsToSpend]
+    )
+    if (Number(amount) <= 0) renderGiftAssets(order.id).catch(err => console.error('Gift render failed', err))
+    // else: amount still owed after the discount — sender continues to
+    // Razorpay for the remainder via the normal /gift/payment/order flow.
+  } else if (paymentStatus === 'free') {
     await pool.query(
       `INSERT INTO gift_payments (gift_order_id, amount, currency, method, status) VALUES ($1,0,$2,'free','verified')`,
       [order.id, giftType.currency]
-    )
-    renderGiftAssets(order.id).catch(err => console.error('Gift render failed', err))
-  } else if (wantsCoinRedemption) {
-    await pool.query('UPDATE profiles SET coins = coins - $1 WHERE id = $2', [COIN_REDEMPTION_COST, req.profile.id])
-    await pool.query(
-      `INSERT INTO gift_payments (gift_order_id, amount, currency, method, status, coins_spent) VALUES ($1,0,$2,'coins','verified',$3)`,
-      [order.id, giftType.currency, COIN_REDEMPTION_COST]
     )
     renderGiftAssets(order.id).catch(err => console.error('Gift render failed', err))
   } else if (wantsCod) {
@@ -341,6 +393,35 @@ router.get('/my-gifts', requireAuth, async (req, res) => {
     [req.profile.id]
   )
   res.json({ gifts: rows })
+})
+
+// ── GET /gift/received — gifts sent TO me, by registered recipients ──
+router.get('/received', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, gt.label AS gift_type_label,
+            s.title AS story_title, sender.full_name AS sender_name
+     FROM gift_orders g
+     JOIN gift_categories gc ON gc.id = g.category_id
+     JOIN gift_types gt ON gt.id = g.gift_type_id
+     JOIN stories s ON s.id = g.story_id
+     JOIN profiles sender ON sender.id::text = g.sender_user_id
+     WHERE g.recipient_user_id = $1 ORDER BY g.created_at DESC`,
+    [req.profile.id]
+  )
+  res.json({ gifts: rows })
+})
+
+// ── GET /gift/my-payments — payment history across gifts I've sent ──
+router.get('/my-payments', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT pay.*, g.recipient_name, g.tribute_slug, gt.label AS gift_type_label
+     FROM gift_payments pay
+     JOIN gift_orders g ON g.id = pay.gift_order_id
+     JOIN gift_types gt ON gt.id = g.gift_type_id
+     WHERE g.sender_user_id = $1 ORDER BY pay.created_at DESC`,
+    [req.profile.id]
+  )
+  res.json({ payments: rows })
 })
 
 router.get('/:id', requireAuth, async (req, res) => {

@@ -29,8 +29,10 @@ import {
   adminGetMembershipSettings, adminUpdateMembershipSettings, adminUploadMembershipUpiQr,
   adminGetMembershipStats,
   adminGetSeoSettings, adminUpdateSeoSettings, adminUploadSeoOgImage,
-  adminGetGiftCategories, adminUpdateGiftCategory, adminGetGiftTypes, adminUpdateGiftType,
-  adminGetGiftTemplates, adminUpdateGiftTemplate, adminGetGiftOrders, adminGetGiftOrder, adminRefundGiftOrder,
+  adminGetGiftCategories, adminCreateGiftCategory, adminUpdateGiftCategory, adminDeleteGiftCategory,
+  adminGetGiftTypes, adminCreateGiftType, adminUpdateGiftType, adminDeleteGiftType,
+  adminGetGiftTemplates, adminCreateGiftTemplate, adminUpdateGiftTemplate, adminDeleteGiftTemplate,
+  adminGetGiftOrders, adminGetGiftOrder, adminRefundGiftOrder,
   adminGetGiftPayments, adminGetGiftAnalytics, adminGetGiftSettings, adminUpdateGiftSettings, adminConfirmGiftCod,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
@@ -1878,6 +1880,9 @@ function GiftingTab() {
 
 function GiftCategoriesTab() {
   const [list, setList] = useState([])
+  const [showNew, setShowNew] = useState(false)
+  const [newForm, setNewForm] = useState({ label: '', emoji: '🎁' })
+  const [creating, setCreating] = useState(false)
   const load = useCallback(() => { adminGetGiftCategories().then(({data}) => setList(data||[])) }, [])
   useEffect(() => { load() }, [load])
 
@@ -1886,19 +1891,47 @@ function GiftCategoriesTab() {
     if (error) return toast.error(error.message)
     load()
   }
+  const create = async () => {
+    if (!newForm.label.trim()) return toast.error('Label is required')
+    setCreating(true)
+    const { error } = await adminCreateGiftCategory(newForm)
+    setCreating(false)
+    if (error) return toast.error(error.message)
+    toast.success('Category added')
+    setNewForm({ label: '', emoji: '🎁' }); setShowNew(false); load()
+  }
+  const remove = async (cat) => {
+    if (!window.confirm(`Delete "${cat.label}"?`)) return
+    const { error } = await adminDeleteGiftCategory(cat.id)
+    if (error) return toast.error(error.message)
+    toast.success('Deleted'); load()
+  }
 
   return (
     <div>
-      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Gift Categories</h3>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Gift Categories</h3>
+        <Btn onClick={()=>setShowNew(v=>!v)}>{showNew?'Cancel':'+ New Category'}</Btn>
+      </div>
+      {showNew && (
+        <Card style={{display:'flex',gap:10,alignItems:'center'}}>
+          <input value={newForm.emoji} onChange={e=>setNewForm(f=>({...f,emoji:e.target.value}))} style={{width:36,padding:6,textAlign:'center',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:16}}/>
+          <input value={newForm.label} onChange={e=>setNewForm(f=>({...f,label:e.target.value}))} placeholder="Category label" style={{flex:1,padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+          <Btn onClick={create} disabled={creating}>{creating?'Adding…':'Add'}</Btn>
+        </Card>
+      )}
       {list.map(c => (
         <Card key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <input value={c.emoji} onChange={e=>update(c,'emoji',e.target.value)} style={{width:36,padding:6,textAlign:'center',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:16}}/>
             <input defaultValue={c.label} onBlur={e=>e.target.value!==c.label && update(c,'label',e.target.value)} style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:600}}/>
           </div>
-          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
-            <input type="checkbox" checked={c.is_active} onChange={e=>update(c,'is_active',e.target.checked)}/> {c.is_active?'Active':'Hidden'}
-          </label>
+          <div style={{display:'flex',alignItems:'center',gap:14}}>
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+              <input type="checkbox" checked={c.is_active} onChange={e=>update(c,'is_active',e.target.checked)}/> {c.is_active?'Active':'Hidden'}
+            </label>
+            <button onClick={()=>remove(c)} style={{background:'none',border:'none',color:'#DC2626',cursor:'pointer',fontSize:12,fontWeight:700}}>Delete</button>
+          </div>
         </Card>
       ))}
     </div>
@@ -1907,6 +1940,9 @@ function GiftCategoriesTab() {
 
 function GiftTypesTab() {
   const [list, setList] = useState([])
+  const [showNew, setShowNew] = useState(false)
+  const [newForm, setNewForm] = useState({ label: '', description: '', base_price: 0 })
+  const [creating, setCreating] = useState(false)
   const load = useCallback(() => { adminGetGiftTypes().then(({data}) => setList(data||[])) }, [])
   useEffect(() => { load() }, [load])
 
@@ -1915,10 +1951,39 @@ function GiftTypesTab() {
     if (error) return toast.error(error.message)
     load()
   }
+  const create = async () => {
+    if (!newForm.label.trim()) return toast.error('Label is required')
+    setCreating(true)
+    const { error } = await adminCreateGiftType(newForm)
+    setCreating(false)
+    if (error) return toast.error(error.message)
+    toast.success('Gift type added')
+    setNewForm({ label: '', description: '', base_price: 0 }); setShowNew(false); load()
+  }
+  const remove = async (t) => {
+    if (!window.confirm(`Delete "${t.label}"?`)) return
+    const { error } = await adminDeleteGiftType(t.id)
+    if (error) return toast.error(error.message)
+    toast.success('Deleted'); load()
+  }
 
   return (
     <div>
-      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Gift Types & Pricing</h3>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Gift Types & Pricing</h3>
+        <Btn onClick={()=>setShowNew(v=>!v)}>{showNew?'Cancel':'+ New Gift Type'}</Btn>
+      </div>
+      {showNew && (
+        <Card>
+          <input value={newForm.label} onChange={e=>setNewForm(f=>({...f,label:e.target.value}))} placeholder="Label" style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,width:'100%',marginBottom:8}}/>
+          <input value={newForm.description} onChange={e=>setNewForm(f=>({...f,description:e.target.value}))} placeholder="Description" style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12,width:'100%',marginBottom:8}}/>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+            <span style={{fontSize:13,fontWeight:700}}>₹</span>
+            <input type="number" value={newForm.base_price} onChange={e=>setNewForm(f=>({...f,base_price:Number(e.target.value)}))} style={{width:100,padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+          </div>
+          <Btn onClick={create} disabled={creating}>{creating?'Adding…':'Add'}</Btn>
+        </Card>
+      )}
       {list.map(t => (
         <Card key={t.id}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
@@ -1933,6 +1998,7 @@ function GiftTypesTab() {
             <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>
               <input type="checkbox" checked={t.is_active} onChange={e=>update(t,'is_active',e.target.checked)}/> Active
             </label>
+            <button onClick={()=>remove(t)} style={{background:'none',border:'none',color:'#DC2626',cursor:'pointer',fontSize:12,fontWeight:700,flexShrink:0}}>Delete</button>
           </div>
         </Card>
       ))}
@@ -1942,7 +2008,11 @@ function GiftTypesTab() {
 
 function GiftTemplatesTab() {
   const [list, setList] = useState([])
-  const load = useCallback(() => { adminGetGiftTemplates().then(({data}) => setList(data||[])) }, [])
+  const [styleKeys, setStyleKeys] = useState([])
+  const [showNew, setShowNew] = useState(false)
+  const [newForm, setNewForm] = useState({ label: '', style_key: '' })
+  const [creating, setCreating] = useState(false)
+  const load = useCallback(() => { adminGetGiftTemplates().then(({data}) => { setList(data?.templates||[]); setStyleKeys(data?.styleKeys||[]) }) }, [])
   useEffect(() => { load() }, [load])
 
   const update = async (t, field, value) => {
@@ -1950,17 +2020,57 @@ function GiftTemplatesTab() {
     if (error) return toast.error(error.message)
     load()
   }
+  const create = async () => {
+    if (!newForm.label.trim()) return toast.error('Label is required')
+    if (!newForm.style_key) return toast.error('Choose an underlying visual style')
+    setCreating(true)
+    const { error } = await adminCreateGiftTemplate(newForm)
+    setCreating(false)
+    if (error) return toast.error(error.message)
+    toast.success('Template added')
+    setNewForm({ label: '', style_key: '' }); setShowNew(false); load()
+  }
+  const remove = async (t) => {
+    if (!window.confirm(`Delete "${t.label}"?`)) return
+    const { error } = await adminDeleteGiftTemplate(t.id)
+    if (error) return toast.error(error.message)
+    toast.success('Deleted'); load()
+  }
 
   return (
     <div>
-      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Design Templates</h3>
-      <p style={{fontSize:12,color:'#8C7B6E',marginTop:-10,marginBottom:16}}>Template visuals are defined in code — admins can rename, toggle visibility, or add a preview thumbnail.</p>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Design Templates</h3>
+        <Btn onClick={()=>setShowNew(v=>!v)}>{showNew?'Cancel':'+ New Template'}</Btn>
+      </div>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:16}}>
+        Each template's visual design is one of {styleKeys.length} coded styles — admins catalogue entries
+        (label, pricing tier, preview) and pick which coded style renders it. A brand-new visual design needs a developer.
+      </p>
+      {showNew && (
+        <Card>
+          <input value={newForm.label} onChange={e=>setNewForm(f=>({...f,label:e.target.value}))} placeholder="Label (e.g. 'Festive Gold Edition')" style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,width:'100%',marginBottom:8}}/>
+          <select value={newForm.style_key} onChange={e=>setNewForm(f=>({...f,style_key:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:10}}>
+            <option value="">Choose underlying visual style…</option>
+            {styleKeys.map(k => <option key={k} value={k}>{k.replace(/_/g,' ')}</option>)}
+          </select>
+          <Btn onClick={create} disabled={creating}>{creating?'Adding…':'Add'}</Btn>
+        </Card>
+      )}
       {list.map(t => (
         <Card key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <input defaultValue={t.label} onBlur={e=>e.target.value!==t.label && update(t,'label',e.target.value)} style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:600,flex:1,marginRight:12}}/>
-          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>
-            <input type="checkbox" checked={t.is_active} onChange={e=>update(t,'is_active',e.target.checked)}/> {t.is_active?'Active':'Hidden'}
-          </label>
+          <div style={{flex:1,marginRight:12}}>
+            <input defaultValue={t.label} onBlur={e=>e.target.value!==t.label && update(t,'label',e.target.value)} style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:600,width:'100%',marginBottom:6}}/>
+            <select value={t.style_key} onChange={e=>update(t,'style_key',e.target.value)} style={{width:'100%',padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12,fontFamily:'inherit'}}>
+              {styleKeys.map(k => <option key={k} value={k}>{k.replace(/_/g,' ')}</option>)}
+            </select>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:14,flexShrink:0}}>
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+              <input type="checkbox" checked={t.is_active} onChange={e=>update(t,'is_active',e.target.checked)}/> {t.is_active?'Active':'Hidden'}
+            </label>
+            <button onClick={()=>remove(t)} style={{background:'none',border:'none',color:'#DC2626',cursor:'pointer',fontSize:12,fontWeight:700}}>Delete</button>
+          </div>
         </Card>
       ))}
     </div>
@@ -2100,70 +2210,97 @@ function GiftAnalyticsTab() {
   )
 }
 
-function GiftSettingsTab() {
-  const [settings, setSettings] = useState({})
+function GiftModuleToggleCard({ initial, onSaved }) {
+  const [enabled, setEnabled] = useState(initial !== false)
   const [saving, setSaving] = useState(false)
-  const load = useCallback(() => { adminGetGiftSettings().then(({data}) => setSettings(data?.settings||{})) }, [])
-  useEffect(() => { load() }, [load])
+  const dirty = enabled !== (initial !== false)
 
   const save = async () => {
     setSaving(true)
-    const { error } = await adminUpdateGiftSettings(settings)
+    const { error } = await adminUpdateGiftSettings({ 'gift.module_enabled': enabled })
     setSaving(false)
     if (error) return toast.error(error.message)
-    toast.success('Settings saved')
+    toast.success(`Module turned ${enabled ? 'ON' : 'OFF'}`)
+    onSaved()
   }
 
   return (
-    <div>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Gifting Settings</h3>
-        <Btn onClick={save} disabled={saving}>{saving?'Saving…':'Save Changes'}</Btn>
-      </div>
-      <Card style={{background: settings['gift.module_enabled']===false ? '#FFF5F5' : '#F0FFF6', border:`1px solid ${settings['gift.module_enabled']===false?'#FECACA':'#BBF7D0'}`}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div>
-            <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Surprise A Friend Module</div>
-            <p style={{fontSize:12,color:'#5C3D2E',margin:0}}>
-              Master switch. When off, the 🎁 Surprise A Friend CTA is hidden everywhere across the app.
-            </p>
-          </div>
-          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0,marginLeft:16}}>
-            <input type="checkbox" checked={settings['gift.module_enabled']!==false} onChange={e=>setSettings(s=>({...s,'gift.module_enabled':e.target.checked}))}/>
-            {settings['gift.module_enabled']===false ? 'OFF' : 'ON'}
-          </label>
+    <Card style={{background: !enabled ? '#FFF5F5' : '#F0FFF6', border:`1px solid ${!enabled?'#FECACA':'#BBF7D0'}`}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Surprise A Friend Module</div>
+          <p style={{fontSize:12,color:'#5C3D2E',margin:0}}>
+            Master switch. When off, the 🎁 Surprise A Friend CTA is hidden everywhere across the app.
+          </p>
         </div>
-      </Card>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0,marginLeft:16}}>
+          <input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/>
+          {enabled ? 'ON' : 'OFF'}
+        </label>
+      </div>
+      <Btn onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Btn>
+    </Card>
+  )
+}
 
-      <Card>
-        <SH c="Who Can Send Gifts"/>
-        <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:14}}>
-          Choose "Everyone" for no restriction, or check specific audiences below — the CTA is hidden from
-          (and the backend blocks) anyone outside the checked groups.
-        </p>
-        {(() => {
-          const audiences = settings['gift.allowed_audiences'] || []
-          const isEveryone = !Array.isArray(audiences) || audiences.length === 0 || audiences.includes('everyone')
-          const setAudiences = (next) => setSettings(s => ({...s, 'gift.allowed_audiences': next}))
-          const toggle = (key) => {
-            const current = Array.isArray(audiences) ? audiences.filter(a=>a!=='everyone') : []
-            setAudiences(current.includes(key) ? current.filter(a=>a!==key) : [...current, key])
-          }
-          return (
-            <div style={{display:'flex',flexDirection:'column',gap:10}}>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-                <input type="radio" checked={isEveryone} onChange={()=>setAudiences(['everyone'])}/> Everyone (no restriction)
-              </label>
-              {['member','contributor','admin'].map(key => (
-                <label key={key} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer',marginLeft:20}}>
-                  <input type="checkbox" disabled={isEveryone} checked={!isEveryone && audiences.includes(key)} onChange={()=>toggle(key)}/>
-                  {key === 'member' ? 'Members (active membership)' : key.charAt(0).toUpperCase()+key.slice(1)+'s'}
-                </label>
-              ))}
-            </div>
-          )
-        })()}
-      </Card>
+const AUDIENCE_LABELS = { member: 'Members (active membership)', contributor: 'Contributors', admin: 'Admins' }
+
+function GiftAudienceCard({ initial, onSaved }) {
+  const initialAudiences = Array.isArray(initial) ? initial : []
+  const [audiences, setAudiences] = useState(initialAudiences)
+  const [saving, setSaving] = useState(false)
+  const isEveryone = audiences.length === 0 || audiences.includes('everyone')
+  const dirty = JSON.stringify([...audiences].sort()) !== JSON.stringify([...initialAudiences].sort())
+
+  const toggle = (key) => {
+    const current = audiences.filter(a => a !== 'everyone')
+    setAudiences(current.includes(key) ? current.filter(a => a !== key) : [...current, key])
+  }
+
+  const save = async () => {
+    setSaving(true)
+    const { error } = await adminUpdateGiftSettings({ 'gift.allowed_audiences': isEveryone ? ['everyone'] : audiences })
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(isEveryone ? 'Now open to everyone' : `Restricted to: ${audiences.map(a=>AUDIENCE_LABELS[a]||a).join(', ')}`)
+    onSaved()
+  }
+
+  return (
+    <Card>
+      <SH c="Who Can Send Gifts"/>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:14}}>
+        Choose "Everyone" for no restriction, or check specific audiences below — the CTA is hidden from
+        (and the backend blocks) anyone outside the checked groups. Click Save below to apply.
+      </p>
+      <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:14}}>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+          <input type="radio" checked={isEveryone} onChange={()=>setAudiences(['everyone'])}/> Everyone (no restriction)
+        </label>
+        {Object.keys(AUDIENCE_LABELS).map(key => (
+          <label key={key} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer',marginLeft:20}}>
+            <input type="checkbox" disabled={isEveryone} checked={!isEveryone && audiences.includes(key)} onChange={()=>toggle(key)}/>
+            {AUDIENCE_LABELS[key]}
+          </label>
+        ))}
+      </div>
+      <Btn onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Btn>
+    </Card>
+  )
+}
+
+function GiftSettingsTab() {
+  const [settings, setSettings] = useState(null)
+  const load = useCallback(() => { adminGetGiftSettings().then(({data}) => setSettings(data?.settings||{})) }, [])
+  useEffect(() => { load() }, [load])
+
+  if (!settings) return <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>Loading…</p></Card>
+
+  return (
+    <div>
+      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Gifting Settings</h3>
+      <GiftModuleToggleCard key={`module-${settings['gift.module_enabled']}`} initial={settings['gift.module_enabled']} onSaved={load}/>
+      <GiftAudienceCard key={`audience-${JSON.stringify(settings['gift.allowed_audiences'])}`} initial={settings['gift.allowed_audiences']} onSaved={load}/>
     </div>
   )
 }

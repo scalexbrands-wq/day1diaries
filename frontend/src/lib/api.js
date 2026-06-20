@@ -1132,6 +1132,7 @@ export const getGiftModuleStatus = async () => {
   const result = await apiFetch('/gift/status')
   return { data: result.data, error: result.error }
 }
+export const getGiftWallet = async () => apiFetch('/gift/wallet')
 export const getGiftCategories = async () => {
   const result = await apiFetch('/gift/categories')
   return { data: result.data?.categories, error: result.error }
@@ -1154,6 +1155,10 @@ export const searchGiftStories = async (q, scope = 'public', authorUsername) => 
   const result = await apiFetch(`/gift/stories/search?${params}`)
   return { data: result.data?.stories, error: result.error }
 }
+export const previewGiftCertificate = async (payload) => {
+  const result = await apiFetch('/gift/preview', { method: 'POST', body: JSON.stringify(payload) })
+  return { data: result.data?.previewImage, error: result.error }
+}
 export const createGiftOrder = async (payload) => {
   const result = await apiFetch('/gift/create', { method: 'POST', body: JSON.stringify(payload) })
   return { data: result.data?.order, error: result.error }
@@ -1171,6 +1176,14 @@ export const getGiftOrder = async (id) => {
 export const getMyGifts = async () => {
   const result = await apiFetch('/gift/my-gifts')
   return { data: result.data?.gifts, error: result.error }
+}
+export const getReceivedGifts = async () => {
+  const result = await apiFetch('/gift/received')
+  return { data: result.data?.gifts, error: result.error }
+}
+export const getMyGiftPayments = async () => {
+  const result = await apiFetch('/gift/my-payments')
+  return { data: result.data?.payments, error: result.error }
 }
 export const getGiftDownloadUrl = (id, format = 'png') => `${API_BASE}/gift/${id}/download?format=${format}`
 export const getTribute = async (slug) => {
@@ -1197,26 +1210,43 @@ export const adminGetGiftCategories = async () => {
   const result = await apiFetch('/admin/gift/categories')
   return { data: result.data?.categories, error: result.error }
 }
+export const adminCreateGiftCategory = async (payload) => {
+  const result = await apiFetch('/admin/gift/categories', { method: 'POST', body: JSON.stringify(payload) })
+  return { data: result.data?.category, error: result.error }
+}
 export const adminUpdateGiftCategory = async (id, payload) => {
   const result = await apiFetch(`/admin/gift/categories/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
   return { data: result.data?.category, error: result.error }
 }
+export const adminDeleteGiftCategory = async (id) => apiFetch(`/admin/gift/categories/${id}`, { method: 'DELETE' })
+
 export const adminGetGiftTypes = async () => {
   const result = await apiFetch('/admin/gift/types')
   return { data: result.data?.types, error: result.error }
+}
+export const adminCreateGiftType = async (payload) => {
+  const result = await apiFetch('/admin/gift/types', { method: 'POST', body: JSON.stringify(payload) })
+  return { data: result.data?.type, error: result.error }
 }
 export const adminUpdateGiftType = async (id, payload) => {
   const result = await apiFetch(`/admin/gift/types/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
   return { data: result.data?.type, error: result.error }
 }
+export const adminDeleteGiftType = async (id) => apiFetch(`/admin/gift/types/${id}`, { method: 'DELETE' })
+
 export const adminGetGiftTemplates = async () => {
   const result = await apiFetch('/admin/gift/templates')
-  return { data: result.data?.templates, error: result.error }
+  return { data: result.data, error: result.error }
+}
+export const adminCreateGiftTemplate = async (payload) => {
+  const result = await apiFetch('/admin/gift/templates', { method: 'POST', body: JSON.stringify(payload) })
+  return { data: result.data?.template, error: result.error }
 }
 export const adminUpdateGiftTemplate = async (id, payload) => {
   const result = await apiFetch(`/admin/gift/templates/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
   return { data: result.data?.template, error: result.error }
 }
+export const adminDeleteGiftTemplate = async (id) => apiFetch(`/admin/gift/templates/${id}`, { method: 'DELETE' })
 export const adminGetGiftOrders = async (params = {}) => {
   const qs = new URLSearchParams(params)
   const result = await apiFetch(`/admin/gift/orders?${qs}`)
