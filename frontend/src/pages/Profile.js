@@ -287,7 +287,6 @@ export default function Profile() {
                 >
                   {followLoading ? '…' : isFollowing ? '✓ Following' : '+ Follow'}
                 </button>
-                <SurpriseAFriendButton lockedAuthorUsername={profile.username} authorName={profile.full_name || profile.username} size="sm" />
                 <ShareButton
                   text={profileShareText(profile.full_name || profile.username, profile.username, profile.bio)}
                   url={profileShareUrl(profile.username)}
@@ -361,6 +360,12 @@ export default function Profile() {
           {isMe && <Stat value={(profile.stories_read || 0).toLocaleString()}       label="Stories Read" />}
           {isMe && <Stat value={(profile.score || 0).toLocaleString()}              label="Points" />}
         </div>
+
+        {!isMe && (
+          <div style={{ marginTop: 14 }}>
+            <SurpriseAFriendButton lockedAuthorUsername={profile.username} authorName={profile.full_name || profile.username} size="md" fullWidth />
+          </div>
+        )}
       </div>
 
       {/* ── Stories grid ── */}

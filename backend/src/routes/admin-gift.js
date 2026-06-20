@@ -2,6 +2,7 @@ const express = require('express')
 const { pool } = require('../db/pool')
 const { requireAuth, requireRole } = require('../middleware/auth')
 const razorpay = require('../utils/razorpay')
+const { renderGiftAssets } = require('../services/giftRenderService')
 
 const router = express.Router()
 router.use(requireAuth, requireRole('admin'))
@@ -142,6 +143,27 @@ router.post('/orders/:id/refund', async (req, res) => {
   res.json({ order: rows[0] })
 })
 
+// POST /admin/gift/orders/:id/confirm-cod — admin confirms cash was
+// collected for a Cash on Delivery order, unblocking certificate rendering.
+router.post('/orders/:id/confirm-cod', async (req, res) => {
+  const { rows: orderRows } = await pool.query('SELECT * FROM gift_orders WHERE id = $1', [req.params.id])
+  const order = orderRows[0]
+  if (!order) return res.status(404).json({ error: 'Order not found' })
+  if (order.payment_method !== 'cod') return res.status(400).json({ error: 'This order was not placed as Cash on Delivery' })
+  if (order.payment_status === 'paid') return res.status(400).json({ error: 'Already confirmed' })
+
+  await pool.query(
+    `UPDATE gift_payments SET status='verified' WHERE gift_order_id = $1 AND method = 'cod' AND status = 'pending'`,
+    [order.id]
+  )
+  const { rows } = await pool.query(
+    `UPDATE gift_orders SET payment_status='paid', status='processing', updated_at=now() WHERE id=$1 RETURNING *`,
+    [order.id]
+  )
+  res.json({ order: rows[0] })
+  renderGiftAssets(order.id).catch(err => console.error('Gift render failed', err))
+})
+
 // ════════════════════════════════════════════════════════════
 // PAYMENTS (flat list across all orders)
 // ════════════════════════════════════════════════════════════
@@ -184,7 +206,7 @@ router.get('/analytics', async (req, res) => {
 // SETTINGS (gift.* keys on the shared app_settings table)
 // ════════════════════════════════════════════════════════════
 
-const SETTINGS_KEYS = ['gift.module_enabled']
+const SETTINGS_KEYS = ['gift.module_enabled', 'gift.allowed_audiences']
 
 router.get('/settings', async (req, res) => {
   const { rows } = await pool.query('SELECT key, value FROM app_settings WHERE key = ANY($1)', [SETTINGS_KEYS])

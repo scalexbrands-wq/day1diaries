@@ -31,7 +31,7 @@ import {
   adminGetSeoSettings, adminUpdateSeoSettings, adminUploadSeoOgImage,
   adminGetGiftCategories, adminUpdateGiftCategory, adminGetGiftTypes, adminUpdateGiftType,
   adminGetGiftTemplates, adminUpdateGiftTemplate, adminGetGiftOrders, adminGetGiftOrder, adminRefundGiftOrder,
-  adminGetGiftPayments, adminGetGiftAnalytics, adminGetGiftSettings, adminUpdateGiftSettings,
+  adminGetGiftPayments, adminGetGiftAnalytics, adminGetGiftSettings, adminUpdateGiftSettings, adminConfirmGiftCod,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -1990,6 +1990,14 @@ function GiftOrdersTab() {
     setSelected(null); load()
   }
 
+  const confirmCod = async (id) => {
+    if (!window.confirm('Confirm cash has been collected for this order?')) return
+    const { error } = await adminConfirmGiftCod(id)
+    if (error) return toast.error(error.message)
+    toast.success('Confirmed — gift is being created')
+    setSelected(null); load()
+  }
+
   return (
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
@@ -2026,9 +2034,13 @@ function GiftOrdersTab() {
             <div><b>Gift Type:</b> {selected.order.gift_type_label}</div>
             <div><b>Template:</b> {selected.order.template_label}</div>
             <div><b>Amount:</b> ₹{Number(selected.order.amount).toFixed(0)} ({selected.order.payment_status})</div>
+            <div><b>Payment Method:</b> {selected.order.payment_method}</div>
             <div><b>Status:</b> {selected.order.status}</div>
             <div><b>Message:</b> "{selected.order.message}"</div>
           </div>
+          {selected.order.payment_method === 'cod' && selected.order.payment_status === 'pending' && (
+            <Btn onClick={()=>confirmCod(selected.order.id)} style={{marginTop:14}}>✓ Confirm Cash Collected</Btn>
+          )}
           {selected.order.payment_status === 'paid' && (
             <Btn v="danger" onClick={()=>refund(selected.order.id)} style={{marginTop:14}}>Refund Payment</Btn>
           )}
@@ -2121,6 +2133,36 @@ function GiftSettingsTab() {
             {settings['gift.module_enabled']===false ? 'OFF' : 'ON'}
           </label>
         </div>
+      </Card>
+
+      <Card>
+        <SH c="Who Can Send Gifts"/>
+        <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:14}}>
+          Choose "Everyone" for no restriction, or check specific audiences below — the CTA is hidden from
+          (and the backend blocks) anyone outside the checked groups.
+        </p>
+        {(() => {
+          const audiences = settings['gift.allowed_audiences'] || []
+          const isEveryone = !Array.isArray(audiences) || audiences.length === 0 || audiences.includes('everyone')
+          const setAudiences = (next) => setSettings(s => ({...s, 'gift.allowed_audiences': next}))
+          const toggle = (key) => {
+            const current = Array.isArray(audiences) ? audiences.filter(a=>a!=='everyone') : []
+            setAudiences(current.includes(key) ? current.filter(a=>a!==key) : [...current, key])
+          }
+          return (
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                <input type="radio" checked={isEveryone} onChange={()=>setAudiences(['everyone'])}/> Everyone (no restriction)
+              </label>
+              {['member','contributor','admin'].map(key => (
+                <label key={key} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer',marginLeft:20}}>
+                  <input type="checkbox" disabled={isEveryone} checked={!isEveryone && audiences.includes(key)} onChange={()=>toggle(key)}/>
+                  {key === 'member' ? 'Members (active membership)' : key.charAt(0).toUpperCase()+key.slice(1)+'s'}
+                </label>
+              ))}
+            </div>
+          )
+        })()}
       </Card>
     </div>
   )
@@ -2355,11 +2397,18 @@ function MembershipApplicationsTab() {
   const [filter, setFilter] = useState('')
   const [detail, setDetail] = useState(null)
   const [rejectNotes, setRejectNotes] = useState('')
+  const [manualStatus, setManualStatus] = useState('')
+  const [manualNotes, setManualNotes] = useState('')
+  const [savingStatus, setSavingStatus] = useState(false)
 
   const load = useCallback(() => { adminListMembershipApplications(filter||undefined).then(({data}) => setList(data||[])) }, [filter])
   useEffect(() => { load() }, [load])
 
-  const openDetail = async (id) => { const {data} = await adminGetMembershipApplication(id); setDetail(data); setRejectNotes('') }
+  const openDetail = async (id) => {
+    const {data} = await adminGetMembershipApplication(id)
+    setDetail(data); setRejectNotes('')
+    setManualStatus(data?.application?.status || ''); setManualNotes('')
+  }
   const approve = async (id) => {
     const { error } = await adminApproveMembershipApplication(id)
     if (error) return toast.error(error.message)
@@ -2372,8 +2421,17 @@ function MembershipApplicationsTab() {
     toast.success('Rejected')
     setDetail(null); load()
   }
+  const saveManualStatus = async (id) => {
+    setSavingStatus(true)
+    const { error } = await adminSetMembershipApplicationStatus(id, manualStatus, manualNotes)
+    setSavingStatus(false)
+    if (error) return toast.error(error.message)
+    toast.success(`Status set to ${manualStatus}`)
+    setDetail(null); load()
+  }
 
   const STATUSES = ['','pending','under_review','approved','rejected','expired','cancelled','suspended','renewal_due']
+  const MANUAL_STATUSES = STATUSES.filter(s => s)
 
   return (
     <div>
@@ -2425,6 +2483,17 @@ function MembershipApplicationsTab() {
               </div>
             </>
           ) : detail.application.admin_notes && <p style={{fontSize:12,color:'#8C7B6E'}}>Admin notes: {detail.application.admin_notes}</p>}
+
+          <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid #F0EAE4'}}>
+            <L c="Manually Change Status"/>
+            <select value={manualStatus} onChange={e=>setManualStatus(e.target.value)} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:10}}>
+              {MANUAL_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <TA value={manualNotes} onChange={e=>setManualNotes(e.target.value)} placeholder="Optional note (kept in admin_notes)" style={{minHeight:50,marginBottom:10}}/>
+            <Btn onClick={()=>saveManualStatus(detail.application.id)} disabled={savingStatus || manualStatus===detail.application.status} style={{width:'100%',justifyContent:'center'}}>
+              {savingStatus ? 'Saving…' : `Set Status to "${manualStatus}"`}
+            </Btn>
+          </div>
         </Modal>
       )}
     </div>

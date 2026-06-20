@@ -154,6 +154,38 @@ router.post('/applications/:id/reject', async (req, res) => {
   }
 })
 
+const APPLICATION_STATUSES = ['pending', 'under_review', 'approved', 'rejected', 'expired', 'cancelled', 'suspended', 'renewal_due']
+
+// POST /admin/membership/applications/:id/set-status — manual status
+// override for any status. 'approved'/'rejected' route through the same
+// service functions as the dedicated buttons (so membership creation /
+// rejection emails still fire correctly); every other status is a plain
+// column update since there's no membership side-effect to keep in sync.
+router.post('/applications/:id/set-status', async (req, res) => {
+  const { status, notes } = req.body
+  if (!APPLICATION_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `status must be one of: ${APPLICATION_STATUSES.join(', ')}` })
+  }
+  try {
+    if (status === 'approved') {
+      const baseUrl = `${req.protocol}://${req.get('host')}`
+      await membershipService.approveApplication(req.params.id, req.profile.id, baseUrl)
+    } else if (status === 'rejected') {
+      await membershipService.rejectApplication(req.params.id, req.profile.id, notes)
+    } else {
+      const { rows } = await pool.query(
+        `UPDATE membership_applications SET status=$1, admin_notes=COALESCE($2,admin_notes), reviewed_by=$3, reviewed_at=now(), updated_at=now() WHERE id=$4 RETURNING *`,
+        [status, notes || null, req.profile.id, req.params.id]
+      )
+      if (!rows.length) return res.status(404).json({ error: 'Application not found' })
+    }
+    const { rows: updated } = await pool.query('SELECT * FROM membership_applications WHERE id = $1', [req.params.id])
+    res.json({ application: updated[0] })
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message })
+  }
+})
+
 // ════════════════════════════════════════════════════════════
 // PAYMENTS
 // ════════════════════════════════════════════════════════════

@@ -1,37 +1,47 @@
 const express = require('express')
 const crypto = require('crypto')
-const QRCode = require('qrcode')
 const { pool } = require('../db/pool')
 const { requireAuth, optionalAuth } = require('../middleware/auth')
-const { requireFeatureAccess, peekUsage } = require('../services/accessControl')
+const { requireFeatureAccess, peekUsage, hasActiveMembership } = require('../services/accessControl')
 const razorpay = require('../utils/razorpay')
-const { uploadBuffer } = require('../utils/s3')
-const { getEmbeddedFontCss } = require('../utils/fontEmbed')
-const { renderCertificate } = require('../utils/certificateRender')
-const { renderGiftCertificateHtml } = require('../templates/giftCertificateTemplate')
-const { extractHighlight, generateTribute, listTributeOptions } = require('../utils/giftInsights')
-const { sendGiftEmail, TEMPLATE_NAMES } = require('../services/giftEmails')
-const { createNotification } = require('../services/notifications')
+const { listTributeOptions, generateTribute } = require('../utils/giftInsights')
+const { renderGiftAssets } = require('../services/giftRenderService')
 const brevo = require('../utils/brevo')
 
 const router = express.Router()
 const WEBSITE_URL = process.env.SITE_URL || 'https://www.day1diaries.com'
 
-function generateGiftCertNumber() {
-  const code = crypto.randomBytes(6).toString('hex').toUpperCase().slice(0, 6)
-  return `D1D-GIFT-${code}`
-}
 function generateTributeSlug() {
   return crypto.randomBytes(5).toString('hex')
 }
 
+// Coin redemption — fixed rule: 10,000 coins unlocks one free Digital
+// Certificate gift (the cheapest tier). Other gift types still need payment.
+const COIN_REDEMPTION_COST = 10000
+const COIN_REDEMPTION_GIFT_TYPE_KEY = 'digital_certificate'
+
 // ════════════════════════════════════════════════════════════
-// STATUS — public, lets the frontend hide the CTA if disabled
+// STATUS — public, lets the frontend hide the CTA if disabled or if
+// the signed-in user isn't part of the admin-configured audience
 // ════════════════════════════════════════════════════════════
 
-router.get('/status', async (req, res) => {
+// 'everyone' (or an empty/missing list) means unrestricted. Otherwise the
+// list is a set of: 'member' (active membership), 'contributor', 'admin'.
+async function isAudienceAllowed(profile) {
+  const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = 'gift.allowed_audiences'`)
+  const audiences = rows[0]?.value
+  if (!Array.isArray(audiences) || audiences.length === 0 || audiences.includes('everyone')) return true
+  if (!profile) return false
+  if (audiences.includes(profile.role)) return true
+  if (audiences.includes('member') && await hasActiveMembership(profile.id)) return true
+  return false
+}
+
+router.get('/status', optionalAuth, async (req, res) => {
   const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = 'gift.module_enabled'`)
-  res.json({ enabled: rows.length === 0 ? true : rows[0].value !== false })
+  const enabled = rows.length === 0 ? true : rows[0].value !== false
+  const allowedForMe = enabled ? await isAudienceAllowed(req.profile) : false
+  res.json({ enabled, allowedForMe })
 })
 
 // ════════════════════════════════════════════════════════════
@@ -120,12 +130,22 @@ router.get('/stories/search', optionalAuth, async (req, res) => {
 // CREATE — Steps 2-5 submit here as one payload
 // ════════════════════════════════════════════════════════════
 
-router.post('/create', requireAuth, requireFeatureAccess('gift_sending'), async (req, res) => {
+// Audience check runs before requireFeatureAccess so an ineligible user
+// doesn't burn their free-tier send attempt on a request that was always
+// going to be rejected.
+async function requireGiftAudience(req, res, next) {
+  if (!(await isAudienceAllowed(req.profile))) {
+    return res.status(403).json({ error: 'Surprise A Friend is currently limited to a specific audience.' })
+  }
+  next()
+}
+
+router.post('/create', requireAuth, requireGiftAudience, requireFeatureAccess('gift_sending'), async (req, res) => {
   const {
     storyId, categoryKey, giftTypeKey, templateKey,
     recipientName, recipientEmail, message,
     voiceMessageUrl, videoMessageUrl, imageMessageUrl,
-    aiTributeKind,
+    aiTributeKind, paymentMethod,
   } = req.body
 
   if (!storyId || !categoryKey || !giftTypeKey || !templateKey || !recipientName) {
@@ -169,22 +189,38 @@ router.post('/create', requireAuth, requireFeatureAccess('gift_sending'), async 
 
   const tributeSlug = generateTributeSlug()
   const amount = giftType.base_price
-  const paymentStatus = Number(amount) <= 0 ? 'free' : 'pending'
-  const status = Number(amount) <= 0 ? 'processing' : 'pending_payment'
+  const wantsCoinRedemption = paymentMethod === 'coins'
+  const wantsCod = paymentMethod === 'cod'
+
+  if (wantsCoinRedemption) {
+    if (giftTypeKey !== COIN_REDEMPTION_GIFT_TYPE_KEY) {
+      return res.status(400).json({ error: 'Coin redemption is only available for the Digital Certificate gift.' })
+    }
+    if ((req.profile.coins || 0) < COIN_REDEMPTION_COST) {
+      return res.status(400).json({ error: `You need ${COIN_REDEMPTION_COST.toLocaleString()} coins to redeem this gift.` })
+    }
+  }
+
+  let paymentStatus, status
+  if (Number(amount) <= 0) { paymentStatus = 'free'; status = 'processing' }
+  else if (wantsCoinRedemption) { paymentStatus = 'paid'; status = 'processing' }
+  else if (wantsCod) { paymentStatus = 'pending'; status = 'pending_payment' }
+  else { paymentStatus = 'pending'; status = 'pending_payment' }
 
   const { rows: inserted } = await pool.query(
     `INSERT INTO gift_orders (
        sender_user_id, recipient_name, recipient_email, recipient_user_id,
        story_id, category_id, gift_type_id, template_id,
        message, voice_message_url, video_message_url, image_message_url,
-       ai_tribute_text, ai_tribute_kind, amount, currency, payment_status, status, tribute_slug
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       ai_tribute_text, ai_tribute_kind, amount, currency, payment_status, status, tribute_slug, payment_method
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
      RETURNING *`,
     [
       req.profile.id, recipientName, recipientEmail || null, recipientUserId,
       storyId, category.id, giftType.id, template.id,
       message || null, voiceMessageUrl || null, videoMessageUrl || null, imageMessageUrl || null,
       aiTributeText, aiTributeKind || null, amount, giftType.currency, paymentStatus, status, tributeSlug,
+      wantsCoinRedemption ? 'coins' : wantsCod ? 'cod' : Number(amount) <= 0 ? 'free' : 'razorpay',
     ]
   )
   const order = inserted[0]
@@ -195,6 +231,20 @@ router.post('/create', requireAuth, requireFeatureAccess('gift_sending'), async 
       [order.id, giftType.currency]
     )
     renderGiftAssets(order.id).catch(err => console.error('Gift render failed', err))
+  } else if (wantsCoinRedemption) {
+    await pool.query('UPDATE profiles SET coins = coins - $1 WHERE id = $2', [COIN_REDEMPTION_COST, req.profile.id])
+    await pool.query(
+      `INSERT INTO gift_payments (gift_order_id, amount, currency, method, status, coins_spent) VALUES ($1,0,$2,'coins','verified',$3)`,
+      [order.id, giftType.currency, COIN_REDEMPTION_COST]
+    )
+    renderGiftAssets(order.id).catch(err => console.error('Gift render failed', err))
+  } else if (wantsCod) {
+    await pool.query(
+      `INSERT INTO gift_payments (gift_order_id, amount, currency, method, status) VALUES ($1,$2,$3,'cod','pending')`,
+      [order.id, amount, giftType.currency]
+    )
+    // Rendering/delivery waits for an admin to confirm cash has been
+    // collected — see POST /admin/gift/orders/:id/confirm-cod.
   }
 
   res.status(201).json({ order })
@@ -347,95 +397,5 @@ router.post('/share/email', requireAuth, async (req, res) => {
   })
   res.json(result)
 })
-
-// ════════════════════════════════════════════════════════════
-// BACKGROUND RENDER — mirrors certificates.js's renderCertificateAssets
-// ════════════════════════════════════════════════════════════
-
-async function renderGiftAssets(orderId) {
-  const { rows } = await pool.query(
-    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, tm.key AS template_key,
-            s.title AS story_title, s.content AS story_content, s.cover_image_url,
-            p.full_name AS author_name, p.avatar_url AS author_avatar_url,
-            sender.full_name AS sender_name
-     FROM gift_orders g
-     JOIN gift_categories gc ON gc.id = g.category_id
-     JOIN gift_templates tm ON tm.id = g.template_id
-     JOIN stories s ON s.id = g.story_id
-     JOIN profiles p ON p.id = s.user_id
-     JOIN profiles sender ON sender.id::text = g.sender_user_id
-     WHERE g.id = $1`,
-    [orderId]
-  )
-  const order = rows[0]
-  if (!order) return
-
-  try {
-    // Company/role/joining-date aren't stored on the story itself (they're
-    // entered ad hoc when a story-author certificate is issued) — reuse the
-    // most recent issued certificate's values for this story if one exists,
-    // otherwise the certificate simply omits those fields gracefully.
-    const { rows: certRows } = await pool.query(
-      `SELECT company_name, job_title, joining_date FROM certificates WHERE story_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [order.story_id]
-    )
-    const certInfo = certRows[0] || {}
-
-    const certificateNumber = generateGiftCertNumber()
-    const tributeUrl = `${WEBSITE_URL}/tribute/${order.tribute_slug}`
-    const qrCodeDataUri = await QRCode.toDataURL(tributeUrl, { width: 240, margin: 1 })
-    const fontCss = await getEmbeddedFontCss()
-
-    const data = {
-      fullName: order.author_name,
-      avatarUrl: order.author_avatar_url,
-      storyTitle: order.story_title,
-      storyExcerpt: extractHighlight(order.story_content),
-      companyName: certInfo.company_name || '',
-      jobTitle: certInfo.job_title || '',
-      joiningDate: certInfo.joining_date || null,
-      categoryLabel: `${order.category_label} Certificate`,
-      categoryEmoji: order.category_emoji,
-      friendMessage: order.message || '',
-      senderName: order.sender_name,
-      aiTributeText: order.ai_tribute_text,
-      certificateNumber,
-      issuedAt: new Date().toISOString(),
-      qrCodeDataUri,
-      websiteUrl: WEBSITE_URL,
-    }
-
-    const html = renderGiftCertificateHtml(data, fontCss, order.template_key)
-    const { pngBuffer, pdfBuffer } = await renderCertificate(html)
-
-    const [giftImageUrl, giftPdfUrl] = await Promise.all([
-      uploadBuffer(`gifts/${certificateNumber}.png`, pngBuffer, 'image/png'),
-      uploadBuffer(`gifts/${certificateNumber}.pdf`, pdfBuffer, 'application/pdf'),
-    ])
-
-    await pool.query(
-      `UPDATE gift_orders SET gift_image_url=$1, gift_pdf_url=$2, qr_target_url=$3,
-         certificate_number=$4, status='ready', updated_at=now() WHERE id=$5`,
-      [giftImageUrl, giftPdfUrl, tributeUrl, certificateNumber, orderId]
-    )
-
-    if (order.recipient_email) {
-      await sendGiftEmail(TEMPLATE_NAMES.GIFT_RECEIVED, order.recipient_email, order.recipient_name, {
-        sender_name: order.sender_name, message: order.message || '', tribute_url: tributeUrl,
-      })
-    }
-    if (order.recipient_user_id) {
-      await createNotification(order.recipient_user_id, {
-        type: 'gift_received',
-        title: "You've received a surprise from a friend 🎁",
-        body: `${order.sender_name} sent you a tribute.`,
-        link: `/tribute/${order.tribute_slug}`,
-      })
-    }
-  } catch (err) {
-    console.error('Gift render failed', err)
-    await pool.query(`UPDATE gift_orders SET status='failed', updated_at=now() WHERE id = $1`, [orderId]).catch(() => {})
-  }
-}
 
 module.exports = router

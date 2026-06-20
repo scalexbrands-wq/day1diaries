@@ -600,6 +600,16 @@ async function initDB() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_gift_payments_order ON gift_payments(gift_order_id)`)
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at DESC)`)
 
+    // Widen gift_payments.method for COD + coin-redemption, and track how
+    // many coins a redemption spent (for the user-facing receipt/admin view).
+    await pool.query(`ALTER TABLE gift_payments ADD COLUMN IF NOT EXISTS coins_spent INT`)
+    await pool.query(`ALTER TABLE gift_payments DROP CONSTRAINT IF EXISTS gift_payments_method_check`)
+    await pool.query(`
+      ALTER TABLE gift_payments ADD CONSTRAINT gift_payments_method_check
+        CHECK (method IN ('razorpay','free','cod','coins'))
+    `)
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS payment_method TEXT`)
+
     // Seed gift categories (once — admin edits afterward persist).
     const { rows: gcCount } = await pool.query('SELECT COUNT(*)::int AS n FROM gift_categories')
     if (gcCount[0].n === 0) {

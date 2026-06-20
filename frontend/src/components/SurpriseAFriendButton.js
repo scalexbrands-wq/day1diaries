@@ -4,13 +4,15 @@ import { useAuth } from '../contexts/AuthContext'
 import { getGiftModuleStatus } from '../lib/api'
 import SurpriseWizard from './SurpriseWizard'
 
-export default function SurpriseAFriendButton({ storyId, storyTitle, authorName, lockedAuthorUsername, size = 'sm', compact = false }) {
+export default function SurpriseAFriendButton({ storyId, storyTitle, authorName, lockedAuthorUsername, size = 'sm', compact = false, fullWidth = false }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [enabled, setEnabled] = useState(true)
   const [open, setOpen] = useState(false)
 
-  useEffect(() => { getGiftModuleStatus().then(({ data }) => setEnabled(data !== false)) }, [])
+  useEffect(() => {
+    getGiftModuleStatus().then(({ data }) => setEnabled(data?.enabled !== false && data?.allowedForMe !== false))
+  }, [])
 
   if (!enabled) return null
 
@@ -30,11 +32,12 @@ export default function SurpriseAFriendButton({ storyId, storyTitle, authorName,
         <button
           onClick={handleClick}
           style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: size === 'sm' ? '6px 12px' : '9px 18px',
-            borderRadius: 100, background: 'transparent', border: '1px solid rgba(255,107,43,.3)',
-            cursor: 'pointer', fontFamily: 'inherit', fontSize: size === 'sm' ? 13.5 : 14,
-            color: '#FF6B2B', fontWeight: 600, transition: 'all .15s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            width: fullWidth ? '100%' : undefined,
+            padding: size === 'sm' ? '6px 12px' : '11px 20px',
+            borderRadius: 100, background: 'transparent', border: '1.5px solid rgba(255,107,43,.3)',
+            cursor: 'pointer', fontFamily: 'inherit', fontSize: size === 'sm' ? 13.5 : 14, fontWeight: 700,
+            color: '#FF6B2B', transition: 'all .15s',
           }}
           onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,107,43,.08)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}

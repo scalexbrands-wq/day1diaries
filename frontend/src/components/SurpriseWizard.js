@@ -2,8 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   getGiftCategories, getGiftTypes, getGiftTemplates, getGiftTributeOptions,
-  searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment, getMyFeatureUsage,
+  searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment, getMyFeatureUsage, getMyCoins,
 } from '../lib/api'
+
+const COIN_REDEMPTION_COST = 10000
+const COIN_REDEMPTION_GIFT_TYPE_KEY = 'digital_certificate'
 import { toast } from './Toast'
 
 const Btn = ({ children, variant = 'primary', ...p }) => {
@@ -57,12 +60,15 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
   const [aiTributeKind, setAiTributeKind] = useState(null)
 
   const [order, setOrder] = useState(null)
+  const [paymentMethod, setPaymentMethod] = useState('razorpay')
+  const [coins, setCoins] = useState(0)
 
   useEffect(() => {
     getGiftCategories().then(({ data }) => setCategories(data || []))
     getGiftTypes().then(({ data }) => setTypes(data || []))
     getGiftTemplates().then(({ data }) => setTemplates(data || []))
     getMyFeatureUsage().then(({ data }) => setUsage((data || []).find(u => u.feature_key === 'gift_sending') || null))
+    getMyCoins().then(({ data }) => setCoins(data || 0))
   }, [])
 
   const runSearch = useCallback(() => {
@@ -90,16 +96,22 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
 
   const handleCreate = async () => {
     if (message.length > 1000) return toast.error('Message must be 1000 characters or fewer')
+    const effectiveMethod = selectedType?.base_price > 0 ? paymentMethod : 'razorpay'
     setSubmitting(true)
     const { data, error } = await createGiftOrder({
       storyId: selectedStory.id, categoryKey, giftTypeKey, templateKey,
       recipientName, recipientEmail, message, aiTributeKind,
+      paymentMethod: effectiveMethod,
     })
     setSubmitting(false)
     if (error) return toast.error(error.message)
     setOrder(data)
-    if (data.payment_status === 'free') {
-      toast.success('Your gift is being created! 🎁')
+    if (data.payment_status === 'free' || data.payment_status === 'paid') {
+      toast.success(effectiveMethod === 'coins' ? 'Redeemed! Your gift is being created 🎁' : 'Your gift is being created! 🎁')
+      navigate('/gifts')
+      onClose()
+    } else if (effectiveMethod === 'cod') {
+      toast.success("Order placed — we'll confirm once payment is collected.")
       navigate('/gifts')
       onClose()
     } else {
@@ -145,8 +157,14 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,8,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto', padding: 28 }}>
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(26,8,0,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto', boxSizing: 'border-box' }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: 'white', borderRadius: 20, width: '100%', maxWidth: 'min(620px, calc(100vw - 32px))', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', padding: 28, boxSizing: 'border-box', margin: 'auto' }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#1A0800' }}>🎁 Surprise A Friend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: '#8C7B6E', cursor: 'pointer' }}>×</button>
@@ -273,8 +291,44 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
               <div style={{ fontSize: 12, color: '#8C7B6E', marginBottom: 4 }}>Gift Type</div>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{selectedType?.label}</div>
             </div>
+
+            {selectedType?.base_price > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#5C3D2E', marginBottom: 8 }}>Payment Method</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${paymentMethod === 'razorpay' ? '#FF6B2B' : '#F0EAE4'}`, background: paymentMethod === 'razorpay' ? '#FFF1EA' : 'white' }}>
+                    <input type="radio" checked={paymentMethod === 'razorpay'} onChange={() => setPaymentMethod('razorpay')} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Pay Online</div>
+                      <div style={{ fontSize: 11, color: '#8C7B6E' }}>Card, UPI, netbanking, wallet — instant</div>
+                    </div>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${paymentMethod === 'cod' ? '#FF6B2B' : '#F0EAE4'}`, background: paymentMethod === 'cod' ? '#FFF1EA' : 'white' }}>
+                    <input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>Cash on Delivery</div>
+                      <div style={{ fontSize: 11, color: '#8C7B6E' }}>We'll confirm once payment is collected; gift is created after confirmation</div>
+                    </div>
+                  </label>
+                  {giftTypeKey === COIN_REDEMPTION_GIFT_TYPE_KEY && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, cursor: coins >= COIN_REDEMPTION_COST ? 'pointer' : 'not-allowed', opacity: coins >= COIN_REDEMPTION_COST ? 1 : .5, border: `1.5px solid ${paymentMethod === 'coins' ? '#FF6B2B' : '#F0EAE4'}`, background: paymentMethod === 'coins' ? '#FFF1EA' : 'white' }}>
+                      <input type="radio" checked={paymentMethod === 'coins'} disabled={coins < COIN_REDEMPTION_COST} onChange={() => setPaymentMethod('coins')} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>🪙 Redeem Coins</div>
+                        <div style={{ fontSize: 11, color: '#8C7B6E' }}>
+                          {COIN_REDEMPTION_COST.toLocaleString()} coins = free certificate · you have {coins.toLocaleString()}
+                        </div>
+                      </div>
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
+
             <Btn onClick={handleCreate} disabled={submitting} style={{ width: '100%', justifyContent: 'center', display: 'flex' }}>
-              {submitting ? 'Processing…' : selectedType?.base_price > 0 ? `Pay ₹${Number(selectedType.base_price).toFixed(0)} & Send Gift` : 'Send Gift'}
+              {submitting ? 'Processing…' : selectedType?.base_price > 0
+                ? (paymentMethod === 'coins' ? 'Redeem & Send Gift' : paymentMethod === 'cod' ? 'Place Order (Pay on Delivery)' : `Pay ₹${Number(selectedType.base_price).toFixed(0)} & Send Gift`)
+                : 'Send Gift'}
             </Btn>
           </div>
         )}

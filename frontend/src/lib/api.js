@@ -1039,6 +1039,9 @@ export const adminApproveMembershipApplication = async (id) => {
 export const adminRejectMembershipApplication = async (id, notes) => {
   return apiFetch(`/admin/membership/applications/${id}/reject`, { method: 'POST', body: JSON.stringify({ notes }) })
 }
+export const adminSetMembershipApplicationStatus = async (id, status, notes) => {
+  return apiFetch(`/admin/membership/applications/${id}/set-status`, { method: 'POST', body: JSON.stringify({ status, notes }) })
+}
 
 // ── Admin: Payments ───────────────────────────────────────────
 export const adminListMembershipPayments = async (status) => {
@@ -1099,7 +1102,7 @@ export const adminGetMembershipStats = async () => {
 
 export const getGiftModuleStatus = async () => {
   const result = await apiFetch('/gift/status')
-  return { data: result.data?.enabled, error: result.error }
+  return { data: result.data, error: result.error }
 }
 export const getGiftCategories = async () => {
   const result = await apiFetch('/gift/categories')
@@ -1196,6 +1199,10 @@ export const adminGetGiftOrder = async (id) => {
 }
 export const adminRefundGiftOrder = async (id, notes) => {
   const result = await apiFetch(`/admin/gift/orders/${id}/refund`, { method: 'POST', body: JSON.stringify({ notes }) })
+  return { data: result.data?.order, error: result.error }
+}
+export const adminConfirmGiftCod = async (id) => {
+  const result = await apiFetch(`/admin/gift/orders/${id}/confirm-cod`, { method: 'POST' })
   return { data: result.data?.order, error: result.error }
 }
 export const adminGetGiftPayments = async () => {
