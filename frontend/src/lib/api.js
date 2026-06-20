@@ -1263,6 +1263,10 @@ export const adminConfirmGiftCod = async (id) => {
   const result = await apiFetch(`/admin/gift/orders/${id}/confirm-cod`, { method: 'POST' })
   return { data: result.data?.order, error: result.error }
 }
+export const adminSetGiftPaymentStatus = async (id, payment_status, notes) => {
+  const result = await apiFetch(`/admin/gift/orders/${id}/set-payment-status`, { method: 'POST', body: JSON.stringify({ payment_status, notes }) })
+  return { data: result.data?.order, error: result.error }
+}
 export const adminGetGiftPayments = async () => {
   const result = await apiFetch('/admin/gift/payments')
   return { data: result.data?.payments, error: result.error }
@@ -1276,4 +1280,27 @@ export const adminGetGiftSettings = async () => {
 export const adminUpdateGiftSettings = async (settings) => {
   const result = await apiFetch('/admin/gift/settings', { method: 'PATCH', body: JSON.stringify(settings) })
   return { data: result.data?.settings, error: result.error }
+}
+
+// Wallet coin claims
+export const claimWalletTier = async (tierCost) => {
+  const result = await apiFetch('/gift/wallet/claim', { method: 'POST', body: JSON.stringify({ tierCost }) })
+  return { data: result.data?.claim, error: result.error }
+}
+export const getMyWalletClaims = async () => {
+  const result = await apiFetch('/gift/wallet/claims')
+  return { data: result.data?.claims, error: result.error }
+}
+export const adminGetWalletClaims = async (params = {}) => {
+  const qs = new URLSearchParams(params)
+  const result = await apiFetch(`/admin/gift/claims?${qs}`)
+  return { data: result.data?.claims, error: result.error }
+}
+export const adminApproveWalletClaim = async (id, notes) => {
+  const result = await apiFetch(`/admin/gift/claims/${id}/approve`, { method: 'POST', body: JSON.stringify({ notes }) })
+  return { data: result.data?.claim, error: result.error }
+}
+export const adminRejectWalletClaim = async (id, notes) => {
+  const result = await apiFetch(`/admin/gift/claims/${id}/reject`, { method: 'POST', body: JSON.stringify({ notes }) })
+  return { data: result.data?.claim, error: result.error }
 }

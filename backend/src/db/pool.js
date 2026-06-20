@@ -485,6 +485,8 @@ async function initDB() {
           wrap(`<p>Hi {{name}},</p><p>You're officially a premium member! Unlimited stories, habits, challenges, jobs, and full community access — all unlocked.</p>`)],
         ['Membership: Payment Refunded', 'Your payment has been refunded',
           wrap(`<p>Hi {{name}},</p><p>Your payment of {{currency}} {{amount}} for the <b>{{plan_name}}</b> membership has been refunded. It should reflect in your original payment method within 5–7 business days.</p>`)],
+        ['Membership: Status Updated', 'Update on your membership application',
+          wrap(`<p>Hi {{name}},</p><p>The status of your membership application has changed to <b>{{status}}</b>.</p><p>{{notes}}</p>`)],
       ]
       // Per-template existence check (not an all-or-nothing count) so adding
       // a new template name here still seeds it on environments that already
@@ -619,7 +621,7 @@ async function initDB() {
     await pool.query(`ALTER TABLE gift_payments DROP CONSTRAINT IF EXISTS gift_payments_method_check`)
     await pool.query(`
       ALTER TABLE gift_payments ADD CONSTRAINT gift_payments_method_check
-        CHECK (method IN ('razorpay','free','cod','coins'))
+        CHECK (method IN ('razorpay','free','cod','coins','manual'))
     `)
     await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS payment_method TEXT`)
 
@@ -699,7 +701,43 @@ async function initDB() {
           wrap(`<p>Hi {{recipient_name}},</p><p><b>{{sender_name}}</b> just sent you a surprise — a personalized tribute built from a story on Day1 Diaries.</p><p style="font-style:italic;color:#6B5347;">"{{message}}"</p><p><a href="{{tribute_url}}" style="display:inline-block;margin-top:10px;background:#FF6B2B;color:#fff;padding:10px 22px;border-radius:100px;text-decoration:none;font-weight:700;">View Your Surprise →</a></p>`),
         ]
       )
+      const giftTemplates = [
+        ['Gift: Payment Refunded', 'Your gift payment has been refunded',
+          wrap(`<p>Hi {{recipient_name}},</p><p>Your payment of {{currency}} {{amount}} for the gift to <b>{{gift_recipient_name}}</b> has been refunded. {{notes}}</p>`)],
+        ['Gift: Payment Failed', "There was an issue with your gift's payment",
+          wrap(`<p>Hi {{recipient_name}},</p><p>We couldn't confirm your payment for the gift to <b>{{gift_recipient_name}}</b>. {{notes}}</p>`)],
+        ['Gift: Wallet Claim Approved', 'Your coin claim has been approved 🎉',
+          wrap(`<p>Hi {{recipient_name}},</p><p>Your claim for <b>{{tier_label}}</b> ({{tier_cost}} coins) has been approved. {{notes}}</p>`)],
+        ['Gift: Wallet Claim Rejected', 'Update on your coin claim',
+          wrap(`<p>Hi {{recipient_name}},</p><p>We're unable to fulfill your claim for <b>{{tier_label}}</b> ({{tier_cost}} coins) right now. Your coins have not been deducted. {{notes}}</p>`)],
+      ]
+      for (const [name, subject, html_body] of giftTemplates) {
+        await pool.query(
+          `INSERT INTO email_templates (name, category, subject, html_body, status)
+           SELECT $1,'gift',$2,$3,'active' WHERE NOT EXISTS (SELECT 1 FROM email_templates WHERE name = $1)`,
+          [name, subject, html_body]
+        )
+      }
     }
+
+    // wallet_claims — a user's request to redeem an unlocked coin tier.
+    // Coins are only deducted when an admin approves the claim (not at
+    // request time), so a rejected claim never costs the user anything.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS wallet_claims (
+        id            UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        user_id       UUID NOT NULL REFERENCES profiles(id),
+        tier_cost     INT NOT NULL,
+        tier_kind     TEXT NOT NULL,
+        tier_label    TEXT NOT NULL,
+        gift_type_key TEXT,
+        status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','fulfilled','rejected')),
+        admin_notes   TEXT,
+        reviewed_by   UUID REFERENCES profiles(id),
+        reviewed_at   TIMESTAMPTZ,
+        created_at    TIMESTAMPTZ DEFAULT now()
+      )
+    `)
 
     console.log('DB schema init OK')
   } catch (err) {

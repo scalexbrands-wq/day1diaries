@@ -1,15 +1,32 @@
-import React, { useEffect, useState } from 'react'
-import { getGiftWallet } from '../lib/api'
+import React, { useEffect, useState, useCallback } from 'react'
+import { getGiftWallet, claimWalletTier, getMyWalletClaims } from '../lib/api'
+import { toast } from '../components/Toast'
 
 export default function Wallet() {
   const [wallet, setWallet] = useState(null)
+  const [claims, setClaims] = useState([])
+  const [claimingCost, setClaimingCost] = useState(null)
 
-  useEffect(() => { getGiftWallet().then(({ data }) => setWallet(data)) }, [])
+  const load = useCallback(() => {
+    getGiftWallet().then(({ data }) => setWallet(data))
+    getMyWalletClaims().then(({ data }) => setClaims(data || []))
+  }, [])
+  useEffect(() => { load() }, [load])
 
   if (!wallet) return <div className="loading-center"><div className="spinner" /></div>
 
   const { coins, tiers, unlimitedSending } = wallet
   const nextTier = tiers.find(t => !t.unlocked)
+  const pendingCosts = new Set(claims.filter(c => c.status === 'pending').map(c => c.tier_cost))
+
+  const handleClaim = async (tier) => {
+    setClaimingCost(tier.cost)
+    const { error } = await claimWalletTier(tier.cost)
+    setClaimingCost(null)
+    if (error) return toast.error(error.message)
+    toast.success(`Claim submitted for "${tier.label}" — an admin will review it shortly.`)
+    load()
+  }
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px' }}>
@@ -56,8 +73,22 @@ export default function Wallet() {
                 <div style={{ fontSize: 11.5, color: '#8C7B6E' }}>{tier.cost.toLocaleString()} coins{tier.grantsUnlimitedSending ? ' + unlimited sending' : ''}</div>
               </div>
             </div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: tier.unlocked ? '#059669' : '#8C7B6E', flexShrink: 0 }}>
-              {tier.unlocked ? 'Unlocked' : 'Locked'}
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: tier.unlocked ? '#059669' : '#8C7B6E' }}>
+                {tier.unlocked ? 'Unlocked' : 'Locked'}
+              </div>
+              {tier.unlocked && (
+                pendingCosts.has(tier.cost)
+                  ? <div style={{ fontSize: 11, color: '#F59E0B', fontWeight: 700, marginTop: 6 }}>Claim pending review</div>
+                  : <button
+                      onClick={() => handleClaim(tier)}
+                      disabled={claimingCost === tier.cost}
+                      className="btn btn-primary btn-sm"
+                      style={{ marginTop: 6 }}
+                    >
+                      {claimingCost === tier.cost ? 'Submitting…' : 'Claim Now'}
+                    </button>
+              )}
             </div>
           </div>
         ))}

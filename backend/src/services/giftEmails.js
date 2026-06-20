@@ -8,6 +8,10 @@ const { render } = require('../utils/emailRender')
 
 const TEMPLATE_NAMES = {
   GIFT_RECEIVED: 'Gift: Tribute Received',
+  PAYMENT_REFUNDED: 'Gift: Payment Refunded',
+  PAYMENT_FAILED: 'Gift: Payment Failed',
+  WALLET_CLAIM_APPROVED: 'Gift: Wallet Claim Approved',
+  WALLET_CLAIM_REJECTED: 'Gift: Wallet Claim Rejected',
 }
 
 async function sendGiftEmail(templateName, toEmail, toName, variables = {}) {

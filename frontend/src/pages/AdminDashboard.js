@@ -34,6 +34,7 @@ import {
   adminGetGiftTemplates, adminCreateGiftTemplate, adminUpdateGiftTemplate, adminDeleteGiftTemplate,
   adminGetGiftOrders, adminGetGiftOrder, adminRefundGiftOrder,
   adminGetGiftPayments, adminGetGiftAnalytics, adminGetGiftSettings, adminUpdateGiftSettings, adminConfirmGiftCod,
+  adminSetGiftPaymentStatus, adminGetWalletClaims, adminApproveWalletClaim, adminRejectWalletClaim,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -46,7 +47,7 @@ const Btn = ({children,v='primary',...p}) => {
   const m={primary:{bg:'#FF6B2B',co:'white',bd:'#FF6B2B'},secondary:{bg:'transparent',co:'#FF6B2B',bd:'#FF6B2B'},danger:{bg:'transparent',co:'#DC2626',bd:'#DC2626'},green:{bg:'#059669',co:'white',bd:'#059669'}}[v]
   return <button {...p} style={{padding:'8px 18px',borderRadius:100,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all .2s',background:m.bg,color:m.co,border:`1.5px solid ${m.bd}`,...p.style}}>{children}</button>
 }
-const Card = ({children,style}) => <div style={{background:'white',border:'1px solid #F0EAE4',borderRadius:16,padding:20,marginBottom:16,...style}}>{children}</div>
+const Card = ({children,style,...rest}) => <div {...rest} style={{background:'white',border:'1px solid #F0EAE4',borderRadius:16,padding:20,marginBottom:16,...style}}>{children}</div>
 const SH = ({c}) => <div style={{fontSize:14,fontWeight:700,color:'#1A0800',marginBottom:14,paddingBottom:10,borderBottom:'1px solid #F0EAE4'}}>{c}</div>
 const Modal = ({title,onClose,children}) => (
   <div style={{position:'fixed',inset:0,background:'rgba(26,8,0,.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflowY:'auto'}}>
@@ -1856,7 +1857,7 @@ function EmailLogsTab() {
 }
 
 /* ══ GIFTING (Surprise A Friend) ══════════════════════════════════ */
-const GIFT_SUB_TABS = [['categories','Categories'],['types','Types & Pricing'],['templates','Templates'],['orders','Orders'],['payments','Payments'],['analytics','Analytics'],['settings','Settings']]
+const GIFT_SUB_TABS = [['categories','Categories'],['types','Types & Pricing'],['templates','Templates'],['orders','Orders'],['claims','Claims'],['payments','Payments'],['analytics','Analytics'],['settings','Settings']]
 
 function GiftingTab() {
   const [sub, setSub] = useState('orders')
@@ -1871,6 +1872,7 @@ function GiftingTab() {
       {sub==='types'      && <GiftTypesTab/>}
       {sub==='templates'  && <GiftTemplatesTab/>}
       {sub==='orders'     && <GiftOrdersTab/>}
+      {sub==='claims'     && <GiftClaimsTab/>}
       {sub==='payments'   && <GiftPaymentsTab/>}
       {sub==='analytics'  && <GiftAnalyticsTab/>}
       {sub==='settings'   && <GiftSettingsTab/>}
@@ -2079,10 +2081,15 @@ function GiftTemplatesTab() {
 
 const GIFT_ORDER_STATUS_COLORS = { pending_payment:'#F59E0B', processing:'#2563EB', ready:'#059669', failed:'#DC2626' }
 
+const GIFT_PAYMENT_STATUSES = ['pending', 'paid', 'free', 'refunded', 'failed']
+
 function GiftOrdersTab() {
   const [list, setList] = useState([])
   const [status, setStatus] = useState('')
   const [selected, setSelected] = useState(null)
+  const [manualStatus, setManualStatus] = useState('')
+  const [manualNotes, setManualNotes] = useState('')
+  const [applying, setApplying] = useState(false)
 
   const load = useCallback(() => { adminGetGiftOrders(status ? {status} : {}).then(({data}) => setList(data||[])) }, [status])
   useEffect(() => { load() }, [load])
@@ -2090,6 +2097,8 @@ function GiftOrdersTab() {
   const openDetail = async (id) => {
     const { data } = await adminGetGiftOrder(id)
     setSelected(data)
+    setManualStatus(data?.order?.payment_status || '')
+    setManualNotes('')
   }
 
   const refund = async (id) => {
@@ -2105,6 +2114,16 @@ function GiftOrdersTab() {
     const { error } = await adminConfirmGiftCod(id)
     if (error) return toast.error(error.message)
     toast.success('Confirmed — gift is being created')
+    setSelected(null); load()
+  }
+
+  const applyManualStatus = async () => {
+    if (manualStatus === selected.order.payment_status) return toast.error('Pick a different status to apply')
+    setApplying(true)
+    const { error } = await adminSetGiftPaymentStatus(selected.order.id, manualStatus, manualNotes)
+    setApplying(false)
+    if (error) return toast.error(error.message)
+    toast.success(`Payment status set to "${manualStatus}"`)
     setSelected(null); load()
   }
 
@@ -2154,8 +2173,83 @@ function GiftOrdersTab() {
           {selected.order.payment_status === 'paid' && (
             <Btn v="danger" onClick={()=>refund(selected.order.id)} style={{marginTop:14}}>Refund Payment</Btn>
           )}
+
+          <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid #F0EAE4'}}>
+            <div style={{fontSize:12,fontWeight:700,color:'#8C7B6E',marginBottom:8}}>MANUALLY SET PAYMENT STATUS</div>
+            <p style={{fontSize:11.5,color:'#8C7B6E',marginTop:0,marginBottom:8}}>Use this if an online payment succeeded but the order didn't update automatically — check Razorpay's dashboard first.</p>
+            <select value={manualStatus} onChange={e=>setManualStatus(e.target.value)} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:8}}>
+              {GIFT_PAYMENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <input value={manualNotes} onChange={e=>setManualNotes(e.target.value)} placeholder="Notes (optional, sent to the sender if refunded/failed)" style={{width:'100%',padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12,marginBottom:8}}/>
+            <Btn onClick={applyManualStatus} disabled={applying}>{applying?'Applying…':'Apply Status'}</Btn>
+          </div>
         </Modal>
       )}
+    </div>
+  )
+}
+
+const CLAIM_STATUS_COLORS = { pending:'#F59E0B', fulfilled:'#059669', rejected:'#DC2626' }
+
+function GiftClaimsTab() {
+  const [list, setList] = useState([])
+  const [status, setStatus] = useState('pending')
+  const [busyId, setBusyId] = useState(null)
+
+  const load = useCallback(() => { adminGetWalletClaims(status ? {status} : {}).then(({data}) => setList(data||[])) }, [status])
+  useEffect(() => { load() }, [load])
+
+  const approve = async (claim) => {
+    if (!window.confirm(`Approve "${claim.tier_label}" for ${claim.full_name||claim.username}? This deducts ${claim.tier_cost.toLocaleString()} coins from them.`)) return
+    setBusyId(claim.id)
+    const { error } = await adminApproveWalletClaim(claim.id)
+    setBusyId(null)
+    if (error) return toast.error(error.message)
+    toast.success('Claim approved')
+    load()
+  }
+  const reject = async (claim) => {
+    const notes = window.prompt('Optional note to include in the rejection email:') || ''
+    setBusyId(claim.id)
+    const { error } = await adminRejectWalletClaim(claim.id, notes)
+    setBusyId(null)
+    if (error) return toast.error(error.message)
+    toast.success('Claim rejected')
+    load()
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Wallet Claims</h3>
+        <select value={status} onChange={e=>setStatus(e.target.value)} style={{padding:'6px 12px',borderRadius:8,border:'1.5px solid #DDD3CA',fontSize:12}}>
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="fulfilled">Fulfilled</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      {list.length === 0 && <p style={{fontSize:13,color:'#8C7B6E'}}>No claims here.</p>}
+      {list.map(c => (
+        <Card key={c.id}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:13}}>{c.tier_label}</div>
+              <div style={{fontSize:11.5,color:'#8C7B6E',marginTop:2}}>{c.full_name||c.username} ({c.email}) · {c.tier_cost.toLocaleString()} coins requested · has {(c.coins||0).toLocaleString()} now</div>
+              {c.admin_notes && <div style={{fontSize:11.5,color:'#8C7B6E',marginTop:4}}>Note: {c.admin_notes}</div>}
+            </div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:11,fontWeight:700,color:CLAIM_STATUS_COLORS[c.status]}}>{c.status}</div>
+              {c.status === 'pending' && (
+                <div style={{display:'flex',gap:6,marginTop:8}}>
+                  <Btn onClick={()=>approve(c)} disabled={busyId===c.id}>Approve</Btn>
+                  <Btn v="danger" onClick={()=>reject(c)} disabled={busyId===c.id}>Reject</Btn>
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      ))}
     </div>
   )
 }

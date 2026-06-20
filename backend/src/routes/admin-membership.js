@@ -178,6 +178,14 @@ router.post('/applications/:id/set-status', async (req, res) => {
         [status, notes || null, req.profile.id, req.params.id]
       )
       if (!rows.length) return res.status(404).json({ error: 'Application not found' })
+      const { rows: profRows } = await pool.query('SELECT email, full_name, username FROM profiles WHERE id::text = $1', [rows[0].user_id])
+      const profile = profRows[0]
+      if (profile?.email) {
+        const templateName = status === 'expired' ? TEMPLATE_NAMES.EXPIRED : TEMPLATE_NAMES.STATUS_UPDATED
+        await sendMembershipEmail(templateName, profile.email, profile.full_name || profile.username, {
+          status, notes: notes || '', plan_name: rows[0].plan_name, end_date: rows[0].end_date,
+        })
+      }
     }
     const { rows: updated } = await pool.query('SELECT * FROM membership_applications WHERE id = $1', [req.params.id])
     res.json({ application: updated[0] })
@@ -212,6 +220,21 @@ router.post('/payments/:id/:action(verify|reject)', async (req, res) => {
     [status, req.profile.id, req.params.id]
   )
   if (!rows.length) return res.status(404).json({ error: 'Payment not found' })
+
+  const { rows: planRows } = await pool.query(
+    `SELECT pay.*, plan.name AS plan_name FROM membership_payments pay JOIN membership_plans plan ON plan.id = pay.plan_id WHERE pay.id = $1`,
+    [req.params.id]
+  )
+  const payment = planRows[0]
+  const { rows: profileRows } = await pool.query('SELECT * FROM profiles WHERE id = $1', [payment.user_id])
+  const profile = profileRows[0]
+  if (profile?.email) {
+    const templateName = status === 'verified' ? TEMPLATE_NAMES.PAYMENT_RECEIVED : TEMPLATE_NAMES.PAYMENT_FAILED
+    await sendMembershipEmail(templateName, profile.email, profile.full_name || profile.username, {
+      plan_name: payment.plan_name, amount: payment.amount, currency: payment.currency,
+    })
+  }
+
   res.json({ payment: rows[0] })
 })
 

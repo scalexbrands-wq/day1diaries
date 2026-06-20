@@ -24,6 +24,7 @@ const TEMPLATE_NAMES = {
   RENEWED: 'Membership: Renewed',
   EXPIRED: 'Membership: Expired',
   WELCOME_PREMIUM: 'Membership: Welcome Premium Member',
+  STATUS_UPDATED: 'Membership: Status Updated',
 }
 
 async function sendMembershipEmail(templateName, toEmail, toName, variables = {}) {

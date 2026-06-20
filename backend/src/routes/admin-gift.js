@@ -3,6 +3,9 @@ const { pool } = require('../db/pool')
 const { requireAuth, requireRole } = require('../middleware/auth')
 const razorpay = require('../utils/razorpay')
 const { renderGiftAssets } = require('../services/giftRenderService')
+const { sendGiftEmail, TEMPLATE_NAMES } = require('../services/giftEmails')
+const { createNotification } = require('../services/notifications')
+const { findTier } = require('../utils/walletTiers')
 
 const router = express.Router()
 router.use(requireAuth, requireRole('admin'))
@@ -226,6 +229,70 @@ router.post('/orders/:id/confirm-cod', async (req, res) => {
   renderGiftAssets(order.id).catch(err => console.error('Gift render failed', err))
 })
 
+const PAYMENT_STATUSES = ['pending', 'paid', 'free', 'refunded', 'failed']
+
+// POST /admin/gift/orders/:id/set-payment-status — manual override for
+// cases where the gateway's webhook missed an online payment update (admin
+// checks Razorpay's dashboard directly and reconciles here), or to mark an
+// order failed/refunded without going through the Razorpay refund API (e.g.
+// the refund already happened outside the platform). Setting paid/free
+// triggers certificate rendering exactly like the dedicated COD-confirm and
+// payment-verify paths; refunded/failed notify the sender by email.
+router.post('/orders/:id/set-payment-status', async (req, res) => {
+  const { payment_status, notes } = req.body
+  if (!PAYMENT_STATUSES.includes(payment_status)) {
+    return res.status(400).json({ error: `payment_status must be one of: ${PAYMENT_STATUSES.join(', ')}` })
+  }
+  const { rows: orderRows } = await pool.query(
+    `SELECT g.*, sender.full_name AS sender_name, sender.email AS sender_email
+     FROM gift_orders g JOIN profiles sender ON sender.id::text = g.sender_user_id WHERE g.id = $1`,
+    [req.params.id]
+  )
+  const order = orderRows[0]
+  if (!order) return res.status(404).json({ error: 'Order not found' })
+
+  if (payment_status === 'paid' || payment_status === 'free') {
+    const { rows: verifiedRows } = await pool.query(
+      `SELECT id FROM gift_payments WHERE gift_order_id = $1 AND status = 'verified' LIMIT 1`, [order.id]
+    )
+    if (verifiedRows.length) {
+      await pool.query(`UPDATE gift_payments SET status='verified' WHERE id = $1`, [verifiedRows[0].id])
+    } else {
+      await pool.query(
+        `INSERT INTO gift_payments (gift_order_id, amount, currency, method, status)
+         VALUES ($1,$2,$3,'manual','verified')`,
+        [order.id, payment_status === 'free' ? 0 : order.amount, order.currency]
+      )
+    }
+    const { rows } = await pool.query(
+      `UPDATE gift_orders SET payment_status=$1, status=CASE WHEN status IN ('pending_payment','failed') THEN 'processing' ELSE status END, updated_at=now() WHERE id=$2 RETURNING *`,
+      [payment_status, order.id]
+    )
+    res.json({ order: rows[0] })
+    if (order.status !== 'ready') renderGiftAssets(order.id).catch(err => console.error('Gift render failed', err))
+    return
+  }
+
+  if (payment_status === 'refunded') {
+    await pool.query(
+      `UPDATE gift_payments SET status='refunded', refunded_by=$1, refunded_at=now() WHERE gift_order_id = $2 AND status = 'verified'`,
+      [req.profile.id, order.id]
+    )
+  }
+  const { rows } = await pool.query(
+    `UPDATE gift_orders SET payment_status=$1, status=CASE WHEN $1 = 'failed' AND status != 'ready' THEN 'failed' ELSE status END, updated_at=now() WHERE id=$2 RETURNING *`,
+    [payment_status, order.id]
+  )
+  res.json({ order: rows[0] })
+
+  if (order.sender_email && (payment_status === 'refunded' || payment_status === 'failed')) {
+    const templateName = payment_status === 'refunded' ? TEMPLATE_NAMES.PAYMENT_REFUNDED : TEMPLATE_NAMES.PAYMENT_FAILED
+    sendGiftEmail(templateName, order.sender_email, order.sender_name, {
+      gift_recipient_name: order.recipient_name, amount: order.amount, currency: order.currency, notes: notes || '',
+    }).catch(err => console.error('Gift status email failed', err))
+  }
+})
+
 // ════════════════════════════════════════════════════════════
 // PAYMENTS (flat list across all orders)
 // ════════════════════════════════════════════════════════════
@@ -239,6 +306,89 @@ router.get('/payments', async (req, res) => {
      ORDER BY pay.created_at DESC LIMIT 200`
   )
   res.json({ payments: rows })
+})
+
+// ════════════════════════════════════════════════════════════
+// WALLET CLAIMS — user requests to redeem an unlocked coin tier
+// ════════════════════════════════════════════════════════════
+
+router.get('/claims', async (req, res) => {
+  const { status } = req.query
+  const { rows } = await pool.query(
+    status
+      ? `SELECT c.*, p.full_name, p.username, p.email, p.coins
+         FROM wallet_claims c JOIN profiles p ON p.id = c.user_id
+         WHERE c.status = $1 ORDER BY c.created_at DESC`
+      : `SELECT c.*, p.full_name, p.username, p.email, p.coins
+         FROM wallet_claims c JOIN profiles p ON p.id = c.user_id
+         ORDER BY c.created_at DESC`,
+    status ? [status] : []
+  )
+  res.json({ claims: rows })
+})
+
+router.post('/claims/:id/approve', async (req, res) => {
+  const { rows: claimRows } = await pool.query(
+    `SELECT c.*, p.full_name, p.username, p.email, p.coins
+     FROM wallet_claims c JOIN profiles p ON p.id = c.user_id WHERE c.id = $1`,
+    [req.params.id]
+  )
+  const claim = claimRows[0]
+  if (!claim) return res.status(404).json({ error: 'Claim not found' })
+  if (claim.status !== 'pending') return res.status(400).json({ error: 'Claim already reviewed' })
+  if ((claim.coins || 0) < claim.tier_cost) {
+    return res.status(400).json({ error: 'User no longer has enough coins for this tier' })
+  }
+
+  await pool.query('UPDATE profiles SET coins = coins - $1 WHERE id = $2', [claim.tier_cost, claim.user_id])
+  const tier = findTier(claim.tier_cost)
+  if (tier?.grantsUnlimitedSending) {
+    await pool.query('UPDATE profiles SET gift_unlimited_sending = true WHERE id = $1', [claim.user_id])
+  }
+  const { rows } = await pool.query(
+    `UPDATE wallet_claims SET status='fulfilled', admin_notes=$1, reviewed_by=$2, reviewed_at=now() WHERE id=$3 RETURNING *`,
+    [req.body?.notes || null, req.profile.id, claim.id]
+  )
+
+  await createNotification(claim.user_id, {
+    type: 'wallet_claim_approved',
+    title: 'Your coin claim has been approved 🎉',
+    body: `${claim.tier_label} is ready to use.`,
+    link: '/wallet',
+  })
+  if (claim.email) {
+    sendGiftEmail(TEMPLATE_NAMES.WALLET_CLAIM_APPROVED, claim.email, claim.full_name || claim.username, {
+      tier_label: claim.tier_label, tier_cost: claim.tier_cost, notes: req.body?.notes || '',
+    }).catch(err => console.error('Wallet claim email failed', err))
+  }
+  res.json({ claim: rows[0] })
+})
+
+router.post('/claims/:id/reject', async (req, res) => {
+  const { rows: claimRows } = await pool.query(
+    `SELECT c.*, p.full_name, p.username, p.email FROM wallet_claims c JOIN profiles p ON p.id = c.user_id WHERE c.id = $1`,
+    [req.params.id]
+  )
+  const claim = claimRows[0]
+  if (!claim) return res.status(404).json({ error: 'Claim not found' })
+  if (claim.status !== 'pending') return res.status(400).json({ error: 'Claim already reviewed' })
+
+  const { rows } = await pool.query(
+    `UPDATE wallet_claims SET status='rejected', admin_notes=$1, reviewed_by=$2, reviewed_at=now() WHERE id=$3 RETURNING *`,
+    [req.body?.notes || null, req.profile.id, claim.id]
+  )
+  await createNotification(claim.user_id, {
+    type: 'wallet_claim_rejected',
+    title: 'Update on your coin claim',
+    body: `${claim.tier_label} couldn't be fulfilled. Your coins were not deducted.`,
+    link: '/wallet',
+  })
+  if (claim.email) {
+    sendGiftEmail(TEMPLATE_NAMES.WALLET_CLAIM_REJECTED, claim.email, claim.full_name || claim.username, {
+      tier_label: claim.tier_label, tier_cost: claim.tier_cost, notes: req.body?.notes || '',
+    }).catch(err => console.error('Wallet claim email failed', err))
+  }
+  res.json({ claim: rows[0] })
 })
 
 // ════════════════════════════════════════════════════════════

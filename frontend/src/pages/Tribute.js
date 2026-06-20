@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { getTribute } from '../lib/api'
+import { getTribute, getGiftDownloadUrl } from '../lib/api'
 import ShareButton from '../components/ShareButton'
 import Seo from '../components/Seo'
 
@@ -63,6 +63,13 @@ export default function Tribute() {
         <div style={{ background: '#0B1E3D', color: 'white', borderRadius: 14, padding: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#D4AF37', marginBottom: 6 }}>✨ TRIBUTE</div>
           <div style={{ fontSize: 14.5 }}>{tribute.ai_tribute_text}</div>
+        </div>
+      )}
+
+      {tribute.gift_image_url && (
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <a href={getGiftDownloadUrl(tribute.id, 'png')} className="btn btn-primary" style={{ textDecoration: 'none' }}>⬇ Download Certificate (PNG)</a>
+          <a href={getGiftDownloadUrl(tribute.id, 'pdf')} className="btn btn-secondary" style={{ textDecoration: 'none' }}>⬇ PDF</a>
         </div>
       )}
 

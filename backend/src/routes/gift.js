@@ -47,6 +47,39 @@ router.get('/wallet', requireAuth, async (req, res) => {
   res.json({ coins, tiers, unlimitedSending: !!req.profile.gift_unlimited_sending })
 })
 
+// POST /gift/wallet/claim — request to redeem an unlocked tier. Coins
+// aren't deducted here; an admin reviews the request and approves/rejects
+// it from the Gifting > Claims admin tab (so a rejected claim never costs
+// the user anything).
+router.post('/wallet/claim', requireAuth, async (req, res) => {
+  const tier = findTier(Number(req.body.tierCost))
+  if (!tier) return res.status(400).json({ error: 'Invalid coin tier' })
+  if ((req.profile.coins || 0) < tier.cost) {
+    return res.status(400).json({ error: `You need ${tier.cost.toLocaleString()} coins for this — you have ${(req.profile.coins || 0).toLocaleString()}.` })
+  }
+  const { rows: pendingRows } = await pool.query(
+    `SELECT id FROM wallet_claims WHERE user_id = $1 AND tier_cost = $2 AND status = 'pending'`,
+    [req.profile.id, tier.cost]
+  )
+  if (pendingRows.length) return res.status(400).json({ error: 'You already have a pending claim for this tier.' })
+
+  const { rows } = await pool.query(
+    `INSERT INTO wallet_claims (user_id, tier_cost, tier_kind, tier_label, gift_type_key)
+     VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [req.profile.id, tier.cost, tier.kind, tier.label, tier.giftTypeKey || null]
+  )
+  res.status(201).json({ claim: rows[0] })
+})
+
+// GET /gift/wallet/claims — the current user's own claim history.
+router.get('/wallet/claims', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT * FROM wallet_claims WHERE user_id = $1 ORDER BY created_at DESC`,
+    [req.profile.id]
+  )
+  res.json({ claims: rows })
+})
+
 // ════════════════════════════════════════════════════════════
 // CATALOG — public, active rows only
 // ════════════════════════════════════════════════════════════
