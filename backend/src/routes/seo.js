@@ -135,4 +135,26 @@ router.get('/share/profile/:username', async (req, res) => {
   }))
 })
 
+// ── GET /share/tribute/:slug — same pattern as /share/story above ─
+router.get('/share/tribute/:slug', async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT g.*, s.title AS story_title, p.full_name AS author_name
+     FROM gift_orders g JOIN stories s ON s.id = g.story_id JOIN profiles p ON p.id = s.user_id
+     WHERE g.tribute_slug = $1`,
+    [req.params.slug]
+  )
+  const tribute = rows[0]
+  const redirectUrl = `${SITE_URL}/tribute/${req.params.slug}`
+  if (!tribute || tribute.status !== 'ready') return res.redirect(302, redirectUrl)
+
+  const defaults = await getSeoDefaults()
+  res.set('Content-Type', 'text/html').send(sharePage({
+    title: `A Surprise For ${tribute.recipient_name} — Day1 Diaries`,
+    description: tribute.message || `${tribute.author_name}'s story, turned into a tribute. ${defaults.description}`,
+    image: tribute.gift_image_url || defaults.image,
+    canonicalUrl: redirectUrl,
+    redirectUrl,
+  }))
+})
+
 module.exports = router

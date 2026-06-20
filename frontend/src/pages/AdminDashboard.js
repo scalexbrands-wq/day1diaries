@@ -29,6 +29,9 @@ import {
   adminGetMembershipSettings, adminUpdateMembershipSettings, adminUploadMembershipUpiQr,
   adminGetMembershipStats,
   adminGetSeoSettings, adminUpdateSeoSettings, adminUploadSeoOgImage,
+  adminGetGiftCategories, adminUpdateGiftCategory, adminGetGiftTypes, adminUpdateGiftType,
+  adminGetGiftTemplates, adminUpdateGiftTemplate, adminGetGiftOrders, adminGetGiftOrder, adminRefundGiftOrder,
+  adminGetGiftPayments, adminGetGiftAnalytics, adminGetGiftSettings, adminUpdateGiftSettings,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -63,6 +66,7 @@ const TABS = [
   ['events','📅 Events'],
   ['email','✉️ Email Center'],
   ['membership','🎫 Membership'],
+  ['gifting','🎁 Gifting'],
   ['seo','🔎 SEO'],
   ['users','👥 Users'],
   ['content','🛡️ Moderation'],
@@ -89,6 +93,7 @@ export default function AdminDashboard() {
       {tab==='events'     && <EventsTab/>}
       {tab==='email'      && <EmailCenterTab/>}
       {tab==='membership' && <MembershipTab/>}
+      {tab==='gifting' && <GiftingTab/>}
       {tab==='seo' && <SeoTab/>}
       {tab==='users'      && <UsersTab/>}
       {tab==='content'    && <ModerationTab/>}
@@ -1844,6 +1849,279 @@ function EmailLogsTab() {
           ))}
         </Modal>
       )}
+    </div>
+  )
+}
+
+/* ══ GIFTING (Surprise A Friend) ══════════════════════════════════ */
+const GIFT_SUB_TABS = [['categories','Categories'],['types','Types & Pricing'],['templates','Templates'],['orders','Orders'],['payments','Payments'],['analytics','Analytics'],['settings','Settings']]
+
+function GiftingTab() {
+  const [sub, setSub] = useState('orders')
+  return (
+    <div>
+      <div style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
+        {GIFT_SUB_TABS.map(([k,l]) => (
+          <button key={k} onClick={()=>setSub(k)} style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${sub===k?'#FF6B2B':'#DDD3CA'}`,background:sub===k?'#FF6B2B':'white',color:sub===k?'white':'#5C3D2E',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{l}</button>
+        ))}
+      </div>
+      {sub==='categories' && <GiftCategoriesTab/>}
+      {sub==='types'      && <GiftTypesTab/>}
+      {sub==='templates'  && <GiftTemplatesTab/>}
+      {sub==='orders'     && <GiftOrdersTab/>}
+      {sub==='payments'   && <GiftPaymentsTab/>}
+      {sub==='analytics'  && <GiftAnalyticsTab/>}
+      {sub==='settings'   && <GiftSettingsTab/>}
+    </div>
+  )
+}
+
+function GiftCategoriesTab() {
+  const [list, setList] = useState([])
+  const load = useCallback(() => { adminGetGiftCategories().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const update = async (cat, field, value) => {
+    const { error } = await adminUpdateGiftCategory(cat.id, { [field]: value })
+    if (error) return toast.error(error.message)
+    load()
+  }
+
+  return (
+    <div>
+      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Gift Categories</h3>
+      {list.map(c => (
+        <Card key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <input value={c.emoji} onChange={e=>update(c,'emoji',e.target.value)} style={{width:36,padding:6,textAlign:'center',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:16}}/>
+            <input defaultValue={c.label} onBlur={e=>e.target.value!==c.label && update(c,'label',e.target.value)} style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:600}}/>
+          </div>
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            <input type="checkbox" checked={c.is_active} onChange={e=>update(c,'is_active',e.target.checked)}/> {c.is_active?'Active':'Hidden'}
+          </label>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function GiftTypesTab() {
+  const [list, setList] = useState([])
+  const load = useCallback(() => { adminGetGiftTypes().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const update = async (t, field, value) => {
+    const { error } = await adminUpdateGiftType(t.id, { [field]: value })
+    if (error) return toast.error(error.message)
+    load()
+  }
+
+  return (
+    <div>
+      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Gift Types & Pricing</h3>
+      {list.map(t => (
+        <Card key={t.id}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+            <div style={{flex:1}}>
+              <input defaultValue={t.label} onBlur={e=>e.target.value!==t.label && update(t,'label',e.target.value)} style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:700,width:'100%',marginBottom:6}}/>
+              <input defaultValue={t.description||''} onBlur={e=>e.target.value!==t.description && update(t,'description',e.target.value)} style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12,width:'100%'}}/>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+              <span style={{fontSize:13,fontWeight:700}}>₹</span>
+              <input type="number" defaultValue={t.base_price} onBlur={e=>Number(e.target.value)!==Number(t.base_price) && update(t,'base_price',Number(e.target.value))} style={{width:80,padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:700}}/>
+            </div>
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>
+              <input type="checkbox" checked={t.is_active} onChange={e=>update(t,'is_active',e.target.checked)}/> Active
+            </label>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function GiftTemplatesTab() {
+  const [list, setList] = useState([])
+  const load = useCallback(() => { adminGetGiftTemplates().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const update = async (t, field, value) => {
+    const { error } = await adminUpdateGiftTemplate(t.id, { [field]: value })
+    if (error) return toast.error(error.message)
+    load()
+  }
+
+  return (
+    <div>
+      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Design Templates</h3>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:-10,marginBottom:16}}>Template visuals are defined in code — admins can rename, toggle visibility, or add a preview thumbnail.</p>
+      {list.map(t => (
+        <Card key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <input defaultValue={t.label} onBlur={e=>e.target.value!==t.label && update(t,'label',e.target.value)} style={{padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:600,flex:1,marginRight:12}}/>
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>
+            <input type="checkbox" checked={t.is_active} onChange={e=>update(t,'is_active',e.target.checked)}/> {t.is_active?'Active':'Hidden'}
+          </label>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+const GIFT_ORDER_STATUS_COLORS = { pending_payment:'#F59E0B', processing:'#2563EB', ready:'#059669', failed:'#DC2626' }
+
+function GiftOrdersTab() {
+  const [list, setList] = useState([])
+  const [status, setStatus] = useState('')
+  const [selected, setSelected] = useState(null)
+
+  const load = useCallback(() => { adminGetGiftOrders(status ? {status} : {}).then(({data}) => setList(data||[])) }, [status])
+  useEffect(() => { load() }, [load])
+
+  const openDetail = async (id) => {
+    const { data } = await adminGetGiftOrder(id)
+    setSelected(data)
+  }
+
+  const refund = async (id) => {
+    if (!window.confirm('Refund this gift order?')) return
+    const { error } = await adminRefundGiftOrder(id)
+    if (error) return toast.error(error.message)
+    toast.success('Refunded')
+    setSelected(null); load()
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Gift Orders</h3>
+        <select value={status} onChange={e=>setStatus(e.target.value)} style={{padding:'6px 12px',borderRadius:8,border:'1.5px solid #DDD3CA',fontSize:12}}>
+          <option value="">All statuses</option>
+          <option value="pending_payment">Pending Payment</option>
+          <option value="processing">Processing</option>
+          <option value="ready">Ready</option>
+          <option value="failed">Failed</option>
+        </select>
+      </div>
+      {list.map(o => (
+        <Card key={o.id} style={{cursor:'pointer'}} onClick={()=>openDetail(o.id)}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:13}}>{o.category_label} — {o.recipient_name}</div>
+              <div style={{fontSize:11.5,color:'#8C7B6E',marginTop:2}}>{o.story_title} · {o.gift_type_label} · from {o.sender_name}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:11,fontWeight:700,color:GIFT_ORDER_STATUS_COLORS[o.status]}}>{o.status}</div>
+              <div style={{fontSize:12,fontWeight:700,marginTop:2}}>₹{Number(o.amount).toFixed(0)}</div>
+            </div>
+          </div>
+        </Card>
+      ))}
+      {selected && (
+        <Modal title="Gift Order Detail" onClose={()=>setSelected(null)}>
+          <div style={{fontSize:13,lineHeight:1.8}}>
+            <div><b>Recipient:</b> {selected.order.recipient_name} ({selected.order.recipient_email||'no email'})</div>
+            <div><b>Sender:</b> {selected.order.sender_name} ({selected.order.sender_email})</div>
+            <div><b>Story:</b> {selected.order.story_title}</div>
+            <div><b>Category:</b> {selected.order.category_label}</div>
+            <div><b>Gift Type:</b> {selected.order.gift_type_label}</div>
+            <div><b>Template:</b> {selected.order.template_label}</div>
+            <div><b>Amount:</b> ₹{Number(selected.order.amount).toFixed(0)} ({selected.order.payment_status})</div>
+            <div><b>Status:</b> {selected.order.status}</div>
+            <div><b>Message:</b> "{selected.order.message}"</div>
+          </div>
+          {selected.order.payment_status === 'paid' && (
+            <Btn v="danger" onClick={()=>refund(selected.order.id)} style={{marginTop:14}}>Refund Payment</Btn>
+          )}
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function GiftPaymentsTab() {
+  const [list, setList] = useState([])
+  useEffect(() => { adminGetGiftPayments().then(({data}) => setList(data||[])) }, [])
+  return (
+    <div>
+      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Gift Payments</h3>
+      {list.map(p => (
+        <Card key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:13}}>{p.recipient_name} — {p.sender_name}</div>
+            <div style={{fontSize:11.5,color:'#8C7B6E',marginTop:2}}>{p.method} · {new Date(p.created_at).toLocaleDateString()}</div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontWeight:700,fontSize:13}}>₹{Number(p.amount).toFixed(0)}</div>
+            <div style={{fontSize:11,color:'#8C7B6E'}}>{p.status}</div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function GiftAnalyticsTab() {
+  const [data, setData] = useState(null)
+  useEffect(() => { adminGetGiftAnalytics().then(({data}) => setData(data)) }, [])
+  if (!data) return <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>Loading…</p></Card>
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:14,marginBottom:20}}>
+        <Card style={{textAlign:'center'}}>
+          <div style={{fontSize:24,marginBottom:6}}>🎁</div>
+          <div style={{fontSize:20,fontWeight:800}}>{data.totals.total_gifts}</div>
+          <div style={{fontSize:11,color:'#8C7B6E'}}>Total Gifts</div>
+        </Card>
+        <Card style={{textAlign:'center'}}>
+          <div style={{fontSize:24,marginBottom:6}}>💰</div>
+          <div style={{fontSize:20,fontWeight:800}}>₹{Number(data.totals.total_revenue).toFixed(0)}</div>
+          <div style={{fontSize:11,color:'#8C7B6E'}}>Total Revenue</div>
+        </Card>
+      </div>
+      <SH c="By Category"/>
+      {data.byCategory.map(c => <div key={c.label} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'6px 0',borderBottom:'1px solid #F8F3EC'}}><span>{c.label}</span><b>{c.count}</b></div>)}
+      <div style={{marginTop:18}}><SH c="By Gift Type"/></div>
+      {data.byType.map(c => <div key={c.label} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'6px 0',borderBottom:'1px solid #F8F3EC'}}><span>{c.label}</span><b>{c.count}</b></div>)}
+      <div style={{marginTop:18}}><SH c="By Template"/></div>
+      {data.byTemplate.map(c => <div key={c.label} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'6px 0',borderBottom:'1px solid #F8F3EC'}}><span>{c.label}</span><b>{c.count}</b></div>)}
+    </div>
+  )
+}
+
+function GiftSettingsTab() {
+  const [settings, setSettings] = useState({})
+  const [saving, setSaving] = useState(false)
+  const load = useCallback(() => { adminGetGiftSettings().then(({data}) => setSettings(data?.settings||{})) }, [])
+  useEffect(() => { load() }, [load])
+
+  const save = async () => {
+    setSaving(true)
+    const { error } = await adminUpdateGiftSettings(settings)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success('Settings saved')
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Gifting Settings</h3>
+        <Btn onClick={save} disabled={saving}>{saving?'Saving…':'Save Changes'}</Btn>
+      </div>
+      <Card style={{background: settings['gift.module_enabled']===false ? '#FFF5F5' : '#F0FFF6', border:`1px solid ${settings['gift.module_enabled']===false?'#FECACA':'#BBF7D0'}`}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Surprise A Friend Module</div>
+            <p style={{fontSize:12,color:'#5C3D2E',margin:0}}>
+              Master switch. When off, the 🎁 Surprise A Friend CTA is hidden everywhere across the app.
+            </p>
+          </div>
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0,marginLeft:16}}>
+            <input type="checkbox" checked={settings['gift.module_enabled']!==false} onChange={e=>setSettings(s=>({...s,'gift.module_enabled':e.target.checked}))}/>
+            {settings['gift.module_enabled']===false ? 'OFF' : 'ON'}
+          </label>
+        </div>
+      </Card>
     </div>
   )
 }

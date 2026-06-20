@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import NotificationBell from './NotificationBell'
 
 const TITLES = { '/community': 'Community',
   '/feed': 'My Feed', '/discover': 'Discover', '/habits': 'Habits',
@@ -47,6 +48,7 @@ export default function TopBar() {
         }}>⌕</button>
       </form>
 
+      <NotificationBell />
       <button className="btn btn-primary btn-sm topbar-write-btn" onClick={() => navigate('/write')}>
         + Share Story
       </button>

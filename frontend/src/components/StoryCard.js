@@ -5,6 +5,7 @@ import { toggleLike, toggleSave, shareStory, unlockStory } from '../lib/api'
 import { getInitials, getAvatarColor } from './Sidebar'
 import { toast } from './Toast'
 import { formatDistanceToNow } from 'date-fns'
+import SurpriseAFriendButton from './SurpriseAFriendButton'
 
 export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp, onUnlock }) {
   const { user } = useAuth()
@@ -184,6 +185,7 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
               <path d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"/>
             </svg>
           </button>
+          <SurpriseAFriendButton storyId={story.id} storyTitle={story.title} authorName={author.full_name} compact />
           {story.tags?.length > 0 && (
             <div className="story-tags">
               {story.tags.slice(0, 2).map(t => <span key={t} className="tag">#{t}</span>)}

@@ -38,6 +38,9 @@ const membershipRoutes = require('./routes/membership')
 const adminMembershipRoutes = require('./routes/admin-membership')
 const seoRoutes = require('./routes/seo')
 const adminSeoRoutes = require('./routes/admin-seo')
+const giftRoutes = require('./routes/gift')
+const adminGiftRoutes = require('./routes/admin-gift')
+const notificationRoutes = require('./routes/notifications')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -111,6 +114,9 @@ app.use('/membership', membershipRoutes)
 app.use('/admin/membership', adminMembershipRoutes)
 app.use('/', seoRoutes)
 app.use('/admin/seo', adminSeoRoutes)
+app.use('/gift', giftRoutes)
+app.use('/admin/gift', adminGiftRoutes)
+app.use('/notifications', notificationRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))

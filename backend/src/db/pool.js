@@ -248,7 +248,7 @@ async function initDB() {
     await pool.query(`
       ALTER TABLE email_templates ADD CONSTRAINT email_templates_category_check CHECK (category IN (
         'welcome','story','habit','challenge','event',
-        'leaderboard','certificate','weekly_digest','monthly_digest','custom','membership'))
+        'leaderboard','certificate','weekly_digest','monthly_digest','custom','membership','gift'))
     `)
 
     // ── Membership module ──────────────────────────────────────────
@@ -478,6 +478,188 @@ async function initDB() {
           [name, subject, html_body]
         )
       }
+    }
+
+    // ── Surprise A Friend (gifting module) ──────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gift_categories (
+        id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        key         TEXT UNIQUE NOT NULL,
+        label       TEXT NOT NULL,
+        emoji       TEXT DEFAULT '🎁',
+        sort_order  INT DEFAULT 0,
+        is_active   BOOLEAN DEFAULT true,
+        created_at  TIMESTAMPTZ DEFAULT now(),
+        updated_at  TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gift_types (
+        id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        key         TEXT UNIQUE NOT NULL,
+        label       TEXT NOT NULL,
+        description TEXT,
+        base_price  NUMERIC(10,2) NOT NULL DEFAULT 0,
+        currency    TEXT NOT NULL DEFAULT 'INR',
+        sort_order  INT DEFAULT 0,
+        is_active   BOOLEAN DEFAULT true,
+        created_at  TIMESTAMPTZ DEFAULT now(),
+        updated_at  TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gift_templates (
+        id                UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        key               TEXT UNIQUE NOT NULL CHECK (key IN (
+                            'luxury_gold','glassmorphism_orange','scrapbook_warm',
+                            'executive_black_gold','magazine_cover')),
+        label             TEXT NOT NULL,
+        preview_image_url TEXT,
+        is_active         BOOLEAN DEFAULT true,
+        created_at        TIMESTAMPTZ DEFAULT now(),
+        updated_at        TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gift_orders (
+        id                  UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        sender_user_id      TEXT NOT NULL,
+        recipient_name      TEXT NOT NULL,
+        recipient_email     TEXT,
+        recipient_user_id   TEXT,
+        story_id            UUID NOT NULL REFERENCES stories(id),
+        category_id         UUID NOT NULL REFERENCES gift_categories(id),
+        gift_type_id        UUID NOT NULL REFERENCES gift_types(id),
+        template_id         UUID NOT NULL REFERENCES gift_templates(id),
+        message             TEXT,
+        voice_message_url   TEXT,
+        video_message_url   TEXT,
+        image_message_url   TEXT,
+        ai_tribute_text     TEXT,
+        ai_tribute_kind     TEXT,
+        amount              NUMERIC(10,2) NOT NULL DEFAULT 0,
+        currency            TEXT NOT NULL DEFAULT 'INR',
+        payment_status      TEXT NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending','free','paid','refunded','failed')),
+        status              TEXT NOT NULL DEFAULT 'pending_payment' CHECK (status IN ('pending_payment','processing','ready','failed')),
+        tribute_slug        TEXT UNIQUE,
+        gift_image_url      TEXT,
+        gift_pdf_url        TEXT,
+        social_preview_url  TEXT,
+        qr_target_url       TEXT,
+        certificate_number  TEXT,
+        created_at          TIMESTAMPTZ DEFAULT now(),
+        updated_at          TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gift_payments (
+        id                  UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        gift_order_id       UUID NOT NULL REFERENCES gift_orders(id) ON DELETE CASCADE,
+        amount              NUMERIC(10,2) NOT NULL,
+        currency            TEXT NOT NULL DEFAULT 'INR',
+        method              TEXT NOT NULL CHECK (method IN ('razorpay','free')),
+        status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','verified','rejected','refunded')),
+        razorpay_order_id   TEXT,
+        razorpay_payment_id TEXT,
+        refund_id           TEXT,
+        refunded_by         TEXT,
+        refunded_at         TIMESTAMPTZ,
+        created_at          TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        user_id     TEXT NOT NULL,
+        type        TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        body        TEXT,
+        link        TEXT,
+        is_read     BOOLEAN DEFAULT false,
+        created_at  TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_gift_orders_sender ON gift_orders(sender_user_id, created_at DESC)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_gift_orders_recipient ON gift_orders(recipient_user_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_gift_payments_order ON gift_payments(gift_order_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at DESC)`)
+
+    // Seed gift categories (once — admin edits afterward persist).
+    const { rows: gcCount } = await pool.query('SELECT COUNT(*)::int AS n FROM gift_categories')
+    if (gcCount[0].n === 0) {
+      const defaultCategories = [
+        ['birthday', 'Birthday', '🎂', 0],
+        ['sweet_memories', 'Sweet Memories', '❤️', 1],
+        ['surprise_moment', 'Surprise Moment', '😊', 2],
+        ['long_time_no_see', 'Long Time No See', '🤝', 3],
+        ['career_milestone', 'Career Milestone', '🚀', 4],
+        ['achievement_recognition', 'Achievement Recognition', '🏆', 5],
+        ['story_contributor', 'Story Contributor', '🌟', 6],
+        ['graduation', 'Graduation', '🎓', 7],
+        ['first_job', 'First Job Celebration', '💼', 8],
+        ['work_anniversary', 'Work Anniversary', '🎉', 9],
+      ]
+      for (const [key, label, emoji, sort_order] of defaultCategories) {
+        await pool.query(
+          `INSERT INTO gift_categories (key, label, emoji, sort_order) VALUES ($1,$2,$3,$4)`,
+          [key, label, emoji, sort_order]
+        )
+      }
+    }
+
+    // Seed gift types + pricing (once — admin edits afterward persist).
+    const { rows: gtCount } = await pool.query('SELECT COUNT(*)::int AS n FROM gift_types')
+    if (gtCount[0].n === 0) {
+      const defaultTypes = [
+        ['digital_certificate', 'Digital Certificate', 'A beautifully designed digital certificate.', 99, 0],
+        ['premium_certificate', 'Premium Certificate', 'A richer, premium-finish certificate design.', 199, 1],
+        ['poster', 'Poster', 'A printable poster-style tribute.', 299, 2],
+        ['story_tribute_card', 'Story Tribute Card', 'A compact shareable tribute card.', 149, 3],
+        ['memory_scrapbook', 'Memory Scrapbook', 'A warm, photo-memory scrapbook page.', 249, 4],
+        ['video_tribute', 'Video Tribute', 'A narrated video tribute (coming soon).', 499, 5],
+        ['printable_frame', 'Printable Frame', 'A frame-ready printable design.', 349, 6],
+        ['digital_plaque', 'Digital Plaque', 'A digital recognition plaque.', 199, 7],
+        ['magazine_cover', 'Magazine Cover', 'A magazine-cover-style feature.', 399, 8],
+        ['legacy_package', 'Legacy Package', 'The full premium bundle — certificate, poster, and plaque.', 1999, 9],
+      ]
+      for (const [key, label, description, base_price, sort_order] of defaultTypes) {
+        await pool.query(
+          `INSERT INTO gift_types (key, label, description, base_price, sort_order) VALUES ($1,$2,$3,$4,$5)`,
+          [key, label, description, base_price, sort_order]
+        )
+      }
+    }
+
+    // Seed gift design templates (once — admin edits afterward persist).
+    const { rows: gtmplCount } = await pool.query('SELECT COUNT(*)::int AS n FROM gift_templates')
+    if (gtmplCount[0].n === 0) {
+      const defaultTemplates = [
+        ['luxury_gold', 'Luxury Gold — Dark Navy, Premium Border'],
+        ['glassmorphism_orange', 'Modern Glassmorphism — Orange Gradient, Professional'],
+        ['scrapbook_warm', 'Memory Scrapbook — Photo Memories, Warm Theme'],
+        ['executive_black_gold', 'Executive Recognition — Black + Gold, Award Style'],
+        ['magazine_cover', 'Magazine Cover — Forbes-Inspired, Professional Recognition'],
+      ]
+      for (const [key, label] of defaultTemplates) {
+        await pool.query(
+          `INSERT INTO gift_templates (key, label) VALUES ($1,$2)`,
+          [key, label]
+        )
+      }
+    }
+
+    // Seed the gift lifecycle email template (once — admin edits afterward persist).
+    {
+      const wrap = (body) => `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;"><div style="background:#0B1E3D;padding:16px 22px;border-radius:10px 10px 0 0;"><span style="color:#D4AF37;font-size:16px;font-weight:700;">Day1 Diaries</span></div><div style="background:#fff;padding:24px 22px;border:1px solid #F0EAE4;border-top:none;border-radius:0 0 10px 10px;">${body}</div></div>`
+      await pool.query(
+        `INSERT INTO email_templates (name, category, subject, html_body, status)
+         SELECT $1,'gift',$2,$3,'active' WHERE NOT EXISTS (SELECT 1 FROM email_templates WHERE name = $1)`,
+        [
+          'Gift: Tribute Received',
+          "You've Received A Surprise From A Friend 🎁",
+          wrap(`<p>Hi {{recipient_name}},</p><p><b>{{sender_name}}</b> just sent you a surprise — a personalized tribute built from a story on Day1 Diaries.</p><p style="font-style:italic;color:#6B5347;">"{{message}}"</p><p><a href="{{tribute_url}}" style="display:inline-block;margin-top:10px;background:#FF6B2B;color:#fff;padding:10px 22px;border-radius:100px;text-decoration:none;font-weight:700;">View Your Surprise →</a></p>`),
+        ]
+      )
     }
 
     console.log('DB schema init OK')

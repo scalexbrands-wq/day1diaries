@@ -5,6 +5,7 @@ import { getStory, getComments, addComment, toggleLike, toggleSave, deleteStory,
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
 import ShareButton, { storyShareText, storyShareUrl } from '../components/ShareButton'
+import SurpriseAFriendButton from '../components/SurpriseAFriendButton'
 import Seo from '../components/Seo'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -292,7 +293,8 @@ export default function StoryDetail() {
                   </svg>
                   {saved ? 'Saved' : 'Save'}
                 </button>
-                <div style={{ marginLeft: 'auto' }}>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                  <SurpriseAFriendButton storyId={id} storyTitle={story.title} authorName={author.full_name} />
                   <ShareButton
                     text={storyShareText(story.title, id)}
                     url={storyShareUrl(id)}

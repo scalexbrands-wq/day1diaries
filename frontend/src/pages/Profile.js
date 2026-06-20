@@ -12,6 +12,7 @@ import { formatDistanceToNow } from 'date-fns'
 import ShareButton, { profileShareText, profileShareUrl } from '../components/ShareButton'
 import ProfileQRCard from '../components/ProfileQRCard'
 import Seo from '../components/Seo'
+import SurpriseAFriendButton from '../components/SurpriseAFriendButton'
 
 const LEVELS = {
   Beginner:'🥉', Explorer:'🥈', Achiever:'🥇',
@@ -20,7 +21,7 @@ const LEVELS = {
 }
 
 /* ── Mini story card for profile grid ──────────────────────── */
-function ProfileStoryCard({ story, onClick }) {
+function ProfileStoryCard({ story, onClick, authorName }) {
   const hasImage = !!story.cover_image_url
   const accentColor = getAvatarColor(story.category || story.title || '')
   const timeAgo = story.created_at
@@ -112,12 +113,15 @@ function ProfileStoryCard({ story, onClick }) {
           <span style={{ fontSize: 11, color: '#B0A8A0', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {timeAgo}
           </span>
-          <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 10, flexShrink: 0, alignItems: 'center' }}>
             <span style={{ fontSize: 11, color: '#B0A8A0', display: 'flex', alignItems: 'center', gap: 3 }}>
               ❤️ {(story.likes_count || 0).toLocaleString()}
             </span>
             <span style={{ fontSize: 11, color: '#B0A8A0', display: 'flex', alignItems: 'center', gap: 3 }}>
               💬 {(story.comments_count || 0).toLocaleString()}
+            </span>
+            <span onClick={e => e.stopPropagation()}>
+              <SurpriseAFriendButton storyId={story.id} storyTitle={story.title} authorName={authorName} compact />
             </span>
           </div>
         </div>
@@ -402,6 +406,7 @@ export default function Profile() {
               <ProfileStoryCard
                 key={s.id}
                 story={s}
+                authorName={profile.full_name || profile.username}
                 onClick={(id) => navigate(`/story/${id}`)}
               />
             ))}

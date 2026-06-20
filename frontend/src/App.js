@@ -33,6 +33,8 @@ import Contact from './pages/Contact'
 import CertificateViewer from './pages/CertificateViewer'
 import Membership from './pages/Membership'
 import RefundPolicy from './pages/RefundPolicy'
+import Tribute from './pages/Tribute'
+import MyGifts from './pages/MyGifts'
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth()
@@ -97,6 +99,8 @@ export default function App() {
           <Route path="/feed"                element={<PrivateRoute><AppLayout><Feed/></AppLayout></PrivateRoute>} />
           <Route path="/discover"            element={<PrivateRoute><AppLayout><Discover/></AppLayout></PrivateRoute>} />
           <Route path="/story/:id"           element={<ShareableLayout><StoryDetail/></ShareableLayout>} />
+          <Route path="/tribute/:slug"       element={<ShareableLayout><Tribute/></ShareableLayout>} />
+          <Route path="/gifts"               element={<PrivateRoute><AppLayout><MyGifts/></AppLayout></PrivateRoute>} />
           <Route path="/write"               element={<PrivateRoute><AppLayout><WriteStory/></AppLayout></PrivateRoute>} />
           <Route path="/edit/:id"            element={<PrivateRoute><AppLayout><WriteStory/></AppLayout></PrivateRoute>} />
           <Route path="/habits"              element={<PrivateRoute><AppLayout><Habits/></AppLayout></PrivateRoute>} />
