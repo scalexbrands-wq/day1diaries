@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   getProfileByUsername, adminSetRole, getStories,
   toggleFollowFixed, getFollow, updateProfile,
-  getProfileLiveCounts, getMyCoins,
+  getProfileLiveCounts, getMyCoins, uploadProfileAvatar, uploadProfileBanner,
 } from '../lib/api'
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
@@ -153,6 +153,8 @@ export default function Profile() {
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [coins, setCoins] = useState(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [uploadingBanner, setUploadingBanner] = useState(false)
 
   const isMe = myProfile?.username === username
   const isAdmin = myProfile?.role === 'admin'
@@ -187,11 +189,36 @@ export default function Profile() {
   }
 
   const handleSaveEdit = async () => {
-    await updateProfile({ ...editForm })
+    const { error } = await updateProfile({ ...editForm })
+    if (error) return toast.error(error.message)
     setProfile(p => ({ ...p, ...editForm }))
     refreshProfile()
     setEditing(false)
     toast.success('Profile updated!')
+  }
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploadingAvatar(true)
+    const { data, error } = await uploadProfileAvatar(file)
+    setUploadingAvatar(false)
+    if (error) return toast.error(error.message)
+    setEditForm(f => ({ ...f, avatar_url: data }))
+    toast.success('Profile picture uploaded')
+  }
+
+  const handleBannerUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploadingBanner(true)
+    const { data, error } = await uploadProfileBanner(file)
+    setUploadingBanner(false)
+    if (error) return toast.error(error.message)
+    setEditForm(f => ({ ...f, banner_url: data }))
+    toast.success('Banner uploaded')
   }
 
   if (loading) return <div className="loading-center"><div className="spinner" /></div>
@@ -222,15 +249,21 @@ export default function Profile() {
 
       {/* ── Banner + avatar ── */}
       <div style={{ position: 'relative', marginBottom: 64, animation: 'prof-in .5s ease both' }}>
-        {/* Gradient banner */}
+        {/* Banner — uploaded image if set, otherwise the gradient fallback */}
         <div style={{
           height: 160, borderRadius: '0 0 24px 24px',
-          background: `linear-gradient(135deg, ${avatarBg}cc, ${avatarBg}44, rgba(255,209,102,.3))`,
+          background: profile.banner_url
+            ? `url(${profile.banner_url}) center/cover`
+            : `linear-gradient(135deg, ${avatarBg}cc, ${avatarBg}44, rgba(255,209,102,.3))`,
           position: 'relative', overflow: 'hidden',
         }}>
-          {/* Decorative circles */}
-          <div style={{ position: 'absolute', top: -30, right: -30, width: 180, height: 180, borderRadius: '50%', background: `${avatarBg}25` }} />
-          <div style={{ position: 'absolute', bottom: -40, left: 60, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,209,102,.18)' }} />
+          {/* Decorative circles — only over the gradient fallback */}
+          {!profile.banner_url && (
+            <>
+              <div style={{ position: 'absolute', top: -30, right: -30, width: 180, height: 180, borderRadius: '50%', background: `${avatarBg}25` }} />
+              <div style={{ position: 'absolute', bottom: -40, left: 60, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,209,102,.18)' }} />
+            </>
+          )}
         </div>
 
         {/* Avatar + follow row */}
@@ -264,7 +297,10 @@ export default function Profile() {
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
                     setEditing(true)
-                    setEditForm({ is_private: profile.is_private || false, full_name: profile.full_name || '', bio: profile.bio || '', location: profile.location || '' })
+                    setEditForm({
+                      is_private: profile.is_private || false, full_name: profile.full_name || '', bio: profile.bio || '', location: profile.location || '',
+                      avatar_url: profile.avatar_url || '', banner_url: profile.banner_url || '',
+                    })
                   }}
                 >
                   ✏️ Edit Profile
@@ -429,6 +465,39 @@ export default function Profile() {
               <button className="close-btn" onClick={() => setEditing(false)}>×</button>
             </div>
             <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Banner Image</label>
+                <div style={{
+                  height: 100, borderRadius: 12, marginBottom: 8, overflow: 'hidden', position: 'relative',
+                  background: editForm.banner_url ? `url(${editForm.banner_url}) center/cover` : 'linear-gradient(135deg,#FF6B2B33,#FFD16633)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {!editForm.banner_url && <span style={{ fontSize: 12, color: '#8C7B6E' }}>No banner uploaded</span>}
+                </div>
+                <label style={{ padding: '8px 16px', borderRadius: 100, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', background: '#F0EAE4', color: '#1A0800', display: 'inline-block' }}>
+                  {uploadingBanner ? 'Uploading…' : '📷 Upload Banner'}
+                  <input type="file" accept="image/*" onChange={handleBannerUpload} disabled={uploadingBanner} style={{ display: 'none' }} />
+                </label>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Profile Picture</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+                  <div style={{
+                    width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+                    background: avatarBg, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800,
+                  }}>
+                    {editForm.avatar_url
+                      ? <img src={editForm.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : getInitials(editForm.full_name || profile.username || '?')}
+                  </div>
+                  <label style={{ padding: '8px 16px', borderRadius: 100, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', background: '#F0EAE4', color: '#1A0800', display: 'inline-block' }}>
+                    {uploadingAvatar ? 'Uploading…' : '📷 Upload Photo'}
+                    <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={uploadingAvatar} style={{ display: 'none' }} />
+                  </label>
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Full Name</label>
                 <input

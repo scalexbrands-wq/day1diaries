@@ -1,8 +1,11 @@
 const express = require('express')
+const multer = require('multer')
 const { pool } = require('../db/pool')
 const { requireAuth, optionalAuth } = require('../middleware/auth')
+const imageStorage = require('../utils/imageStorage')
 
 const router = express.Router()
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
 
 // ── GET /profiles/by-id/:userId ──────────────────────────────
 router.get('/by-id/:userId', async (req, res) => {
@@ -40,9 +43,9 @@ router.get('/:username/live-counts', async (req, res) => {
 })
 
 // ── PATCH /profiles/me ───────────────────────────────────────
-// body: { full_name, bio, location, avatar_url }
+// body: { full_name, bio, location, avatar_url, banner_url, is_private }
 router.patch('/me', requireAuth, async (req, res) => {
-  const allowed = ['full_name', 'bio', 'location', 'avatar_url', 'is_private']
+  const allowed = ['full_name', 'bio', 'location', 'avatar_url', 'banner_url', 'is_private']
   const updates = {}
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key]
@@ -57,6 +60,26 @@ router.patch('/me', requireAuth, async (req, res) => {
     values
   )
   res.json({ profile: rows[0] })
+})
+
+// ── POST /profiles/me/avatar — multipart `image` ─────────────
+router.post('/me/avatar', requireAuth, upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image uploaded' })
+  const baseUrl = `${req.protocol}://${req.get('host')}`
+  const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+  const url = await imageStorage.saveImage(`avatars/${req.cognitoSub}-${Date.now()}.${ext}`, req.file.buffer, req.file.mimetype, baseUrl)
+  const { rows } = await pool.query(`UPDATE profiles SET avatar_url = $1 WHERE id = $2 RETURNING *`, [url, req.cognitoSub])
+  res.json({ avatarUrl: url, profile: rows[0] })
+})
+
+// ── POST /profiles/me/banner — multipart `image` ─────────────
+router.post('/me/banner', requireAuth, upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image uploaded' })
+  const baseUrl = `${req.protocol}://${req.get('host')}`
+  const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+  const url = await imageStorage.saveImage(`banners/${req.cognitoSub}-${Date.now()}.${ext}`, req.file.buffer, req.file.mimetype, baseUrl)
+  const { rows } = await pool.query(`UPDATE profiles SET banner_url = $1 WHERE id = $2 RETURNING *`, [url, req.cognitoSub])
+  res.json({ bannerUrl: url, profile: rows[0] })
 })
 
 // ── GET /profiles/me/role-check ──────────────────────────────

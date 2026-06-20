@@ -2554,41 +2554,53 @@ function MembershipPaymentsTab() {
   )
 }
 
+function AccessRuleCard({ rule, onSaved }) {
+  const [form, setForm] = useState({ is_active: rule.is_active, free_limit: rule.free_limit, member_limit: rule.member_limit, reset_frequency: rule.reset_frequency })
+  const [saving, setSaving] = useState(false)
+  const dirty = form.is_active !== rule.is_active || form.free_limit !== rule.free_limit || form.member_limit !== rule.member_limit || form.reset_frequency !== rule.reset_frequency
+
+  const save = async () => {
+    setSaving(true)
+    const { error } = await adminUpdateAccessRule(rule.id, { ...rule, ...form })
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(`${rule.label} saved`)
+    onSaved()
+  }
+
+  return (
+    <Card>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+        <span style={{fontWeight:700,fontSize:13}}>{rule.label}</span>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
+          <input type="checkbox" checked={form.is_active} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))}/> Enforced
+        </label>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12}}>
+        <div><L c="Free Limit"/><Inp type="number" value={form.free_limit} onChange={e=>setForm(f=>({...f,free_limit:Number(e.target.value)}))}/></div>
+        <div><L c="Member Limit"/><Inp type="number" value={form.member_limit} onChange={e=>setForm(f=>({...f,member_limit:Number(e.target.value)}))}/></div>
+        <div>
+          <L c="Reset Frequency"/>
+          <select value={form.reset_frequency} onChange={e=>setForm(f=>({...f,reset_frequency:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit'}}>
+            {RESET_FREQS.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+      </div>
+      <Btn onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Btn>
+    </Card>
+  )
+}
+
 function MembershipAccessControlTab() {
   const [list, setList] = useState([])
   const load = useCallback(() => { adminListAccessRules().then(({data}) => setList(data||[])) }, [])
   useEffect(() => { load() }, [load])
 
-  const update = async (rule, patch) => {
-    const { error } = await adminUpdateAccessRule(rule.id, { ...rule, ...patch })
-    if (error) return toast.error(error.message)
-    load()
-  }
-
   return (
     <div>
       <h3 style={{margin:'0 0 6px',fontSize:15,fontWeight:700}}>Feature Access Control</h3>
       <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:16}}>Limit: -1 = unlimited, 0 = disabled, N = N per reset period.</p>
-      {list.map(r => (
-        <Card key={r.id}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
-            <span style={{fontWeight:700,fontSize:13}}>{r.label}</span>
-            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:600,cursor:'pointer'}}>
-              <input type="checkbox" checked={r.is_active} onChange={e=>update(r,{is_active:e.target.checked})}/> Enforced
-            </label>
-          </div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
-            <div><L c="Free Limit"/><Inp type="number" defaultValue={r.free_limit} onBlur={e=>update(r,{free_limit:Number(e.target.value)})}/></div>
-            <div><L c="Member Limit"/><Inp type="number" defaultValue={r.member_limit} onBlur={e=>update(r,{member_limit:Number(e.target.value)})}/></div>
-            <div>
-              <L c="Reset Frequency"/>
-              <select defaultValue={r.reset_frequency} onChange={e=>update(r,{reset_frequency:e.target.value})} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit'}}>
-                {RESET_FREQS.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
-          </div>
-        </Card>
-      ))}
+      {list.map(r => <AccessRuleCard key={r.id} rule={r} onSaved={load}/>)}
     </div>
   )
 }

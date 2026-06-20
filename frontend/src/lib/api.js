@@ -132,8 +132,36 @@ export const getProfileLiveCounts = async (username) => {
   return { data: result.data?.counts, error: result.error }
 }
 
-export const updateProfile = (userId, updates) =>
+export const updateProfile = (updates) =>
   apiFetch('/profiles/me', { method: 'PATCH', body: JSON.stringify(updates) })
+
+export const uploadProfileAvatar = async (file) => {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  form.append('image', file)
+  const res = await fetch(`${API_BASE}/profiles/me/avatar`, {
+    method: 'POST',
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.avatarUrl, error: null }
+}
+
+export const uploadProfileBanner = async (file) => {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  form.append('image', file)
+  const res = await fetch(`${API_BASE}/profiles/me/banner`, {
+    method: 'POST',
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.bannerUrl, error: null }
+}
 
 export const isContributorOrAdmin = (profile) =>
   profile?.role === 'admin' || profile?.role === 'contributor'

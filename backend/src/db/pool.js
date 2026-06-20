@@ -46,6 +46,7 @@ async function initDB() {
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false`)
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT`)
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent_at TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS banner_url TEXT`)
     await pool.query(`ALTER TABLE pending_signups ADD COLUMN IF NOT EXISTS phone TEXT`).catch(() => {})
     await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS flag_reason TEXT`)
     // landing_hero — admin-uploaded hero image(s) — slideshow of up to 3
