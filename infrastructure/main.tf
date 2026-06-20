@@ -27,6 +27,11 @@ variable "db_username"    { default = "day1admin" }
 variable "db_password"    { sensitive = true }          # supply via terraform.tfvars or TF_VAR_db_password
 variable "db_name"        { default = "day1diaries" }
 variable "domain_name"    { default = "" }              # optional: yourdomain.com
+variable "razorpay_key_id"     { default = "" }   # public-facing, not sensitive
+variable "razorpay_key_secret" {                  # supply via terraform.tfvars or TF_VAR_razorpay_key_secret
+  default   = ""
+  sensitive = true
+}
 
 locals {
   name = "${var.project_name}-${var.environment}"
@@ -170,6 +175,15 @@ resource "aws_security_group" "rds" {
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs.id]
+  }
+  # Direct psql access for a specific developer IP — added manually outside
+  # Terraform at some point; declared here so plan/apply no longer wants to
+  # remove it as drift.
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["49.206.252.110/32"]
   }
   egress {
     from_port   = 0
@@ -548,9 +562,11 @@ resource "aws_ecs_task_definition" "api" {
           local.use_custom_domain ? "https://www.${var.domain_name}" : "",
           "https://${aws_cloudfront_distribution.frontend.domain_name}",
         ])) },
+      { name = "RAZORPAY_KEY_ID", value = var.razorpay_key_id },
     ]
     secrets = [
-      { name = "DB_PASSWORD", valueFrom = aws_secretsmanager_secret.db_password.arn }
+      { name = "DB_PASSWORD", valueFrom = aws_secretsmanager_secret.db_password.arn },
+      { name = "RAZORPAY_KEY_SECRET", valueFrom = aws_secretsmanager_secret.razorpay_key_secret.arn },
     ]
     logConfiguration = {
       logDriver = "awslogs"
@@ -568,6 +584,16 @@ resource "aws_ecs_task_definition" "api" {
 resource "aws_secretsmanager_secret" "db_password" {
   name = "${local.name}-db-password"
   tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "razorpay_key_secret" {
+  name = "${local.name}-razorpay-key-secret"
+  tags = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "razorpay_key_secret" {
+  secret_id     = aws_secretsmanager_secret.razorpay_key_secret.id
+  secret_string = var.razorpay_key_secret
 }
 
 resource "aws_secretsmanager_secret_version" "db_password" {
@@ -626,7 +652,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["secretsmanager:GetSecretValue"]
-      Resource = [aws_secretsmanager_secret.db_password.arn]
+      Resource = [aws_secretsmanager_secret.db_password.arn, aws_secretsmanager_secret.razorpay_key_secret.arn]
     }]
   })
 }

@@ -79,7 +79,10 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow cross-origin API calls
   contentSecurityPolicy: false, // disable CSP — this is an API, not a browser page
 }))
-app.use(express.json({ limit: '2mb' }))
+// `verify` stashes the exact raw bytes on req.rawBody — needed by the
+// Razorpay webhook route to validate its signature, which is computed
+// over the raw payload, not the re-serialized parsed object.
+app.use(express.json({ limit: '2mb', verify: (req, res, buf) => { req.rawBody = buf } }))
 app.use(morgan('combined'))
 
 // ── Health check (used by ALB target group) ──────────────────

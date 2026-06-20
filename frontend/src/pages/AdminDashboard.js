@@ -24,7 +24,7 @@ import {
   adminListMembershipPlans, adminCreateMembershipPlan, adminUpdateMembershipPlan, adminCloneMembershipPlan, adminSetMembershipPlanStatus,
   adminListMembershipFormFields, adminCreateMembershipFormField, adminUpdateMembershipFormField, adminDeleteMembershipFormField,
   adminListMembershipApplications, adminGetMembershipApplication, adminApproveMembershipApplication, adminRejectMembershipApplication,
-  adminListMembershipPayments, adminVerifyMembershipPayment, adminRejectMembershipPayment,
+  adminListMembershipPayments, adminVerifyMembershipPayment, adminRejectMembershipPayment, adminRefundMembershipPayment,
   adminListAccessRules, adminUpdateAccessRule,
   adminGetMembershipSettings, adminUpdateMembershipSettings, adminUploadMembershipUpiQr,
   adminGetMembershipStats,
@@ -2159,6 +2159,13 @@ function MembershipPaymentsTab() {
 
   const verify = async (id) => { const {error} = await adminVerifyMembershipPayment(id); if(error) return toast.error(error.message); toast.success('Verified'); load() }
   const reject = async (id) => { const {error} = await adminRejectMembershipPayment(id); if(error) return toast.error(error.message); toast.success('Rejected'); load() }
+  const refund = async (id, method) => {
+    if (!window.confirm(method==='razorpay' ? 'Issue a real Razorpay refund for this payment?' : 'Mark this payment as refunded? (no gateway to call for this method — bookkeeping only)')) return
+    const { error } = await adminRefundMembershipPayment(id)
+    if (error) return toast.error(error.message)
+    toast.success('Refunded')
+    load()
+  }
 
   return (
     <div>
@@ -2186,6 +2193,9 @@ function MembershipPaymentsTab() {
                 <Btn v='green' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>verify(p.id)}>Verify</Btn>
                 <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>reject(p.id)}>Reject</Btn>
               </>
+            )}
+            {p.status==='verified' && (
+              <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>refund(p.id,p.method)}>Refund</Btn>
             )}
           </div>
         </Card>
@@ -2273,6 +2283,23 @@ function MembershipSettingsTab() {
         <Btn onClick={save} disabled={saving}>{saving?'Saving…':'Save Changes'}</Btn>
       </div>
 
+      <Card style={{background: settings['membership.module_enabled']===false ? '#FFF5F5' : '#F0FFF6', border:`1px solid ${settings['membership.module_enabled']===false?'#FECACA':'#BBF7D0'}`}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Membership Module</div>
+            <p style={{fontSize:12,color:'#5C3D2E',margin:0}}>
+              Master switch. When off: the Membership nav link and page are hidden from users, free-tier
+              feature limits stop being enforced (everyone gets unrestricted access), and existing members
+              keep their active membership/card. Admin management here stays available either way.
+            </p>
+          </div>
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0,marginLeft:16}}>
+            <input type="checkbox" checked={settings['membership.module_enabled']!==false} onChange={e=>setSettings(s=>({...s,'membership.module_enabled':e.target.checked}))}/>
+            {settings['membership.module_enabled']===false ? 'OFF' : 'ON'}
+          </label>
+        </div>
+      </Card>
+
       <Card>
         <SH c="Payment Methods Enabled"/>
         <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
@@ -2281,6 +2308,9 @@ function MembershipSettingsTab() {
               <input type="checkbox" checked={methodsEnabled.includes(m)} onChange={()=>toggleMethod(m)}/> {m.replace('_',' ')}
             </label>
           ))}
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:settings.razorpayEnabled?'pointer':'not-allowed',opacity:settings.razorpayEnabled?1:.45}} title={settings.razorpayEnabled?'':'Set RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET in the backend env to enable this'}>
+            <input type="checkbox" checked={methodsEnabled.includes('razorpay')} disabled={!settings.razorpayEnabled} onChange={()=>toggleMethod('razorpay')}/> razorpay (online payment){!settings.razorpayEnabled && ' — not configured'}
+          </label>
         </div>
       </Card>
 

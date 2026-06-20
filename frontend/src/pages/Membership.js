@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  getMembershipPlans, getMembershipFormFields, getMembershipPaymentSettings,
+  getMembershipStatus, getMembershipPlans, getMembershipFormFields, getMembershipPaymentSettings,
   getMyMembershipApplication, getMyMembership, getMyMembershipPayments, getMyFeatureUsage,
-  submitMembershipApplication,
+  submitMembershipApplication, createRazorpayOrder,
 } from '../lib/api'
 import { toast } from '../components/Toast'
 
@@ -15,6 +15,21 @@ const Btn = ({children, variant='primary', ...p}) => {
 }
 const Card = ({children, style}) => <div style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, padding:20, marginBottom:16, ...style }}>{children}</div>
 
+let razorpayScriptPromise = null
+function loadRazorpayScript() {
+  if (window.Razorpay) return Promise.resolve()
+  if (!razorpayScriptPromise) {
+    razorpayScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      script.onload = resolve
+      script.onerror = () => reject(new Error('Could not load Razorpay checkout script'))
+      document.body.appendChild(script)
+    })
+  }
+  return razorpayScriptPromise
+}
+
 const STATUS_LABELS = {
   pending: 'Pending Review', under_review: 'Under Review', approved: 'Approved', rejected: 'Rejected',
   expired: 'Expired', cancelled: 'Cancelled', suspended: 'Suspended', renewal_due: 'Renewal Due',
@@ -26,13 +41,13 @@ export default function Membership() {
   const [membership, setMembership] = useState(null)
   const [card, setCard] = useState(null)
   const [application, setApplication] = useState(null)
-  const [view, setView] = useState('plans') // plans | apply | status | dashboard
+  const [view, setView] = useState('plans') // plans | apply | status | dashboard | disabled
   const [selectedPlan, setSelectedPlan] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [plansRes, memRes, appRes] = await Promise.all([
-      getMembershipPlans(), getMyMembership(), getMyMembershipApplication(),
+    const [statusRes, plansRes, memRes, appRes] = await Promise.all([
+      getMembershipStatus(), getMembershipPlans(), getMyMembership(), getMyMembershipApplication(),
     ])
     setPlans(plansRes.data || [])
     setMembership(memRes.data?.membership || null)
@@ -40,6 +55,7 @@ export default function Membership() {
     setApplication(appRes.data || null)
     if (memRes.data?.membership) setView('dashboard')
     else if (appRes.data && ['pending', 'under_review'].includes(appRes.data.status)) setView('status')
+    else if (statusRes.data === false) setView('disabled')
     else setView('plans')
     setLoading(false)
   }, [])
@@ -57,6 +73,7 @@ export default function Membership() {
       {view === 'status' && <ApplicationStatus application={application} onBack={() => setView('plans')}/>}
       {view === 'plans' && <PlanSelector plans={plans} onSelect={(plan) => { setSelectedPlan(plan); setView('apply') }}/>}
       {view === 'apply' && <ApplicationFlow plan={selectedPlan} onDone={load} onCancel={() => setView('plans')}/>}
+      {view === 'disabled' && <Card><p style={{ color:'#8C7B6E', fontSize:13, margin:0 }}>The membership program isn't currently accepting new applications. Check back soon!</p></Card>}
     </div>
   )
 }
@@ -194,16 +211,51 @@ function ApplicationFlow({ plan, onDone, onCancel }) {
     return true
   }
 
-  const submit = async () => {
-    if (paymentMethod !== 'manual' && !proofFile) return toast.error('Please upload your payment proof screenshot')
+  const finalizeSubmit = async (razorpayInfo) => {
     setSubmitting(true)
     const { error } = await submitMembershipApplication({
-      planId: plan.id, paymentMethod, fields: values, files, paymentProofFile: proofFile,
+      planId: plan.id, paymentMethod, fields: values, files, paymentProofFile: proofFile, razorpay: razorpayInfo,
     })
     setSubmitting(false)
     if (error) return toast.error(error.message)
     toast.success('Application submitted! We will review it shortly.')
     onDone()
+  }
+
+  const submit = async () => {
+    if (paymentMethod === 'razorpay') return payViaRazorpay()
+    if (paymentMethod !== 'manual' && !proofFile) return toast.error('Please upload your payment proof screenshot')
+    finalizeSubmit()
+  }
+
+  const payViaRazorpay = async () => {
+    setSubmitting(true)
+    try {
+      await loadRazorpayScript()
+      const { data: order, error } = await createRazorpayOrder(plan.id)
+      if (error) { setSubmitting(false); return toast.error(error.message) }
+
+      const checkout = new window.Razorpay({
+        key: order.keyId,
+        order_id: order.orderId,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'Day1 Diaries',
+        description: `${plan.name} Membership`,
+        handler: (response) => {
+          finalizeSubmit({
+            orderId: response.razorpay_order_id,
+            paymentId: response.razorpay_payment_id,
+            signature: response.razorpay_signature,
+          })
+        },
+        modal: { ondismiss: () => setSubmitting(false) },
+      })
+      checkout.open()
+    } catch (err) {
+      setSubmitting(false)
+      toast.error(err.message)
+    }
   }
 
   const renderField = (f) => {
@@ -267,10 +319,14 @@ function ApplicationFlow({ plan, onDone, onCancel }) {
           <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap' }}>
             {(paymentSettings.paymentMethodsEnabled || ['manual','upi','bank_transfer']).map(m => (
               <button key={m} onClick={() => setPaymentMethod(m)} style={{ flex:1, padding:10, borderRadius:8, border:`1.5px solid ${paymentMethod===m?'#FF6B2B':'#DDD3CA'}`, background:paymentMethod===m?'#FFF1EA':'white', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                {m === 'manual' ? 'Manual / Sponsor' : m === 'upi' ? 'UPI QR' : 'Bank Transfer'}
+                {m === 'manual' ? 'Manual / Sponsor' : m === 'upi' ? 'UPI QR' : m === 'razorpay' ? 'Pay Online' : 'Bank Transfer'}
               </button>
             ))}
           </div>
+
+          {paymentMethod === 'razorpay' && (
+            <p style={{ fontSize:12, color:'#8C7B6E', marginBottom:16 }}>Pay securely via card, UPI, netbanking, or wallet — verified instantly, no screenshot needed.</p>
+          )}
 
           {paymentMethod === 'upi' && paymentSettings.upiQrUrl && (
             <div style={{ marginBottom:16, textAlign:'center' }}>
@@ -287,7 +343,7 @@ function ApplicationFlow({ plan, onDone, onCancel }) {
               <div>Branch: {paymentSettings.bankDetails.branch}</div>
             </div>
           )}
-          {paymentMethod !== 'manual' && (
+          {(paymentMethod === 'upi' || paymentMethod === 'bank_transfer') && (
             <div>
               <Label>Upload Payment Screenshot *</Label>
               <input type="file" accept="image/*" onChange={e => setProofFile(e.target.files?.[0])} style={{ marginBottom:14, display:'block' }}/>
@@ -297,7 +353,9 @@ function ApplicationFlow({ plan, onDone, onCancel }) {
 
           <div style={{ display:'flex', gap:10 }}>
             <Btn variant="secondary" onClick={() => setStep(2)}>Back</Btn>
-            <Btn onClick={submit} disabled={submitting} style={{ flex:1, justifyContent:'center' }}>{submitting ? 'Submitting…' : 'Submit Application'}</Btn>
+            <Btn onClick={submit} disabled={submitting} style={{ flex:1, justifyContent:'center' }}>
+              {submitting ? 'Processing…' : paymentMethod === 'razorpay' ? `Pay ${plan.currency} ${plan.price}` : 'Submit Application'}
+            </Btn>
           </div>
         </div>
       )}

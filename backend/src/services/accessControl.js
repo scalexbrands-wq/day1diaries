@@ -26,6 +26,15 @@ function periodKeyFor(resetFrequency, now = new Date()) {
   }
 }
 
+// Master kill-switch — when the admin turns the whole Membership module
+// off, free-tier restrictions stop being enforced entirely (no point
+// blocking users from a program that isn't currently running, with no
+// way for them to apply since the page/nav is hidden too).
+async function isModuleEnabled() {
+  const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = 'membership.module_enabled'`)
+  return rows.length === 0 ? true : rows[0].value !== false
+}
+
 async function hasActiveMembership(userId) {
   const { rows } = await pool.query(
     `SELECT 1 FROM memberships WHERE user_id = $1 AND status = 'active' AND (end_date IS NULL OR end_date >= CURRENT_DATE) LIMIT 1`,
@@ -38,6 +47,7 @@ async function hasActiveMembership(userId) {
 // is always allowed and untracked — gating only applies to logged-in users.
 async function checkAndConsume(userId, featureKey) {
   if (!userId) return { allowed: true, remaining: null, reason: 'anonymous', isPremium: false }
+  if (!(await isModuleEnabled())) return { allowed: true, remaining: null, reason: 'module_disabled', isPremium: false }
 
   const { rows: ruleRows } = await pool.query('SELECT * FROM feature_access_rules WHERE feature_key = $1', [featureKey])
   const rule = ruleRows[0]
@@ -91,6 +101,8 @@ function requireFeatureAccess(featureKey) {
 
 // Read-only check (no usage consumed) — for showing remaining limits in the UI.
 async function peekUsage(userId, featureKey) {
+  if (!(await isModuleEnabled())) return { limit: -1, used: 0, remaining: -1 }
+
   const { rows: ruleRows } = await pool.query('SELECT * FROM feature_access_rules WHERE feature_key = $1', [featureKey])
   const rule = ruleRows[0]
   if (!rule || !rule.is_active) return { limit: -1, used: 0, remaining: -1 }
@@ -109,4 +121,4 @@ async function peekUsage(userId, featureKey) {
   return { limit, used, remaining: Math.max(limit - used, 0) }
 }
 
-module.exports = { checkAndConsume, requireFeatureAccess, peekUsage, hasActiveMembership, periodKeyFor }
+module.exports = { checkAndConsume, requireFeatureAccess, peekUsage, hasActiveMembership, periodKeyFor, isModuleEnabled }

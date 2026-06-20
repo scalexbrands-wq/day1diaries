@@ -1,18 +1,18 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { signOut } from '../lib/api'
+import { signOut, getMembershipStatus } from '../lib/api'
 
-const NAV = [
+const BASE_NAV = [
   { to:'/feed',        icon:'⌂', label:'My Feed' },
   { to:'/discover',    icon:'◉', label:'Discover' },
   { to:'/community',   icon:'🌍', label:'Community' },
   { to:'/habits',      icon:'◈', label:'Habits' },
   { to:'/jobs',        icon:'💼', label:'Jobs' },
-  { to:'/membership',  icon:'🎫', label:'Membership' },
   { to:'/leaderboard', icon:'◎', label:'Leaderboard' },
   { to:'/saved',       icon:'◇', label:'Saved' },
 ]
+const MEMBERSHIP_NAV_ITEM = { to:'/membership', icon:'🎫', label:'Membership' }
 
 export const COLORS = ['#FF6B2B','#7C3AED','#059669','#2563EB','#EC4899','#0EA5E9','#F59E0B']
 export const getAvatarColor = (name='') => COLORS[name.charCodeAt(0) % COLORS.length]
@@ -28,6 +28,10 @@ export default function Sidebar() {
   const { user, profile, reloadSession } = useAuth()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [membershipEnabled, setMembershipEnabled] = useState(true)
+
+  useEffect(() => { getMembershipStatus().then(({ data }) => setMembershipEnabled(data !== false)) }, [])
+  const NAV = membershipEnabled ? [...BASE_NAV.slice(0, 5), MEMBERSHIP_NAV_ITEM, ...BASE_NAV.slice(5)] : BASE_NAV
 
   const handleSignOut = async () => {
     await signOut()

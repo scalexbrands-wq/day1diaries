@@ -4,6 +4,13 @@
 db_password = "ChangeMe123!StrongPassword"   # required — RDS master password
 aws_region  = "ap-south-1"                   # Mumbai. Change to your preferred region.
 
+# ── Razorpay (Membership module — optional) ──────────────────
+# Leave both blank to disable the "razorpay" online payment method —
+# admin Settings will show it as not configured. Use rzp_test_... keys
+# for staging, rzp_live_... for real payments.
+razorpay_key_id     = ""
+razorpay_key_secret = ""
+
 # ── Custom domain (optional) ─────────────────────────────────
 # Leave domain_name = "" to skip custom domain setup entirely
 # (you'll get a CloudFront *.cloudfront.net URL and an ALB *.elb.amazonaws.com URL).

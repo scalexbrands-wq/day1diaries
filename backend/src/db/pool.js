@@ -51,6 +51,22 @@ async function initDB() {
     // landing_hero — admin-uploaded hero image(s) — slideshow of up to 3
     await pool.query(`ALTER TABLE landing_hero ADD COLUMN IF NOT EXISTS hero_image_url TEXT`)
     await pool.query(`ALTER TABLE landing_hero ADD COLUMN IF NOT EXISTS hero_image_urls JSONB DEFAULT '[]'`)
+
+    // landing_bottom_section — fully admin-customizable section just before the footer
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS landing_bottom_section (
+        id           INTEGER PRIMARY KEY DEFAULT 1,
+        heading      TEXT DEFAULT 'Ready to start your story?',
+        subheadline  TEXT DEFAULT '',
+        body_text    TEXT DEFAULT '',
+        image_urls   JSONB DEFAULT '[]',
+        cta_text     TEXT DEFAULT '',
+        cta_link     TEXT DEFAULT '',
+        is_active    BOOLEAN DEFAULT true,
+        updated_at   TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`INSERT INTO landing_bottom_section (id) VALUES (1) ON CONFLICT (id) DO NOTHING`)
     // job_applications user tracking columns
     await pool.query(`ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS user_id TEXT`)
     await pool.query(`ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS user_status TEXT NOT NULL DEFAULT 'applied'`)
@@ -362,6 +378,23 @@ async function initDB() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_memberships_status_end ON memberships(status, end_date)`)
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_feature_usage_lookup ON feature_usage(user_id, feature_key, period_key)`)
 
+    // Razorpay online payment — widen payment method CHECKs for tables
+    // created before 'razorpay' existed, and add its order id column.
+    await pool.query(`ALTER TABLE membership_payments ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT`)
+    await pool.query(`ALTER TABLE membership_payments ADD COLUMN IF NOT EXISTS refund_id TEXT`)
+    await pool.query(`ALTER TABLE membership_payments ADD COLUMN IF NOT EXISTS refunded_by TEXT`)
+    await pool.query(`ALTER TABLE membership_payments ADD COLUMN IF NOT EXISTS refunded_at TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE membership_applications DROP CONSTRAINT IF EXISTS membership_applications_payment_method_check`)
+    await pool.query(`
+      ALTER TABLE membership_applications ADD CONSTRAINT membership_applications_payment_method_check
+        CHECK (payment_method IN ('manual','upi','bank_transfer','razorpay'))
+    `)
+    await pool.query(`ALTER TABLE membership_payments DROP CONSTRAINT IF EXISTS membership_payments_method_check`)
+    await pool.query(`
+      ALTER TABLE membership_payments ADD CONSTRAINT membership_payments_method_check
+        CHECK (method IN ('manual','upi','bank_transfer','razorpay'))
+    `)
+
     // Seed default application form fields (once — admin edits afterward persist).
     const { rows: ffCount } = await pool.query('SELECT COUNT(*)::int AS n FROM membership_form_fields')
     if (ffCount[0].n === 0) {
@@ -407,8 +440,7 @@ async function initDB() {
 
     // Seed default membership lifecycle email templates (once — admin edits
     // afterward persist). These power services/membershipEmails.js sends.
-    const { rows: memEmailCount } = await pool.query(`SELECT COUNT(*)::int AS n FROM email_templates WHERE category = 'membership'`)
-    if (memEmailCount[0].n === 0) {
+    {
       const wrap = (body) => `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;"><div style="background:#FF6B2B;padding:16px 22px;border-radius:10px 10px 0 0;"><span style="color:#fff;font-size:16px;font-weight:700;">Day1 Diaries</span></div><div style="background:#fff;padding:24px 22px;border:1px solid #F0EAE4;border-top:none;border-radius:0 0 10px 10px;">${body}</div></div>`
       const memTemplates = [
         ['Membership: Application Submitted', 'Your membership application is in! 🎉',
@@ -433,10 +465,16 @@ async function initDB() {
           wrap(`<p>Hi {{name}},</p><p>Your <b>{{plan_name}}</b> membership expired on {{end_date}}. Renew anytime to restore premium access.</p>`)],
         ['Membership: Welcome Premium Member', 'Welcome to the Day1 Diaries Premium community! 🌟',
           wrap(`<p>Hi {{name}},</p><p>You're officially a premium member! Unlimited stories, habits, challenges, jobs, and full community access — all unlocked.</p>`)],
+        ['Membership: Payment Refunded', 'Your payment has been refunded',
+          wrap(`<p>Hi {{name}},</p><p>Your payment of {{currency}} {{amount}} for the <b>{{plan_name}}</b> membership has been refunded. It should reflect in your original payment method within 5–7 business days.</p>`)],
       ]
+      // Per-template existence check (not an all-or-nothing count) so adding
+      // a new template name here still seeds it on environments that already
+      // have the earlier ones — admin edits to existing ones are untouched.
       for (const [name, subject, html_body] of memTemplates) {
         await pool.query(
-          `INSERT INTO email_templates (name, category, subject, html_body, status) VALUES ($1,'membership',$2,$3,'active')`,
+          `INSERT INTO email_templates (name, category, subject, html_body, status)
+           SELECT $1,'membership',$2,$3,'active' WHERE NOT EXISTS (SELECT 1 FROM email_templates WHERE name = $1)`,
           [name, subject, html_body]
         )
       }

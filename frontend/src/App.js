@@ -32,6 +32,7 @@ import JobDetail from './pages/JobDetail'
 import Contact from './pages/Contact'
 import CertificateViewer from './pages/CertificateViewer'
 import Membership from './pages/Membership'
+import RefundPolicy from './pages/RefundPolicy'
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth()
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="/privacy"             element={<PrivacyPolicy/>} />
           <Route path="/terms"               element={<TermsOfService/>} />
           <Route path="/content-policy"      element={<ContentPolicy/>} />
+          <Route path="/refund-policy"       element={<RefundPolicy/>} />
           <Route path="/posting-guidelines"  element={<PostingGuidelines/>} />
           <Route path="/about"               element={<About/>} />
           <Route path="/blog"                element={<Blog/>} />

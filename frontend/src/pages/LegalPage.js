@@ -56,6 +56,7 @@ export default function LegalPage({ title, updated, children }) {
           ['Terms of Service','/terms'],
           ['Content Policy','/content-policy'],
           ['Posting Guidelines','/posting-guidelines'],
+          ['Membership & Refund Policy','/refund-policy'],
         ].map(([label,to])=>(
           <Link key={to} to={to} className={`legal-nav-link${title===label?' active':''}`}>{label}</Link>
         ))}

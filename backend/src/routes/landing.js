@@ -17,8 +17,9 @@ const upload = multer({
 
 // ── GET /landing/data — single call for the whole landing page ──
 router.get('/data', async (req, res) => {
-  const [hero, categories, testimonials, habits, leaderboard, featured, stats, levels] = await Promise.all([
+  const [hero, bottomSection, categories, testimonials, habits, leaderboard, featured, stats, levels] = await Promise.all([
     pool.query('SELECT * FROM landing_hero WHERE id = 1'),
+    pool.query('SELECT * FROM landing_bottom_section WHERE id = 1'),
     pool.query('SELECT * FROM landing_category_counts WHERE is_active = true ORDER BY sort_order'),
     pool.query('SELECT * FROM landing_testimonials WHERE is_active = true ORDER BY sort_order'),
     pool.query('SELECT * FROM habits WHERE is_active = true ORDER BY adopters_count DESC LIMIT 6'),
@@ -42,6 +43,7 @@ router.get('/data', async (req, res) => {
 
   res.json({
     hero: hero.rows[0],
+    bottomSection: bottomSection.rows[0],
     categories: categories.rows,
     testimonials: testimonials.rows,
     habits: habits.rows,
@@ -125,6 +127,71 @@ router.delete('/admin/hero/images/:index', requireAuth, requireRole('admin'), as
     [JSON.stringify(updated)]
   )
   res.json({ hero: rows[0] })
+})
+
+// ════════════════════════════════════════════════════════════
+// BOTTOM SECTION — fully admin-customizable section before the footer
+// (same shape as Hero: text fields + up to 3 slideshow images)
+// ════════════════════════════════════════════════════════════
+
+router.get('/admin/bottom-section', requireAuth, requireRole('admin'), async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM landing_bottom_section WHERE id = 1')
+  res.json({ data: rows[0] || null })
+})
+
+router.patch('/admin/bottom-section', requireAuth, requireRole('admin'), async (req, res) => {
+  const allowed = ['heading', 'subheadline', 'body_text', 'cta_text', 'cta_link', 'is_active', 'image_urls']
+  const updates = {}
+  for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
+  if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields' })
+  if (updates.image_urls !== undefined) updates.image_urls = JSON.stringify(updates.image_urls)
+
+  const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 1}`).join(', ')
+  const { rows } = await pool.query(
+    `UPDATE landing_bottom_section SET ${setClauses}, updated_at = now() WHERE id = 1 RETURNING *`,
+    Object.values(updates)
+  )
+  res.json({ data: rows[0] })
+})
+
+const MAX_BOTTOM_SECTION_IMAGES = 3
+
+router.post('/admin/bottom-section/images', requireAuth, requireRole('admin'), upload.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image file uploaded' })
+
+  const { rows: existingRows } = await pool.query('SELECT image_urls FROM landing_bottom_section WHERE id = 1')
+  const current = existingRows[0]?.image_urls || []
+  if (current.length >= MAX_BOTTOM_SECTION_IMAGES) {
+    return res.status(400).json({ error: `Maximum ${MAX_BOTTOM_SECTION_IMAGES} images — remove one before adding another` })
+  }
+
+  const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+  const key = `landing/bottom-${Date.now()}.${ext}`
+  const baseUrl = `${req.protocol}://${req.get('host')}`
+  const url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl)
+
+  const updated = [...current, url]
+  const { rows } = await pool.query(
+    `UPDATE landing_bottom_section SET image_urls = $1, updated_at = now() WHERE id = 1 RETURNING *`,
+    [JSON.stringify(updated)]
+  )
+  res.json({ data: rows[0] })
+})
+
+router.delete('/admin/bottom-section/images/:index', requireAuth, requireRole('admin'), async (req, res) => {
+  const index = parseInt(req.params.index, 10)
+  const { rows: existingRows } = await pool.query('SELECT image_urls FROM landing_bottom_section WHERE id = 1')
+  const current = existingRows[0]?.image_urls || []
+  if (!Number.isInteger(index) || index < 0 || index >= current.length) {
+    return res.status(400).json({ error: 'Invalid image index' })
+  }
+
+  const updated = current.filter((_, i) => i !== index)
+  const { rows } = await pool.query(
+    `UPDATE landing_bottom_section SET image_urls = $1, updated_at = now() WHERE id = 1 RETURNING *`,
+    [JSON.stringify(updated)]
+  )
+  res.json({ data: rows[0] })
 })
 
 // GET /landing/admin/categories

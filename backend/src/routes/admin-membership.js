@@ -4,6 +4,8 @@ const { pool } = require('../db/pool')
 const { requireAuth, requireRole } = require('../middleware/auth')
 const imageStorage = require('../utils/imageStorage')
 const membershipService = require('../services/membershipService')
+const razorpay = require('../utils/razorpay')
+const { TEMPLATE_NAMES, sendMembershipEmail } = require('../services/membershipEmails')
 
 const router = express.Router()
 router.use(requireAuth, requireRole('admin'))
@@ -111,10 +113,10 @@ router.get('/applications', async (req, res) => {
   const { rows } = await pool.query(
     status
       ? `SELECT a.*, p.name AS plan_name, json_build_object('username',pr.username,'full_name',pr.full_name,'email',pr.email,'avatar_url',pr.avatar_url) AS profile
-         FROM membership_applications a JOIN membership_plans p ON p.id=a.plan_id JOIN profiles pr ON pr.id=a.user_id
+         FROM membership_applications a JOIN membership_plans p ON p.id=a.plan_id JOIN profiles pr ON pr.id::text=a.user_id
          WHERE a.status=$1 ORDER BY a.created_at DESC`
       : `SELECT a.*, p.name AS plan_name, json_build_object('username',pr.username,'full_name',pr.full_name,'email',pr.email,'avatar_url',pr.avatar_url) AS profile
-         FROM membership_applications a JOIN membership_plans p ON p.id=a.plan_id JOIN profiles pr ON pr.id=a.user_id
+         FROM membership_applications a JOIN membership_plans p ON p.id=a.plan_id JOIN profiles pr ON pr.id::text=a.user_id
          ORDER BY a.created_at DESC`,
     status ? [status] : []
   )
@@ -124,7 +126,7 @@ router.get('/applications', async (req, res) => {
 router.get('/applications/:id', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT a.*, p.name AS plan_name, json_build_object('username',pr.username,'full_name',pr.full_name,'email',pr.email,'avatar_url',pr.avatar_url) AS profile
-     FROM membership_applications a JOIN membership_plans p ON p.id=a.plan_id JOIN profiles pr ON pr.id=a.user_id
+     FROM membership_applications a JOIN membership_plans p ON p.id=a.plan_id JOIN profiles pr ON pr.id::text=a.user_id
      WHERE a.id = $1`,
     [req.params.id]
   )
@@ -161,10 +163,10 @@ router.get('/payments', async (req, res) => {
   const { rows } = await pool.query(
     status
       ? `SELECT pay.*, plan.name AS plan_name, json_build_object('username',pr.username,'full_name',pr.full_name) AS profile
-         FROM membership_payments pay JOIN membership_plans plan ON plan.id=pay.plan_id JOIN profiles pr ON pr.id=pay.user_id
+         FROM membership_payments pay JOIN membership_plans plan ON plan.id=pay.plan_id JOIN profiles pr ON pr.id::text=pay.user_id
          WHERE pay.status=$1 ORDER BY pay.created_at DESC`
       : `SELECT pay.*, plan.name AS plan_name, json_build_object('username',pr.username,'full_name',pr.full_name) AS profile
-         FROM membership_payments pay JOIN membership_plans plan ON plan.id=pay.plan_id JOIN profiles pr ON pr.id=pay.user_id
+         FROM membership_payments pay JOIN membership_plans plan ON plan.id=pay.plan_id JOIN profiles pr ON pr.id::text=pay.user_id
          ORDER BY pay.created_at DESC`,
     status ? [status] : []
   )
@@ -178,6 +180,44 @@ router.post('/payments/:id/:action(verify|reject)', async (req, res) => {
     [status, req.profile.id, req.params.id]
   )
   if (!rows.length) return res.status(404).json({ error: 'Payment not found' })
+  res.json({ payment: rows[0] })
+})
+
+// POST /admin/membership/payments/:id/refund — body: { notes } (optional)
+// For razorpay payments, actually issues the refund via Razorpay's API first;
+// for manual/upi/bank_transfer it's bookkeeping only (no gateway to call).
+router.post('/payments/:id/refund', async (req, res) => {
+  const { rows: paymentRows } = await pool.query(
+    `SELECT pay.*, plan.name AS plan_name FROM membership_payments pay JOIN membership_plans plan ON plan.id = pay.plan_id WHERE pay.id = $1`,
+    [req.params.id]
+  )
+  const payment = paymentRows[0]
+  if (!payment) return res.status(404).json({ error: 'Payment not found' })
+  if (payment.status !== 'verified') return res.status(400).json({ error: 'Only verified payments can be refunded' })
+
+  let refundId = null
+  if (payment.method === 'razorpay') {
+    try {
+      const refund = await razorpay.createRefund({ paymentId: payment.transaction_ref, notes: { reason: req.body?.notes || 'Admin-initiated refund' } })
+      refundId = refund.id
+    } catch (err) {
+      return res.status(err.status || 502).json({ error: err.message || 'Razorpay refund failed' })
+    }
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE membership_payments SET status='refunded', refund_id=$1, refunded_by=$2, refunded_at=now() WHERE id=$3 RETURNING *`,
+    [refundId, req.profile.id, req.params.id]
+  )
+
+  const { rows: profileRows } = await pool.query('SELECT * FROM profiles WHERE id = $1', [payment.user_id])
+  const profile = profileRows[0]
+  if (profile?.email) {
+    await sendMembershipEmail(TEMPLATE_NAMES.PAYMENT_REFUNDED, profile.email, profile.full_name || profile.username, {
+      plan_name: payment.plan_name, amount: payment.amount, currency: payment.currency,
+    })
+  }
+
   res.json({ payment: rows[0] })
 })
 
@@ -206,7 +246,7 @@ router.put('/access-rules/:id', async (req, res) => {
 // ════════════════════════════════════════════════════════════
 
 const SETTINGS_KEYS = [
-  'membership.upi_qr_url', 'membership.bank_details', 'membership.payment_methods_enabled',
+  'membership.module_enabled', 'membership.upi_qr_url', 'membership.bank_details', 'membership.payment_methods_enabled',
   'membership.grace_period_days', 'membership.renewal_reminder_days',
 ]
 
@@ -214,7 +254,7 @@ router.get('/settings', async (req, res) => {
   const { rows } = await pool.query('SELECT key, value FROM app_settings WHERE key = ANY($1)', [SETTINGS_KEYS])
   const settings = {}
   for (const row of rows) settings[row.key] = row.value
-  res.json({ settings })
+  res.json({ settings, razorpayEnabled: razorpay.isConfigured() })
 })
 
 router.patch('/settings', async (req, res) => {

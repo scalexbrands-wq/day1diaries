@@ -15,6 +15,7 @@ const TEMPLATE_NAMES = {
   APPLICATION_SUBMITTED: 'Membership: Application Submitted',
   PAYMENT_RECEIVED: 'Membership: Payment Received',
   PAYMENT_FAILED: 'Membership: Payment Failed',
+  PAYMENT_REFUNDED: 'Membership: Payment Refunded',
   APPROVED: 'Membership: Approved',
   REJECTED: 'Membership: Rejected',
   ACTIVATED: 'Membership: Activated',

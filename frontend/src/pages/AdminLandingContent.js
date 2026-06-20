@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   adminGetLandingHero, adminUpsertLandingHero, adminAddHeroImage, adminRemoveHeroImage,
+  adminGetLandingBottomSection, adminUpsertLandingBottomSection, adminAddBottomSectionImage, adminRemoveBottomSectionImage,
   adminGetCategories, adminUpsertCategory, adminDeleteCategory,
   adminGetTestimonials, adminUpsertTestimonial, adminDeleteTestimonial,
   adminGetFeaturedStories, adminToggleFeatureStory,
@@ -39,11 +40,12 @@ export default function AdminLandingContent() {
   return (
     <div style={{ padding:'24px 32px', maxWidth:960 }}>
       <div style={{ display:'flex', gap:0, borderBottom:'2px solid #F0EAE4', marginBottom:24 }}>
-        {[['hero','🎯 Hero'],['categories','📂 Categories'],['testimonials','💬 Testimonials'],['stories','⭐ Featured Stories']].map(([k,l])=>(
+        {[['hero','🎯 Hero'],['bottom','🏁 Bottom Section'],['categories','📂 Categories'],['testimonials','💬 Testimonials'],['stories','⭐ Featured Stories']].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:'8px 20px', background:'none', border:'none', cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:"'DM Sans',sans-serif", color: tab===k?'#FF6B2B':'#8C7B6E', borderBottom: tab===k?'2px solid #FF6B2B':'2px solid transparent', marginBottom:'-2px', transition:'all .15s' }}>{l}</button>
         ))}
       </div>
       {tab === 'hero'         && <HeroEditor/>}
+      {tab === 'bottom'       && <BottomSectionEditor/>}
       {tab === 'categories'   && <CategoriesEditor/>}
       {tab === 'testimonials' && <TestimonialsEditor/>}
       {tab === 'stories'      && <FeaturedStoriesEditor/>}
@@ -187,6 +189,106 @@ function HeroEditor() {
             <span key={i} style={{ marginRight:20 }}>✦ <span style={{color:'#FFD166'}}>{item.split('—')[0]?.trim()}</span>{item.includes('—')?' — '+item.split('—')[1]?.trim():''} ◆</span>
           ))}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── BOTTOM SECTION EDITOR ───────────────────────────────── */
+function BottomSectionEditor() {
+  const [form, setForm] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const set = k => e => setForm(f=>({...f,[k]:e.target.value}))
+
+  useEffect(()=>{
+    adminGetLandingBottomSection().then(({data})=>{ if(data) setForm(data); setLoading(false) })
+  },[])
+
+  const save = async () => {
+    setSaving(true)
+    const {error} = await adminUpsertLandingBottomSection(form)
+    setSaving(false)
+    if(error) toast.error(error.message)
+    else toast.success('Bottom section saved! ✓')
+  }
+
+  const images = form.image_urls || []
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast.error('Please choose an image file')
+    if (file.size > 5 * 1024 * 1024) return toast.error('Image must be under 5MB')
+    if (images.length >= 3) return toast.error('Maximum 3 images — remove one first')
+
+    setUploading(true)
+    const { data, error } = await adminAddBottomSectionImage(file)
+    setUploading(false)
+    if (error) return toast.error(error.message)
+    setForm(f => ({ ...f, image_urls: data.image_urls }))
+    toast.success('Image uploaded! ✓')
+  }
+
+  const removeImage = async (index) => {
+    if (!window.confirm('Remove this image?')) return
+    const { data, error } = await adminRemoveBottomSectionImage(index)
+    if (error) return toast.error(error.message)
+    setForm(f => ({ ...f, image_urls: data.image_urls }))
+    toast.success('Image removed')
+  }
+
+  if(loading) return <div style={{ padding:40, textAlign:'center', color:'#8C7B6E' }}>Loading...</div>
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+        <div style={{ fontSize:15, fontWeight:700 }}>Bottom Section</div>
+        <Btn onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Btn>
+      </div>
+      <p style={{ fontSize:12, color:'#8C7B6E', marginTop:0, marginBottom:20 }}>
+        A fully customizable section shown just before the footer — heading, copy, up to 3 images, and a call-to-action button.
+      </p>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+        <Card>
+          <SectionHead>Images ({images.length}/3)</SectionHead>
+          {images.length > 0 && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14 }}>
+              {images.map((url, i) => (
+                <div key={url} style={{ position:'relative' }}>
+                  <img src={url} alt={`Slide ${i+1}`} style={{ width:'100%', height:90, objectFit:'cover', borderRadius:10, border:'1px solid #F0EAE4', display:'block' }}/>
+                  <button onClick={()=>removeImage(i)} disabled={uploading} title="Remove" style={{ position:'absolute', top:-8, right:-8, width:22, height:22, borderRadius:'50%', background:'#DC2626', color:'white', border:'2px solid white', cursor:'pointer', fontSize:12, lineHeight:1, fontWeight:700 }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {images.length < 3 && (
+            <label style={{ padding:'8px 18px', borderRadius:100, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", background:'#FF6B2B', color:'white', border:'none', display:'inline-block' }}>
+              {uploading ? 'Uploading...' : 'Add Image'}
+              <input type="file" accept="image/*" onChange={handleImageSelect} disabled={uploading} style={{ display:'none' }}/>
+            </label>
+          )}
+        </Card>
+
+        <Card>
+          <SectionHead>Content</SectionHead>
+          <Label>Heading</Label>
+          <Input value={form.heading||''} onChange={set('heading')} placeholder="Ready to start your story?"/>
+          <Label>Subheadline</Label>
+          <Input value={form.subheadline||''} onChange={set('subheadline')} placeholder="A short supporting line"/>
+          <Label>Body Text</Label>
+          <TextArea value={form.body_text||''} onChange={set('body_text')} placeholder="Longer description or copy for this section..."/>
+          <Label>CTA Button Text</Label>
+          <Input value={form.cta_text||''} onChange={set('cta_text')} placeholder="Get Started →"/>
+          <Label>CTA Link</Label>
+          <Input value={form.cta_link||''} onChange={set('cta_link')} placeholder="/register"/>
+          <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:600, color:'#1A0800', cursor:'pointer', marginTop:4 }}>
+            <input type="checkbox" checked={form.is_active!==false} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))}/> Show this section on the landing page
+          </label>
+        </Card>
       </div>
     </div>
   )

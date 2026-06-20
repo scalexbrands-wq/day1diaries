@@ -487,7 +487,7 @@ export const getLandingLevels = async () => {
 // ── Admin: Landing content management ──────────────────────────
 export const adminGetLandingHero = async () => {
   const result = await apiFetch('/landing/admin/hero')
-  return { data: result.data, error: result.error }
+  return { data: result.data?.data, error: result.error }
 }
 export const adminUpsertLandingHero = (data) =>
   apiFetch('/landing/admin/hero', { method: 'PATCH', body: JSON.stringify(data) })
@@ -511,6 +511,33 @@ export const adminAddHeroImage = async (file) => {
 export const adminRemoveHeroImage = async (index) => {
   const result = await apiFetch(`/landing/admin/hero/images/${index}`, { method: 'DELETE' })
   return { data: result.data?.hero, error: result.error }
+}
+
+// ── Admin: Landing bottom section ────────────────────────────
+export const adminGetLandingBottomSection = async () => {
+  const result = await apiFetch('/landing/admin/bottom-section')
+  return { data: result.data?.data, error: result.error }
+}
+export const adminUpsertLandingBottomSection = (data) =>
+  apiFetch('/landing/admin/bottom-section', { method: 'PATCH', body: JSON.stringify(data) })
+
+export const adminAddBottomSectionImage = async (file) => {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  form.append('image', file)
+  const res = await fetch(`${API_BASE}/landing/admin/bottom-section/images`, {
+    method: 'POST',
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.data, error: null }
+}
+
+export const adminRemoveBottomSectionImage = async (index) => {
+  const result = await apiFetch(`/landing/admin/bottom-section/images/${index}`, { method: 'DELETE' })
+  return { data: result.data?.data, error: result.error }
 }
 
 export const adminGetCategories = async () => {
@@ -868,6 +895,10 @@ export const adminGetEmailSendRecipients = async (sendId) => {
 // ============================================================
 
 // ── Public / user-facing ─────────────────────────────────────
+export const getMembershipStatus = async () => {
+  const result = await apiFetch('/membership/status')
+  return { data: result.data?.enabled, error: result.error }
+}
 export const getMembershipPlans = async () => {
   const result = await apiFetch('/membership/plans')
   return { data: result.data?.plans, error: result.error }
@@ -878,6 +909,9 @@ export const getMembershipFormFields = async () => {
 }
 export const getMembershipPaymentSettings = async () => {
   return apiFetch('/membership/payment-settings')
+}
+export const createRazorpayOrder = async (planId) => {
+  return apiFetch('/membership/razorpay/order', { method: 'POST', body: JSON.stringify({ planId }) })
 }
 export const getMyMembershipApplication = async () => {
   const result = await apiFetch('/membership/my-application')
@@ -897,8 +931,9 @@ export const getMyFeatureUsage = async () => {
 
 // Submits a membership application. `fields` = { field_key: textValue }.
 // `files` = { field_key: File } for image/file form fields.
-// `paymentProofFile` = File, required unless paymentMethod === 'manual'.
-export const submitMembershipApplication = async ({ planId, paymentMethod, fields, files, paymentProofFile }) => {
+// `paymentProofFile` = File, required unless paymentMethod is 'manual' or 'razorpay'.
+// `razorpay` = { orderId, paymentId, signature }, required when paymentMethod === 'razorpay'.
+export const submitMembershipApplication = async ({ planId, paymentMethod, fields, files, paymentProofFile, razorpay }) => {
   const tokens = getStoredTokens()
   const form = new FormData()
   form.append('planId', planId)
@@ -906,6 +941,11 @@ export const submitMembershipApplication = async ({ planId, paymentMethod, field
   Object.entries(fields || {}).forEach(([k, v]) => form.append(k, v ?? ''))
   Object.entries(files || {}).forEach(([k, file]) => { if (file) form.append(k, file) })
   if (paymentProofFile) form.append('payment_proof', paymentProofFile)
+  if (razorpay) {
+    form.append('razorpay_order_id', razorpay.orderId)
+    form.append('razorpay_payment_id', razorpay.paymentId)
+    form.append('razorpay_signature', razorpay.signature)
+  }
 
   const res = await fetch(`${API_BASE}/membership/apply`, {
     method: 'POST',
@@ -982,6 +1022,9 @@ export const adminVerifyMembershipPayment = async (id) => {
 export const adminRejectMembershipPayment = async (id) => {
   return apiFetch(`/admin/membership/payments/${id}/reject`, { method: 'POST' })
 }
+export const adminRefundMembershipPayment = async (id, notes) => {
+  return apiFetch(`/admin/membership/payments/${id}/refund`, { method: 'POST', body: JSON.stringify({ notes }) })
+}
 
 // ── Admin: Access Control ─────────────────────────────────────
 export const adminListAccessRules = async () => {
@@ -996,7 +1039,7 @@ export const adminUpdateAccessRule = async (id, rule) => {
 // ── Admin: Settings ───────────────────────────────────────────
 export const adminGetMembershipSettings = async () => {
   const result = await apiFetch('/admin/membership/settings')
-  return { data: result.data?.settings, error: result.error }
+  return { data: result.data ? { ...result.data.settings, razorpayEnabled: result.data.razorpayEnabled } : null, error: result.error }
 }
 export const adminUpdateMembershipSettings = async (settings) => {
   const result = await apiFetch('/admin/membership/settings', { method: 'PATCH', body: JSON.stringify(settings) })

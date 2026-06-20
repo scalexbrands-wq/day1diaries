@@ -126,6 +126,7 @@ export default function Landing() {
   }, [data])
 
   const hero        = data?.hero || {}
+  const bottomSection = data?.bottomSection || {}
   const tickerItems = (hero.ticker_items || 'First Day at Job — real stories|Habit Tracking — Day 1 to Day 100|Leaderboard — Beginner to Legend|Earn Points — Every Like, Comment & Share').split('|')
   const categories  = data?.categories    || []
   const testimonials= data?.testimonials  || []
@@ -192,6 +193,7 @@ export default function Landing() {
         .lp-ai-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:1040px;margin:0 auto}
         @media(max-width:900px){
           .lp-hero-sec{grid-template-columns:1fr!important;padding:100px 24px 60px!important;gap:36px!important;min-height:auto!important}
+          .lp-bottom-sec{grid-template-columns:1fr!important}
           .lp-2col{grid-template-columns:1fr!important}
           .lp-3col{grid-template-columns:1fr!important}
           .lp-4col{grid-template-columns:1fr 1fr!important}
@@ -743,6 +745,33 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── BOTTOM SECTION (fully admin-customizable) ── */}
+      {bottomSection.is_active !== false && (bottomSection.heading || bottomSection.image_urls?.length > 0) && (
+        <section className="lp-bottom-sec" style={{ display:'grid', gridTemplateColumns: bottomSection.image_urls?.length ? '1fr 1fr' : '1fr', alignItems:'center', gap:48, padding:'90px 56px', background:'#FBF6EC' }}>
+          <div>
+            {bottomSection.subheadline && (
+              <div style={{ fontSize:11, fontWeight:700, color:'#FF6B2B', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:14 }}>{bottomSection.subheadline}</div>
+            )}
+            {bottomSection.heading && (
+              <h2 style={{ fontFamily:"'Playfair Display',serif", fontWeight:900, fontSize:'clamp(1.8rem,3.2vw,2.6rem)', lineHeight:1.15, marginBottom:18 }}>{bottomSection.heading}</h2>
+            )}
+            {bottomSection.body_text && (
+              <p style={{ fontSize:'1rem', color:'#4A2800', lineHeight:1.75, fontWeight:300, marginBottom:30, maxWidth:480 }}>{bottomSection.body_text}</p>
+            )}
+            {bottomSection.cta_text && (
+              <Link to={bottomSection.cta_link || '/register'} style={S.btn('#FF6B2B','white',{ padding:'15px 34px', fontSize:15.5, boxShadow:'0 8px 28px rgba(255,107,43,.38)' })}>
+                {bottomSection.cta_text}
+              </Link>
+            )}
+          </div>
+          {bottomSection.image_urls?.length > 0 && (
+            <div style={{ display:'flex', justifyContent:'center' }}>
+              <HeroSlideshow images={bottomSection.image_urls}/>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ── FOOTER ── */}
       <footer style={{ background:'#1A0800', padding:'60px 56px 36px' }}>
         <div className="lp-footer-g" style={{ display:'grid', gridTemplateColumns:'1.5fr 1fr 1fr 1fr', gap:36, marginBottom:48 }}>
@@ -760,7 +789,7 @@ export default function Landing() {
           {[
             ['Platform',[['Discover Stories','/discover'],['Habit Library','/habits'],['Leaderboard','/leaderboard'],['Share a Story','/write']]],
             ['Company',[['About Us','/about'],['Blog','/blog'],['Careers','/careers'],['Contact','/contact']]],
-            ['Legal',[['Privacy Policy','/privacy'],['Terms of Service','/terms'],['Community Guidelines','/content-policy']]],
+            ['Legal',[['Privacy Policy','/privacy'],['Terms of Service','/terms'],['Community Guidelines','/content-policy'],['Membership & Refund Policy','/refund-policy']]],
           ].map(([title,links])=>(
             <div key={title}>
               <div style={{ fontSize:10, fontWeight:700, letterSpacing:'.12em', textTransform:'uppercase', color:'rgba(255,255,255,.3)', marginBottom:14 }}>{title}</div>
