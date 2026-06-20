@@ -287,6 +287,7 @@ export default function Profile() {
                 >
                   {followLoading ? '…' : isFollowing ? '✓ Following' : '+ Follow'}
                 </button>
+                <SurpriseAFriendButton lockedAuthorUsername={profile.username} authorName={profile.full_name || profile.username} size="sm" />
                 <ShareButton
                   text={profileShareText(profile.full_name || profile.username, profile.username, profile.bio)}
                   url={profileShareUrl(profile.username)}

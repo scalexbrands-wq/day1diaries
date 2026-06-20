@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   getGiftCategories, getGiftTypes, getGiftTemplates, getGiftTributeOptions,
-  searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment,
+  searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment, getMyFeatureUsage,
 } from '../lib/api'
 import { toast } from './Toast'
 
@@ -31,7 +31,7 @@ function loadRazorpayScript() {
 
 const STEPS = ['Select Story', 'Category', 'Gift Type', 'Design', 'Message', 'Review & Pay']
 
-export default function SurpriseWizard({ initialStoryId, initialStoryTitle, initialAuthorName, onClose }) {
+export default function SurpriseWizard({ initialStoryId, initialStoryTitle, initialAuthorName, lockedAuthorUsername, onClose }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(initialStoryId ? 1 : 0)
   const [submitting, setSubmitting] = useState(false)
@@ -39,6 +39,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
   const [categories, setCategories] = useState([])
   const [types, setTypes] = useState([])
   const [templates, setTemplates] = useState([])
+  const [usage, setUsage] = useState(null)
 
   const [scope, setScope] = useState('public')
   const [query, setQuery] = useState('')
@@ -61,11 +62,12 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
     getGiftCategories().then(({ data }) => setCategories(data || []))
     getGiftTypes().then(({ data }) => setTypes(data || []))
     getGiftTemplates().then(({ data }) => setTemplates(data || []))
+    getMyFeatureUsage().then(({ data }) => setUsage((data || []).find(u => u.feature_key === 'gift_sending') || null))
   }, [])
 
   const runSearch = useCallback(() => {
-    searchGiftStories(query, scope).then(({ data }) => setStoryResults(data || []))
-  }, [query, scope])
+    searchGiftStories(query, scope, lockedAuthorUsername).then(({ data }) => setStoryResults(data || []))
+  }, [query, scope, lockedAuthorUsername])
   useEffect(() => { if (step === 0) runSearch() }, [step, scope, runSearch])
 
   useEffect(() => {
@@ -149,17 +151,29 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
           <div style={{ fontSize: 18, fontWeight: 800, color: '#1A0800' }}>🎁 Surprise A Friend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: '#8C7B6E', cursor: 'pointer' }}>×</button>
         </div>
-        <div style={{ fontSize: 12, color: '#8C7B6E', marginBottom: 18 }}>Step {step + 1} of {STEPS.length} — {STEPS[step]}</div>
+        <div style={{ fontSize: 12, color: '#8C7B6E', marginBottom: 12 }}>Step {step + 1} of {STEPS.length} — {STEPS[step]}</div>
+
+        {usage && usage.limit !== -1 && (
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: usage.remaining === 0 ? '#DC2626' : '#8C7B6E', marginBottom: 14, padding: '8px 12px', borderRadius: 8, background: usage.remaining === 0 ? '#FFF5F5' : '#FBF6EC' }}>
+            {usage.remaining === 0
+              ? "You've used your free gift this period — become a member for unlimited Surprise A Friend gifts."
+              : `${usage.remaining} of ${usage.limit} free gift${usage.limit === 1 ? '' : 's'} left this period.`}
+          </div>
+        )}
 
         {step === 0 && (
           <div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              {['mine', 'friends', 'public'].map(s => (
-                <button key={s} onClick={() => setScope(s)} style={{ padding: '6px 14px', borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${scope === s ? '#FF6B2B' : '#DDD3CA'}`, background: scope === s ? '#FFF1EA' : 'white' }}>
-                  {s === 'mine' ? 'My Stories' : s === 'friends' ? 'Friend Stories' : 'Public Stories'}
-                </button>
-              ))}
-            </div>
+            {lockedAuthorUsername ? (
+              <div style={{ fontSize: 12, color: '#8C7B6E', marginBottom: 12 }}>Showing published stories from this profile.</div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {['mine', 'friends', 'public'].map(s => (
+                  <button key={s} onClick={() => setScope(s)} style={{ padding: '6px 14px', borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${scope === s ? '#FF6B2B' : '#DDD3CA'}`, background: scope === s ? '#FFF1EA' : 'white' }}>
+                    {s === 'mine' ? 'My Stories' : s === 'friends' ? 'Friend Stories' : 'Public Stories'}
+                  </button>
+                ))}
+              </div>
+            )}
             <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && runSearch()} placeholder="Search stories by title..."
               style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #DDD3CA', borderRadius: 8, fontSize: 13, marginBottom: 14, fontFamily: 'inherit' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>

@@ -438,6 +438,22 @@ async function initDB() {
       }
     }
 
+    // Seed any feature access rules added after the initial all-or-nothing
+    // seed above (per-row existence check, so it still lands on environments
+    // that already seeded the original list).
+    {
+      const laterRules = [
+        ['gift_sending', 'Surprise A Friend — Send Gift', 1, -1, 'monthly'],
+      ]
+      for (const [feature_key, label, free_limit, member_limit, reset_frequency] of laterRules) {
+        await pool.query(
+          `INSERT INTO feature_access_rules (feature_key, label, free_limit, member_limit, reset_frequency)
+           SELECT $1,$2,$3,$4,$5 WHERE NOT EXISTS (SELECT 1 FROM feature_access_rules WHERE feature_key = $1)`,
+          [feature_key, label, free_limit, member_limit, reset_frequency]
+        )
+      }
+    }
+
     // Seed default membership lifecycle email templates (once — admin edits
     // afterward persist). These power services/membershipEmails.js sends.
     {

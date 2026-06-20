@@ -3,6 +3,7 @@ const crypto = require('crypto')
 const QRCode = require('qrcode')
 const { pool } = require('../db/pool')
 const { requireAuth, optionalAuth } = require('../middleware/auth')
+const { requireFeatureAccess, peekUsage } = require('../services/accessControl')
 const razorpay = require('../utils/razorpay')
 const { uploadBuffer } = require('../utils/s3')
 const { getEmbeddedFontCss } = require('../utils/fontEmbed')
@@ -64,8 +65,21 @@ router.get('/tribute-options', optionalAuth, (req, res) => {
 // ════════════════════════════════════════════════════════════
 
 router.get('/stories/search', optionalAuth, async (req, res) => {
-  const { q = '', scope = 'public' } = req.query
+  const { q = '', scope = 'public', authorUsername } = req.query
   const like = `%${q.trim()}%`
+
+  // Profile-page entry point — list a specific author's own published
+  // stories, regardless of follow relationship (still public-visibility only).
+  if (authorUsername) {
+    const { rows } = await pool.query(
+      `SELECT s.id, s.title, s.cover_image_url, p.full_name AS author_name
+       FROM stories s JOIN profiles p ON p.id = s.user_id
+       WHERE p.username = $1 AND s.status = 'published' AND s.visibility = 'public' AND s.title ILIKE $2
+       ORDER BY s.created_at DESC LIMIT 20`,
+      [authorUsername, like]
+    )
+    return res.json({ stories: rows })
+  }
 
   if (scope === 'mine') {
     if (!req.profile) return res.status(401).json({ error: 'Sign in to view your stories' })
@@ -106,7 +120,7 @@ router.get('/stories/search', optionalAuth, async (req, res) => {
 // CREATE — Steps 2-5 submit here as one payload
 // ════════════════════════════════════════════════════════════
 
-router.post('/create', requireAuth, async (req, res) => {
+router.post('/create', requireAuth, requireFeatureAccess('gift_sending'), async (req, res) => {
   const {
     storyId, categoryKey, giftTypeKey, templateKey,
     recipientName, recipientEmail, message,

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { getGiftModuleStatus } from '../lib/api'
 import SurpriseWizard from './SurpriseWizard'
 
-export default function SurpriseAFriendButton({ storyId, storyTitle, authorName, size = 'sm', compact = false }) {
+export default function SurpriseAFriendButton({ storyId, storyTitle, authorName, lockedAuthorUsername, size = 'sm', compact = false }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [enabled, setEnabled] = useState(true)
@@ -42,7 +42,7 @@ export default function SurpriseAFriendButton({ storyId, storyTitle, authorName,
           🎁 Surprise A Friend
         </button>
       )}
-      {open && <SurpriseWizard initialStoryId={storyId} initialStoryTitle={storyTitle} initialAuthorName={authorName} onClose={() => setOpen(false)} />}
+      {open && <SurpriseWizard initialStoryId={storyId} initialStoryTitle={storyTitle} initialAuthorName={authorName} lockedAuthorUsername={lockedAuthorUsername} onClose={() => setOpen(false)} />}
     </>
   )
 }

@@ -1118,8 +1118,8 @@ export const getGiftTributeOptions = async ({ categoryKey, name, storyTitle, com
   const result = await apiFetch(`/gift/tribute-options?${params}`)
   return { data: result.data?.options, error: result.error }
 }
-export const searchGiftStories = async (q, scope = 'public') => {
-  const params = new URLSearchParams({ q: q || '', scope })
+export const searchGiftStories = async (q, scope = 'public', authorUsername) => {
+  const params = new URLSearchParams({ q: q || '', scope, ...(authorUsername ? { authorUsername } : {}) })
   const result = await apiFetch(`/gift/stories/search?${params}`)
   return { data: result.data?.stories, error: result.error }
 }
