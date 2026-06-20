@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import './index.css'
 import Sidebar from './components/Sidebar'
@@ -58,6 +58,34 @@ const AppLayout = ({ children }) => (
   </div>
 )
 
+// For content that should be viewable when shared (e.g. a story link) —
+// logged-in visitors get the normal app shell; logged-out visitors get a
+// minimal public header with Sign In/Sign Up instead of the full sidebar
+// (which would otherwise show nav items that just bounce them to /login).
+const PublicHeader = () => (
+  <nav style={{ position:'sticky', top:0, zIndex:100, background:'rgba(253,246,238,.95)', backdropFilter:'blur(16px)', borderBottom:'1px solid rgba(255,107,43,.1)', padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+    <Link to="/" style={{ fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:900, color:'#FF6B2B', textDecoration:'none' }}>
+      Day<span style={{color:'#1A0800'}}>1</span> Diaries
+    </Link>
+    <div style={{ display:'flex', gap:10 }}>
+      <Link to="/login" style={{ fontSize:13, fontWeight:600, color:'#1A0800', textDecoration:'none', padding:'8px 16px', borderRadius:100, border:'1.5px solid rgba(26,8,0,.15)' }}>Sign In</Link>
+      <Link to="/register" style={{ fontSize:13, fontWeight:600, color:'white', textDecoration:'none', padding:'8px 16px', borderRadius:100, background:'#FF6B2B' }}>Get Started Free →</Link>
+    </div>
+  </nav>
+)
+const ShareableLayout = ({ children }) => {
+  const { user, loading } = useAuth()
+  if (loading) return <div className="loading-center"><div className="spinner"/></div>
+  if (user) return <AppLayout>{children}</AppLayout>
+  return (
+    <div style={{ minHeight:'100vh', background:'#FDF6EE' }}>
+      <PublicHeader />
+      {children}
+      <Toast />
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -68,7 +96,7 @@ export default function App() {
           <Route path="/register"            element={<Register/>} />
           <Route path="/feed"                element={<PrivateRoute><AppLayout><Feed/></AppLayout></PrivateRoute>} />
           <Route path="/discover"            element={<PrivateRoute><AppLayout><Discover/></AppLayout></PrivateRoute>} />
-          <Route path="/story/:id"           element={<PrivateRoute><AppLayout><StoryDetail/></AppLayout></PrivateRoute>} />
+          <Route path="/story/:id"           element={<ShareableLayout><StoryDetail/></ShareableLayout>} />
           <Route path="/write"               element={<PrivateRoute><AppLayout><WriteStory/></AppLayout></PrivateRoute>} />
           <Route path="/edit/:id"            element={<PrivateRoute><AppLayout><WriteStory/></AppLayout></PrivateRoute>} />
           <Route path="/habits"              element={<PrivateRoute><AppLayout><Habits/></AppLayout></PrivateRoute>} />

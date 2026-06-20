@@ -41,6 +41,7 @@ export default function StoryDetail() {
 
   const handleUnlock = async () => {
     if (unlocking) return
+    if (!user) return requireSignIn()
     setUnlocking(true)
     const { data, error } = await unlockStory(id)
     setUnlocking(false)
@@ -51,13 +52,20 @@ export default function StoryDetail() {
     getMyCoins().then(({ data: c }) => setCoins(c))
   }
 
+  const requireSignIn = () => {
+    toast.error('Sign in to continue')
+    navigate('/login', { state: { from: `/story/${id}` } })
+  }
+
   const handleLike = async () => {
+    if (!user) return requireSignIn()
     const { liked: l } = await toggleLike(user.id, id)
     setLiked(l)
     setStory(s => ({ ...s, likes_count: l ? (s.likes_count || 0) + 1 : (s.likes_count || 0) - 1 }))
   }
 
   const handleSave = async () => {
+    if (!user) return requireSignIn()
     const { saved: s } = await toggleSave(user.id, id)
     setSaved(s)
     toast.success(s ? 'Story saved!' : 'Removed from saved')
@@ -65,6 +73,7 @@ export default function StoryDetail() {
 
   const handleComment = async (e) => {
     e.preventDefault()
+    if (!user) return requireSignIn()
     if (!comment.trim()) return
     const { data } = await addComment({ story_id: id, user_id: user.id, content: comment })
     if (data) { setComments(c => [...c, data]); setComment('') }
@@ -297,6 +306,12 @@ export default function StoryDetail() {
           </div>
           <div style={{ padding: '20px 24px' }}>
             {/* Add comment */}
+            {!user ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', background: 'rgba(255,107,43,.06)', borderRadius: 12, marginBottom: 24, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13.5, color: '#4A2800' }}>Sign in to join the conversation</span>
+                <button className="btn btn-primary btn-sm" onClick={requireSignIn}>Sign In</button>
+              </div>
+            ) : (
             <form onSubmit={handleComment} style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
               <div
                 className="avatar avatar-sm"
@@ -315,6 +330,7 @@ export default function StoryDetail() {
               />
               <button type="submit" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>Post</button>
             </form>
+            )}
 
             {/* Comment list */}
             {comments.length === 0 ? (

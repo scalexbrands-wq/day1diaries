@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { signIn, resendConfirmationCode } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../components/Toast'
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { reloadSession } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,7 +29,7 @@ export default function Login() {
     }
     await reloadSession()
     setLoading(false)
-    navigate('/feed')
+    navigate(location.state?.from || '/feed')
   }
 
   const handleResend = async () => {
