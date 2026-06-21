@@ -60,6 +60,7 @@ const TEMPLATE_OPTIONS = [
   { key:'classic',   label:'Classic',          desc:'The original design — animated AI section, neon dark sections, bold proof stats.' },
   { key:'editorial', label:'Editorial',        desc:'Magazine-style minimalism — single-column reading flow, serif type, restrained color.' },
   { key:'bento',     label:'Bento / Vibrant',  desc:'Bold bento-grid layout — saturated gradients, glassmorphism cards, playful and maximalist.' },
+  { key:'kinetic',   label:'Kinetic',          desc:'Motion-first design — custom cursor, parallax hero, magnetic buttons, tilt cards, sticky scroll-storytelling, scroll-snap carousels.' },
 ]
 function TemplateEditor() {
   const [active, setActive] = useState(null)
@@ -86,7 +87,7 @@ function TemplateEditor() {
     <Card>
       <SectionHead>Landing Page Design</SectionHead>
       <p style={{ fontSize:12.5, color:'#8C7B6E', marginBottom:18 }}>Pick which design shows on the public homepage. All three pull the same hero/categories/testimonials/jobs content you manage in the other tabs — only the layout and visual style changes.</p>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:14 }}>
         {TEMPLATE_OPTIONS.map(opt => (
           <div key={opt.key} onClick={() => !saving && select(opt.key)}
             style={{ border:`2px solid ${active===opt.key?'#FF6B2B':'#F0EAE4'}`, borderRadius:14, padding:16, cursor: saving?'wait':'pointer', background: active===opt.key?'rgba(255,107,43,.05)':'white', transition:'all .15s' }}>
