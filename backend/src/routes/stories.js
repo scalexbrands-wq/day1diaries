@@ -1,8 +1,11 @@
 const express = require('express')
+const crypto = require('crypto')
 const { pool } = require('../db/pool')
 const { requireAuth, optionalAuth } = require('../middleware/auth')
 const { scanBadWords } = require('../utils/badWords')
 const { requireFeatureAccess } = require('../services/accessControl')
+const s3 = require('../utils/s3')
+const { transcribeStoryAudio } = require('../services/transcription')
 
 const router = express.Router()
 
@@ -160,6 +163,34 @@ router.get('/my-unlocks', requireAuth, async (req, res) => {
   res.json({ unlockedIds: rows.map(r => r.story_id) })
 })
 
+// ── POST /stories/audio-upload-url — presigned S3 PUT for voice stories ──
+// Returns a short-lived URL the browser PUTs the recorded blob to directly
+// (no audio passes through this API), plus the public URL to send back
+// with POST /stories once the upload finishes.
+// body: { contentType } — defaults to audio/webm (MediaRecorder's default)
+router.post('/audio-upload-url', requireAuth, async (req, res) => {
+  if (!s3.isConfigured()) {
+    return res.status(503).json({ error: 'Voice recording uploads are not configured on this server yet.' })
+  }
+  const contentType = req.body?.contentType || 'audio/webm'
+  const ext = contentType.includes('webm') ? 'webm' : 'audio'
+  const key = `audio/${req.cognitoSub}/${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`
+
+  const uploadUrl = await s3.getPresignedPutUrl(key, contentType)
+  res.json({ uploadUrl, key, audioUrl: s3.publicUrlFor(key) })
+})
+
+// GET /stories/:id/transcript-status — for the frontend to poll while a
+// voice story's transcription is still 'pending'. Must be before /:id.
+router.get('/:id/transcript-status', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT transcript_status, transcript, content FROM stories WHERE id = $1',
+    [req.params.id]
+  )
+  if (!rows.length) return res.status(404).json({ error: 'Story not found' })
+  res.json(rows[0])
+})
+
 // ── GET /stories/:id ───────────────────────────────────────────
 // optionalAuth so logged-in free users can be metered on story_viewing —
 // anonymous visitors are untracked/unrestricted (see services/accessControl.js).
@@ -178,25 +209,60 @@ router.get('/:id', optionalAuth, requireFeatureAccess('story_viewing'), async (r
 })
 
 // ── POST /stories ───────────────────────────────────────────────
-// body: { title, content, category, tags, cover_image_url, status }
+// body: { title, content, category, tags, cover_image_url, status, group_id?,
+//         audio_url?, audio_duration_seconds? }
+// Voice stories (audio_url set) don't need content up front — it's filled
+// in once transcription completes; content is otherwise required.
 router.post('/', requireAuth, requireFeatureAccess('story_creation'), async (req, res) => {
-  const { title, content: body, category, tags, cover_image_url, status, visibility } = req.body
-  if (!title || !body || !category) {
-    return res.status(400).json({ error: 'title, content, and category are required' })
+  const { title, content: body, category, tags, cover_image_url, status, visibility, group_id, audio_url, audio_duration_seconds } = req.body
+  if (!title || !category) {
+    return res.status(400).json({ error: 'title and category are required' })
+  }
+  if (!audio_url && !body) {
+    return res.status(400).json({ error: 'content is required' })
   }
   const vis = ['public','followers_only','private'].includes(visibility) ? visibility : 'public'
   const finalStatus = status || 'published'
+  const finalContent = body || ''
 
-  // Scan for bad words in title + content
-  const badFound = scanBadWords(`${title} ${body}`)
+  // Groups are a namespace/filter over stories, not a separate content
+  // type — but membership is enforced here, not just hidden in the UI,
+  // so you can't post into a group you're not actually in.
+  if (group_id) {
+    const { rows: memberRows } = await pool.query(
+      'SELECT id FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [group_id, req.cognitoSub]
+    )
+    if (!memberRows.length) return res.status(403).json({ error: 'You must be a member of this group to post in it' })
+  }
+
+  // Scan for bad words in title + content (a voice story with no content
+  // yet just scans the title; it's re-scanned implicitly once the user
+  // edits/publishes the transcript via the normal PATCH path)
+  const badFound = scanBadWords(`${title} ${finalContent}`)
   const isFlagged = badFound.length > 0
   const flagReason = isFlagged ? `Detected: ${badFound.join(', ')}` : null
 
   const { rows } = await pool.query(
-    `INSERT INTO stories (user_id, title, content, category, tags, cover_image_url, status, visibility, is_flagged, flag_reason)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-    [req.cognitoSub, title, body, category, tags || [], cover_image_url || null, finalStatus, vis, isFlagged, flagReason]
+    `INSERT INTO stories (user_id, title, content, category, tags, cover_image_url, status, visibility, is_flagged, flag_reason, group_id, audio_url, audio_duration_seconds, transcript_status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+    [req.cognitoSub, title, finalContent, category, tags || [], cover_image_url || null, finalStatus, vis, isFlagged, flagReason,
+     group_id || null, audio_url || null, audio_duration_seconds || null, audio_url ? 'pending' : null]
   )
+
+  if (group_id) {
+    await pool.query('UPDATE groups SET story_count = story_count + 1 WHERE id = $1', [group_id]).catch(err => {
+      console.error('Group story_count bump error (non-fatal):', err.message)
+    })
+  }
+
+  // Kick off transcription in the background — never blocks the response,
+  // never throws (see services/transcription.js for the failure handling).
+  if (audio_url) {
+    transcribeStoryAudio(rows[0].id, audio_url).catch(err => {
+      console.error('Transcription kickoff error (non-fatal):', err.message)
+    })
+  }
 
   // Daily story update bonus: +20 score + coins if this is the first published story today
   if (finalStatus === 'published') {

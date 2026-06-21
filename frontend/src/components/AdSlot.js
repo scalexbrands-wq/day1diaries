@@ -36,7 +36,7 @@ export default function AdSlot({ placement, storyId, variant = 'card' }) {
   const media = ad.ad_type === 'video' ? (
     <video src={ad.creative_url} autoPlay muted loop playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
   ) : (
-    <img src={ad.creative_url} alt={ad.advertiser_name || 'Sponsored'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+    <img src={ad.creative_url} alt={ad.advertiser_name || 'Sponsored'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}  loading="lazy" />
   )
 
   if (variant === 'banner') {

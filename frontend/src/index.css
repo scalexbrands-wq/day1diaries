@@ -111,6 +111,16 @@ select.form-control { appearance: none; background-image: url("data:image/svg+xm
 .story-card { background: white; border-radius: var(--radius-lg); border: 1px solid var(--gray-100); padding: 20px; cursor: pointer; transition: all .2s; overflow: hidden; min-width: 0; position: relative; }
 .story-card:hover { border-color: var(--orange); box-shadow: var(--shadow-md); transform: translateY(-2px); }
 
+/* Story list as a 3-col grid — voice cards (audio_url set) take one
+   column so 3 sit per row; text cards always span the full row width,
+   regardless of how many grid columns are active at a given breakpoint. */
+.story-list-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.story-list-grid > .story-card-text-full,
+.story-list-grid > .grid-full-span { grid-column: 1 / -1; }
+.story-list-grid > .story-card-voice { grid-column: span 1; }
+@media (max-width: 860px) { .story-list-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .story-list-grid { grid-template-columns: 1fr; } }
+
 /* Header row: avatar | meta | category pill — all must stay on one line */
 .story-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; overflow: hidden; }
 /* meta takes remaining space and clips overflow */

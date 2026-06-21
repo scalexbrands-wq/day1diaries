@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { getStory, getComments, addComment, toggleLike, toggleSave, deleteStory, unlockStory, getMyCoins, recordStoryView, getStories } from '../lib/api'
+import { getStory, getComments, addComment, toggleLike, toggleSave, deleteStory, unlockStory, getMyCoins, recordStoryView, getStories, getTranscriptStatus } from '../lib/api'
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
 import ShareButton, { storyShareText, storyShareUrl } from '../components/ShareButton'
@@ -24,6 +24,7 @@ export default function StoryDetail() {
   const [unlocked, setUnlocked] = useState(false)
   const [coins, setCoins] = useState(null)
   const [recentStories, setRecentStories] = useState([])
+  const [showTranscript, setShowTranscript] = useState(false)
 
   useEffect(() => {
     getStory(id).then(({ data }) => {
@@ -41,6 +42,19 @@ export default function StoryDetail() {
       setRecentStories(filtered)
     })
   }, [id, user])
+
+  // Voice stories: poll while transcription is still in progress
+  useEffect(() => {
+    if (story?.transcript_status !== 'pending') return
+    const interval = setInterval(() => {
+      getTranscriptStatus(id).then(({ data }) => {
+        if (data && data.transcript_status !== 'pending') {
+          setStory(s => ({ ...s, ...data }))
+        }
+      })
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [id, story?.transcript_status])
 
   const handleUnlock = async () => {
     if (unlocking) return
@@ -192,7 +206,7 @@ export default function StoryDetail() {
               onClick={() => navigate(`/profile/${author.username}`)}
             >
               {author.avatar_url
-                ? <img src={author.avatar_url} alt={author.full_name} />
+                ? <img src={author.avatar_url} alt={author.full_name}  loading="lazy" />
                 : getInitials(author.full_name || author.username || '?')}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -253,11 +267,32 @@ export default function StoryDetail() {
                   src={story.cover_image_url}
                   alt=""
                   style={{ width: '100%', borderRadius: 12, marginBottom: 22, maxHeight: 420, objectFit: 'cover' }}
-                />
+                 loading="lazy" />
               )}
 
-              {/* Story content */}
-              <div className="sd-content">{story.content}</div>
+              {/* Voice story — audio player + transcript */}
+              {story.audio_url && (
+                <div style={{ marginBottom: 18 }}>
+                  <audio controls src={story.audio_url} style={{ width: '100%' }} />
+                  {story.transcript_status === 'pending' && (
+                    <div style={{ fontSize: 13, color: '#8C7B6E', marginTop: 8 }}>🎙️ Transcribing your recording...</div>
+                  )}
+                  {story.transcript_status === 'failed' && (
+                    <div style={{ fontSize: 13, color: '#8C7B6E', marginTop: 8 }}>Transcription wasn't available for this recording.</div>
+                  )}
+                  {story.transcript_status === 'ready' && story.transcript && (
+                    <button className="btn btn-secondary btn-sm" style={{ marginTop: 10 }} onClick={() => setShowTranscript(v => !v)}>
+                      {showTranscript ? 'Hide transcript' : 'Show transcript'}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Story content — voice stories hide the transcript by default
+                  behind the toggle above; pending ones have no content yet. */}
+              {(!story.audio_url || (story.transcript_status === 'ready' && showTranscript) || story.transcript_status === 'failed') && (
+                <div className="sd-content">{story.content}</div>
+              )}
 
               {/* Action bar */}
               <div style={{
@@ -330,7 +365,7 @@ export default function StoryDetail() {
                 style={{ background: getAvatarColor(profile?.full_name || ''), color: 'white', flexShrink: 0 }}
               >
                 {profile?.avatar_url
-                  ? <img src={profile.avatar_url} alt="" />
+                  ? <img src={profile.avatar_url} alt=""  loading="lazy" />
                   : getInitials(profile?.full_name || profile?.username || '?')}
               </div>
               <input
@@ -361,7 +396,7 @@ export default function StoryDetail() {
                         onClick={() => navigate(`/profile/${ca.username}`)}
                       >
                         {ca.avatar_url
-                          ? <img src={ca.avatar_url} alt="" />
+                          ? <img src={ca.avatar_url} alt=""  loading="lazy" />
                           : getInitials(ca.full_name || ca.username || '?')}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>

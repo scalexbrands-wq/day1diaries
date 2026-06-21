@@ -28,7 +28,7 @@ export default function About() {
           <div key={s.id} className="site-card" style={{ marginBottom:20 }}>
             {s.title && <h2 style={{ marginTop:0 }}>{s.title}</h2>}
             {s.image_url && (
-              <img src={s.image_url} alt={s.title || ''} style={{ width:'100%', maxHeight:360, objectFit:'cover', borderRadius:12, marginBottom:16 }} />
+              <img src={s.image_url} alt={s.title || ''} style={{ width:'100%', maxHeight:360, objectFit:'cover', borderRadius:12, marginBottom:16 }}  loading="lazy" />
             )}
             {s.content && <p style={{ whiteSpace:'pre-wrap' }}>{s.content}</p>}
             {embed && (

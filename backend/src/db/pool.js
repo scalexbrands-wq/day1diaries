@@ -847,6 +847,80 @@ async function initDB() {
       await pool.query(`INSERT INTO role_permissions_seeded (role) VALUES ($1) ON CONFLICT DO NOTHING`, [role])
     }
 
+    // ── Groups — topic-based namespace/filter over stories, NOT a new
+    // content type. Public groups: instant join, viewable by anyone.
+    // Private groups: invite-only, and both the group page and its
+    // stories 404 (not 403) for non-members, so the group's existence
+    // isn't confirmed to outsiders.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS groups (
+        id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name            TEXT NOT NULL,
+        slug            TEXT UNIQUE NOT NULL,
+        description     TEXT,
+        topic_category  TEXT,
+        visibility      TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public','private')),
+        owner_id        UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        cover_image_url TEXT,
+        member_count    INT NOT NULL DEFAULT 0,
+        story_count     INT NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS group_members (
+        id        BIGSERIAL PRIMARY KEY,
+        group_id  UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        user_id   UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        role      TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner','moderator','member')),
+        joined_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (group_id, user_id)
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS group_invites (
+        id               BIGSERIAL PRIMARY KEY,
+        group_id         UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        invited_user_id  UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        invited_by       UUID NOT NULL REFERENCES profiles(id),
+        status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','declined')),
+        created_at       TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (group_id, invited_user_id)
+      )
+    `)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_group_invites_user ON group_invites(invited_user_id, status)`)
+    await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_stories_group ON stories(group_id)`)
+
+    // Group audience targeting — same model as gift/marketing's
+    // allowed_audiences + custom_user_ids (see gift.js / ads.js), just
+    // stored per-group instead of as a single app_settings row.
+    // 'everyone' (or an empty array) means unrestricted/public — anyone
+    // can view and join instantly. Otherwise the array is a set of:
+    // 'member' (active paid membership), 'free' (no active membership),
+    // 'contributor', 'admin', 'custom' (hand-picked ids in custom_user_ids).
+    // `visibility` stays in sync as a quick public/private badge, derived
+    // from whether 'everyone' is in allowed_audiences.
+    await pool.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS allowed_audiences JSONB NOT NULL DEFAULT '["everyone"]'::jsonb`)
+    await pool.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS custom_user_ids JSONB NOT NULL DEFAULT '[]'::jsonb`)
+
+    // ── Voice stories — recording is just an alternative INPUT method
+    // for a regular story; the transcript lands in the existing `content`
+    // column so feed/search/category logic needs no changes. transcript_status
+    // has no column default (stays NULL for ordinary text stories) — it's
+    // only ever set to 'pending'/'ready'/'failed' by the app when audio_url
+    // is actually present.
+    await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS audio_url TEXT`)
+    await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS audio_duration_seconds INT`)
+    await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS transcript TEXT`)
+    await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS transcript_status TEXT`)
+    await pool.query(`ALTER TABLE stories DROP CONSTRAINT IF EXISTS stories_transcript_status_check`)
+    await pool.query(`
+      ALTER TABLE stories ADD CONSTRAINT stories_transcript_status_check
+        CHECK (transcript_status IS NULL OR transcript_status IN ('pending','ready','failed'))
+    `)
+
     console.log('DB schema init OK')
   } catch (err) {
     console.error('DB init error (non-fatal):', err.message)

@@ -280,7 +280,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
                 <div key={s.id} onClick={e => { e.stopPropagation(); setSelectedStory(s) }}
                   style={{ display: 'flex', gap: 10, alignItems: 'center', padding: 10, borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${selectedStory?.id === s.id ? '#FF6B2B' : '#F0EAE4'}`, background: selectedStory?.id === s.id ? '#FFF1EA' : 'white' }}>
                   {s.cover_image_url
-                    ? <img src={s.cover_image_url} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                    ? <img src={s.cover_image_url} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}  loading="lazy" />
                     : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#F0EAE4', flexShrink: 0 }} />}
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#1A0800', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</div>
@@ -350,7 +350,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
 
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#5C3D2E', marginBottom: 5 }}>Photo (optional — used as the certificate's hero image)</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              {imageUrl && <img src={imageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />}
+              {imageUrl && <img src={imageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}  loading="lazy" />}
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 100, border: '1.5px solid #DDD3CA', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#5C3D2E' }}>
                 {uploadingImage ? 'Uploading…' : imageUrl ? 'Change Photo' : '📷 Upload Photo'}
                 <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} style={{ display: 'none' }} />
@@ -394,7 +394,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
               )}
               {previewImage && (
                 <div>
-                  <img src={previewImage} alt="Certificate preview" style={{ width: '100%', borderRadius: 10, border: '1px solid #F0EAE4' }} />
+                  <img src={previewImage} alt="Certificate preview" style={{ width: '100%', borderRadius: 10, border: '1px solid #F0EAE4' }}  loading="lazy" />
                   <button onClick={() => setPreviewImage(null)} style={{ background: 'none', border: 'none', color: '#FF6B2B', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginTop: 8 }}>
                     Re-render preview
                   </button>

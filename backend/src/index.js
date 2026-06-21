@@ -45,6 +45,7 @@ const statsRoutes = require('./routes/stats')
 const adsRoutes = require('./routes/ads')
 const adminAdsRoutes = require('./routes/admin-ads')
 const adminRbacRoutes = require('./routes/admin-rbac')
+const { publicRouter: groupsPublicRoutes, adminRouter: groupsAdminRoutes } = require('./routes/groups')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -125,6 +126,8 @@ app.use('/stats', statsRoutes)
 app.use('/ads', adsRoutes)
 app.use('/admin/ads', adminAdsRoutes)
 app.use('/admin/rbac', adminRbacRoutes)
+app.use('/groups', groupsPublicRoutes)
+app.use('/admin/groups', groupsAdminRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))

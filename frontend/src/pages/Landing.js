@@ -39,7 +39,7 @@ function HeroSlideshow({ images }) {
           src={src}
           alt=""
           style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity: i===active ? 1 : 0, transition:'opacity 1s ease' }}
-        />
+         loading="lazy" />
       ))}
       {images.length > 1 && (
         <div style={{ position:'absolute', bottom:14, left:0, right:0, display:'flex', justifyContent:'center', gap:6 }}>
@@ -675,7 +675,7 @@ export default function Landing() {
                 <div key={u.id} className="lp-lb-row" onClick={()=>navigate(`/profile/${u.username}`)}>
                   <div style={{ fontWeight:700, fontSize:15, width:24, textAlign:'center', flexShrink:0 }}>{['🥇','🥈','🥉','4','5'][i]||i+1}</div>
                   <div style={{ width:34, height:34, borderRadius:'50%', background:getAvatarColor(u.full_name||u.username||''), display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'white', flexShrink:0 }}>
-                    {u.avatar_url ? <img src={u.avatar_url} alt="" style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }}/> : getInitials(u.full_name||u.username||'?')}
+                    {u.avatar_url ? <img src={u.avatar_url} alt="" style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} loading="lazy" /> : getInitials(u.full_name||u.username||'?')}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.full_name||u.username}</div>

@@ -75,7 +75,7 @@ function PeopleToFollowCard({ users, onFollow }) {
             <div
               onClick={() => window.location.href=`/profile/${u.username}`}
               style={{ width:36, height:36, borderRadius:'50%', background:getAvatarColor(u.full_name||''), flexShrink:0, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:'white', overflow:'hidden' }}>
-              {u.avatar_url ? <img src={u.avatar_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : getInitials(u.full_name||u.username||'?')}
+              {u.avatar_url ? <img src={u.avatar_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} loading="lazy" /> : getInitials(u.full_name||u.username||'?')}
             </div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:12, fontWeight:600, color:'#1A0800', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.full_name||u.username}</div>
@@ -358,15 +358,15 @@ export default function Feed() {
 
           {/* Feed items */}
           {activeTab === 'forYou' ? (
-            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <div className="story-list-grid">
               {feedItems.map(item => {
                 if (item.type === 'story') return <StoryCard key={item.key} story={item.data} isLocked={isStoryLocked(item.data)} onUnlock={handleUnlock}/>
-                if (item.type === 'ad') return <AdSlot key={item.key} placement="feed" variant="card"/>
-                return <PeopleToFollowCard key={item.key} users={suggestedUsers.filter(u=>!followedUsers.has(u.id))} onFollow={handleFollow}/>
+                if (item.type === 'ad') return <div key={item.key} className="grid-full-span"><AdSlot placement="feed" variant="card"/></div>
+                return <div key={item.key} className="grid-full-span"><PeopleToFollowCard users={suggestedUsers.filter(u=>!followedUsers.has(u.id))} onFollow={handleFollow}/></div>
               })}
-              {loading && <div className="loading-center"><div className="spinner"/></div>}
+              {loading && <div className="loading-center grid-full-span"><div className="spinner"/></div>}
               {!loading && stories.length === 0 && (
-                <div className="empty-state">
+                <div className="empty-state grid-full-span">
                   <div className="empty-state-icon">📭</div>
                   <h3>No stories yet</h3>
                   <p>Follow some creators to see their stories here, or share your own!</p>
@@ -374,31 +374,31 @@ export default function Feed() {
                 </div>
               )}
               {/* Sentinel — scrolling this into view triggers the next page */}
-              {!loading && hasMore && stories.length > 0 && <div ref={sentinelRef} style={{ height:1 }}/>}
-              {loadingMore && <div className="loading-center" style={{ padding:'12px 0' }}><div className="spinner"/></div>}
+              {!loading && hasMore && stories.length > 0 && <div ref={sentinelRef} className="grid-full-span" style={{ height:1 }}/>}
+              {loadingMore && <div className="loading-center grid-full-span" style={{ padding:'12px 0' }}><div className="spinner"/></div>}
               {!loading && !hasMore && stories.length > 0 && (
-                <p style={{ textAlign:'center', fontSize:12, color:'#B0A89F', padding:'8px 0' }}>You've reached the end ✨</p>
+                <p className="grid-full-span" style={{ textAlign:'center', fontSize:12, color:'#B0A89F', padding:'8px 0' }}>You've reached the end ✨</p>
               )}
             </div>
           ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-              {followingLoading && <div className="loading-center"><div className="spinner"/></div>}
+            <div className="story-list-grid">
+              {followingLoading && <div className="loading-center grid-full-span"><div className="spinner"/></div>}
               {!followingLoading && !followedCategories.size && !followedDepartments.size && (
-                <div className="empty-state">
+                <div className="empty-state grid-full-span">
                   <div className="empty-state-icon">⭐</div>
                   <h3>Nothing followed yet</h3>
                   <p>Follow categories and companies above to see their stories and jobs here.</p>
                 </div>
               )}
-              {!followingLoading && followingJobs.map(job => <JobFollowCard key={job.id} job={job} navigate={navigate}/>)}
+              {!followingLoading && followingJobs.map(job => <div key={job.id} className="grid-full-span"><JobFollowCard job={job} navigate={navigate}/></div>)}
               {!followingLoading && followingStories.map((s, i) => (
                 <React.Fragment key={s.id}>
                   <StoryCard story={s} isLocked={isStoryLocked(s)} onUnlock={handleUnlock}/>
-                  {(i + 1) % AD_EVERY_N_STORIES === 0 && <AdSlot key={`ad-${i}`} placement="feed" variant="card"/>}
+                  {(i + 1) % AD_EVERY_N_STORIES === 0 && <div key={`ad-${i}`} className="grid-full-span"><AdSlot placement="feed" variant="card"/></div>}
                 </React.Fragment>
               ))}
               {!followingLoading && (followedCategories.size || followedDepartments.size) && !followingJobs.length && !followingStories.length && (
-                <div className="empty-state">
+                <div className="empty-state grid-full-span">
                   <div className="empty-state-icon">📭</div>
                   <h3>No matches yet</h3>
                   <p>No stories or jobs found for what you're following right now — check back soon.</p>
@@ -421,7 +421,7 @@ export default function Feed() {
                 {suggestedUsers.filter(u=>!followedUsers.has(u.id)).map(u => (
                   <div key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderBottom:'1px solid #F5EDE4' }}>
                     <div onClick={()=>navigate(`/profile/${u.username}`)} style={{ width:32, height:32, borderRadius:'50%', background:getAvatarColor(u.full_name||''), flexShrink:0, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'white', overflow:'hidden' }}>
-                      {u.avatar_url ? <img src={u.avatar_url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/> : getInitials(u.full_name||u.username||'?')}
+                      {u.avatar_url ? <img src={u.avatar_url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }} loading="lazy" /> : getInitials(u.full_name||u.username||'?')}
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.full_name||u.username}</div>
@@ -468,7 +468,7 @@ export default function Feed() {
                   onClick={() => navigate(`/profile/${p.username}`)}>
                   <div style={{ fontSize:13, width:20, textAlign:'center', fontWeight:700 }}>{['🥇','🥈','🥉','4','5'][i]}</div>
                   <div style={{ width:26, height:26, borderRadius:'50%', background:getAvatarColor(p.full_name||''), color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0, overflow:'hidden' }}>
-                    {p.avatar_url ? <img src={p.avatar_url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/> : getInitials(p.full_name||p.username||'?')}
+                    {p.avatar_url ? <img src={p.avatar_url} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }} loading="lazy" /> : getInitials(p.full_name||p.username||'?')}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:11, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.full_name||p.username}</div>

@@ -49,7 +49,7 @@ export default function Tribute() {
       </div>
 
       {tribute.gift_image_url ? (
-        <img src={tribute.gift_image_url} alt="Tribute certificate" style={{ width: '100%', borderRadius: 16, boxShadow: '0 12px 36px rgba(26,8,0,.15)' }} />
+        <img src={tribute.gift_image_url} alt="Tribute certificate" style={{ width: '100%', borderRadius: 16, boxShadow: '0 12px 36px rgba(26,8,0,.15)' }}  loading="lazy" />
       ) : (
         <div className="loading-center" style={{ padding: 40, textAlign: 'center', color: '#8C7B6E' }}>The tribute design is being prepared…</div>
       )}

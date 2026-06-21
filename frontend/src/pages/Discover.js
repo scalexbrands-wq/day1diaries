@@ -166,9 +166,9 @@ export default function Discover() {
           {loading ? (
             <div className="loading-center"><div className="spinner" /></div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="story-list-grid">
               {stories.length === 0 ? (
-                <div className="disc-empty">
+                <div className="disc-empty grid-full-span">
                   <div className="disc-empty-emoji">🫥</div>
                   <h3>No stories here... yet</h3>
                   <p>Try a different vibe, or be the one who starts it.</p>
@@ -182,15 +182,15 @@ export default function Discover() {
                       isLocked={isStoryLocked(s)}
                       onUnlock={handleUnlock}
                     />
-                    {(i + 1) % AD_EVERY_N_STORIES === 0 && <AdSlot key={`ad-${i}`} placement="discover" variant="card" />}
+                    {(i + 1) % AD_EVERY_N_STORIES === 0 && <div key={`ad-${i}`} className="grid-full-span"><AdSlot placement="discover" variant="card" /></div>}
                   </React.Fragment>
                 ))
               )}
               {/* Sentinel — scrolling this into view triggers the next page */}
-              {hasMore && stories.length > 0 && <div ref={sentinelRef} style={{ height: 1 }} />}
-              {loadingMore && <div className="loading-center" style={{ padding: '12px 0' }}><div className="spinner" /></div>}
+              {hasMore && stories.length > 0 && <div ref={sentinelRef} className="grid-full-span" style={{ height: 1 }} />}
+              {loadingMore && <div className="loading-center grid-full-span" style={{ padding: '12px 0' }}><div className="spinner" /></div>}
               {!hasMore && stories.length > 0 && (
-                <p style={{ textAlign: 'center', fontSize: 12, color: '#B0A89F', padding: '8px 0' }}>You've reached the end ✨</p>
+                <p className="grid-full-span" style={{ textAlign: 'center', fontSize: 12, color: '#B0A89F', padding: '8px 0' }}>You've reached the end ✨</p>
               )}
             </div>
           )}

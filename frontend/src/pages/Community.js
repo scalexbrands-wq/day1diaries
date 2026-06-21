@@ -296,7 +296,7 @@ export default function Community() {
                     <div key={p.user_id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 0', borderBottom:'1px solid #F5EDE4' }}>
                       <div style={{ width:20, fontSize:13, textAlign:'center', fontWeight:700 }}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
                       <div style={{ width:28, height:28, borderRadius:'50%', background:getAvatarColor(p.full_name||''), color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, flexShrink:0 }}>
-                        {p.avatar_url?<img src={p.avatar_url} alt="" style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }}/>:getInitials(p.full_name||p.username||'?')}
+                        {p.avatar_url?<img src={p.avatar_url} alt="" style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} loading="lazy" />:getInitials(p.full_name||p.username||'?')}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:12, fontWeight:600, display:'flex', alignItems:'center', gap:4 }}><span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.full_name||p.username}</span><ProBadge profile={p} size="xs"/></div>

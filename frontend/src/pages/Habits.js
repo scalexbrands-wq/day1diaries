@@ -76,7 +76,7 @@ function ParticipantsList({ challengeId }) {
             {i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`}
           </div>
           <div style={{ width:30, height:30, borderRadius:'50%', background:getAvatarColor(p.full_name||''), color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>
-            {p.avatar_url ? <img src={p.avatar_url} alt="" style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }}/> : getInitials(p.full_name||p.username||'?')}
+            {p.avatar_url ? <img src={p.avatar_url} alt="" style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} loading="lazy" /> : getInitials(p.full_name||p.username||'?')}
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:12, fontWeight:600, display:'flex', alignItems:'center', gap:4 }}>

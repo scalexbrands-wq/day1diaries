@@ -20,6 +20,20 @@ export const getStoredTokens = () => {
 const storeTokens = (tokens) => localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens))
 const clearTokens = () => localStorage.removeItem(TOKEN_KEY)
 
+// Short-lived in-memory cache for endpoints that get re-queried on every
+// route change (e.g. Sidebar re-mounts and re-checks feature-flag status
+// on every navigation since it lives inside each route's element tree).
+// Avoids a redundant network round-trip for data that barely changes
+// within a session, without needing to restructure routing/layout.
+const _shortCache = new Map()
+function cachedFetch(key, ttlMs, fetchFn) {
+  const cached = _shortCache.get(key)
+  if (cached && Date.now() - cached.time < ttlMs) return cached.promise
+  const promise = fetchFn()
+  _shortCache.set(key, { promise, time: Date.now() })
+  return promise
+}
+
 // ── Core fetch wrapper — attaches Bearer token ──────────────────
 async function apiFetch(path, options = {}) {
   const tokens = getStoredTokens()
@@ -836,10 +850,10 @@ export const adminGetCareersStats = async () => {
 }
 
 // ── Story categories ──────────────────────────────────────────
-export const getStoryCategories = async () => {
+export const getStoryCategories = () => cachedFetch('story-categories', 300000, async () => {
   const result = await apiFetch('/stories/categories')
   return { data: result.data?.categories || [], error: result.error }
-}
+})
 export const getSuggestedUsers = async (limit=5) => {
   const result = await apiFetch(`/stories/suggested-users?limit=${limit}`)
   return { data: result.data?.users || [], error: result.error }
@@ -863,6 +877,65 @@ export const recordStoryView = async (storyId) => {
 export const shareStory = async (storyId) => {
   const result = await apiFetch(`/stories/${storyId}/share`, { method: 'POST' })
   return { data: result.data, error: result.error }
+}
+
+// ── Voice stories ──────────────────────────────────────────────
+// createStory() already passes through any field on the object it's
+// given (audio_url, audio_duration_seconds, group_id, ...) — no change
+// needed there, it's generic.
+export const getAudioUploadUrl = async (contentType = 'audio/webm') => {
+  const result = await apiFetch('/stories/audio-upload-url', { method: 'POST', body: JSON.stringify({ contentType }) })
+  return { data: result.data, error: result.error } // { uploadUrl, key, audioUrl }
+}
+export const getTranscriptStatus = async (storyId) => {
+  const result = await apiFetch(`/stories/${storyId}/transcript-status`)
+  return { data: result.data, error: result.error } // { transcript_status, transcript, content }
+}
+
+// ── Groups ──────────────────────────────────────────────────────
+export const getGroups = async ({ page = 0, limit = 20, topic_category, search } = {}) => {
+  const params = new URLSearchParams({ page, limit })
+  if (topic_category) params.set('topic_category', topic_category)
+  if (search) params.set('search', search)
+  const result = await apiFetch(`/groups?${params}`)
+  return { data: result.data?.groups, error: result.error }
+}
+export const getMyGroups = async () => {
+  const result = await apiFetch('/groups/mine')
+  return { data: result.data?.groups, error: result.error }
+}
+export const getMyGroupInvites = async () => {
+  const result = await apiFetch('/groups/invites/mine')
+  return { data: result.data?.invites, error: result.error }
+}
+export const getGroup = async (slug) => {
+  const result = await apiFetch(`/groups/${slug}`)
+  return { data: result.data, error: result.error } // { group, myRole }
+}
+export const createGroup = async (group) => {
+  const result = await apiFetch('/groups', { method: 'POST', body: JSON.stringify(group) })
+  return { data: result.data?.group, error: result.error }
+}
+export const updateGroup = async (id, group) => {
+  const result = await apiFetch(`/groups/${id}`, { method: 'PATCH', body: JSON.stringify(group) })
+  return { data: result.data?.group, error: result.error }
+}
+export const joinGroup = async (id) => {
+  const result = await apiFetch(`/groups/${id}/join`, { method: 'POST' })
+  return { data: result.data, error: result.error }
+}
+export const leaveGroup = (id) => apiFetch(`/groups/${id}/members/me`, { method: 'DELETE' })
+export const inviteToGroup = async (id, username) => {
+  const result = await apiFetch(`/groups/${id}/invite`, { method: 'POST', body: JSON.stringify({ username }) })
+  return { data: result.data?.invite, error: result.error }
+}
+export const respondToInvite = async (inviteId, action) => {
+  const result = await apiFetch(`/groups/invites/${inviteId}/respond`, { method: 'POST', body: JSON.stringify({ action }) })
+  return { data: result.data?.invite, error: result.error }
+}
+export const getGroupStories = async (id, page = 0, limit = 10) => {
+  const result = await apiFetch(`/groups/${id}/stories?page=${page}&limit=${limit}`)
+  return { data: result.data?.stories, error: result.error }
 }
 
 // ── User job applications ─────────────────────────────────────
@@ -1044,10 +1117,10 @@ export const adminGetEmailSendRecipients = async (sendId) => {
 // ============================================================
 
 // ── Public / user-facing ─────────────────────────────────────
-export const getMembershipStatus = async () => {
+export const getMembershipStatus = () => cachedFetch('membership-status', 60000, async () => {
   const result = await apiFetch('/membership/status')
   return { data: result.data?.enabled, error: result.error }
-}
+})
 export const getMembershipPlans = async () => {
   const result = await apiFetch('/membership/plans')
   return { data: result.data?.plans, error: result.error }
@@ -1220,10 +1293,10 @@ export const adminGetMembershipStats = async () => {
 // GIFT — "Surprise A Friend" module
 // ============================================================
 
-export const getGiftModuleStatus = async () => {
+export const getGiftModuleStatus = () => cachedFetch('gift-module-status', 60000, async () => {
   const result = await apiFetch('/gift/status')
   return { data: result.data, error: result.error }
-}
+})
 export const getGiftWallet = async () => apiFetch('/gift/wallet')
 export const getGiftCategories = async () => {
   const result = await apiFetch('/gift/categories')

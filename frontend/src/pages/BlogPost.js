@@ -48,7 +48,7 @@ export default function BlogPost() {
         path={`/blog/${slug}`}
       />
       {post.cover_image && (
-        <img src={post.cover_image} alt={post.title} style={{ width:'100%', maxHeight:400, objectFit:'cover', borderRadius:16, marginBottom:24 }} />
+        <img src={post.cover_image} alt={post.title} style={{ width:'100%', maxHeight:400, objectFit:'cover', borderRadius:16, marginBottom:24 }}  loading="lazy" />
       )}
       <div className="site-content" style={{ whiteSpace:'pre-wrap' }}>
         <p>{post.content}</p>

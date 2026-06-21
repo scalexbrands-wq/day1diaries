@@ -456,6 +456,25 @@ resource "aws_s3_bucket_policy" "certificates" {
   depends_on = [aws_s3_bucket_public_access_block.certificates]
 }
 
+# Voice stories upload their recording straight from the browser to this
+# bucket via a presigned PUT URL (see backend/src/utils/s3.js) — that's a
+# cross-origin request, so the bucket needs to allow it explicitly. Same
+# origin list as CORS_ORIGIN below, kept in sync with the active domain config.
+resource "aws_s3_bucket_cors_configuration" "certificates" {
+  bucket = aws_s3_bucket.certificates.id
+  cors_rule {
+    allowed_methods = ["PUT", "GET"]
+    allowed_origins = compact([
+      local.use_custom_domain ? "https://${var.domain_name}" : "",
+      local.use_custom_domain ? "https://www.${var.domain_name}" : "",
+      "https://${aws_cloudfront_distribution.frontend.domain_name}",
+      "http://localhost:3000",
+    ])
+    allowed_headers = ["*"]
+    max_age_seconds = 3000
+  }
+}
+
 # ============================================================
 # CLOUDFRONT — HTTPS proxy in front of the API ALB
 # ============================================================
@@ -694,6 +713,20 @@ resource "aws_iam_role_policy" "ecs_task_s3_certificates" {
       Effect   = "Allow"
       Action   = ["s3:PutObject", "s3:GetObject"]
       Resource = ["${aws_s3_bucket.certificates.arn}/*"]
+    }]
+  })
+}
+
+# Allow task to transcribe voice-story recordings (backend/src/services/transcription.js)
+resource "aws_iam_role_policy" "ecs_task_transcribe" {
+  name = "transcribe-access"
+  role = aws_iam_role.ecs_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["transcribe:StartTranscriptionJob", "transcribe:GetTranscriptionJob"]
+      Resource = ["*"] # Transcribe doesn't support resource-level restriction on these actions
     }]
   })
 }

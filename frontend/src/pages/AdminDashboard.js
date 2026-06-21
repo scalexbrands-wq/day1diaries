@@ -760,7 +760,7 @@ function UsersTab() {
             {/* Avatar */}
             <div style={{ width: 38, height: 38, borderRadius: '50%', background: getColor(u.full_name || u.username), color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0, overflow: 'hidden' }}>
               {u.avatar_url
-                ? <img src={u.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <img src={u.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}  loading="lazy" />
                 : getInit(u.full_name || u.username || '?')}
             </div>
 
@@ -2966,7 +2966,7 @@ function MembershipApplicationsTab() {
           {detail.application.payment_proof_url && (
             <div style={{marginBottom:14}}>
               <L c="Payment Proof"/>
-              <a href={detail.application.payment_proof_url} target="_blank" rel="noreferrer"><img src={detail.application.payment_proof_url} alt="proof" style={{maxWidth:'100%',borderRadius:8,border:'1px solid #F0EAE4'}}/></a>
+              <a href={detail.application.payment_proof_url} target="_blank" rel="noreferrer"><img src={detail.application.payment_proof_url} alt="proof" style={{maxWidth:'100%',borderRadius:8,border:'1px solid #F0EAE4'}} loading="lazy" /></a>
             </div>
           )}
           {detail.application.status==='pending' || detail.application.status==='under_review' ? (
@@ -3187,7 +3187,7 @@ function MembershipSettingsTab() {
 
       <Card>
         <SH c="UPI QR Code"/>
-        {settings['membership.upi_qr_url'] && <img src={settings['membership.upi_qr_url']} alt="UPI QR" style={{width:160,height:160,objectFit:'contain',border:'1px solid #F0EAE4',borderRadius:10,marginBottom:12,display:'block'}}/>}
+        {settings['membership.upi_qr_url'] && <img src={settings['membership.upi_qr_url']} alt="UPI QR" style={{width:160,height:160,objectFit:'contain',border:'1px solid #F0EAE4',borderRadius:10,marginBottom:12,display:'block'}} loading="lazy" />}
         <label style={{padding:'8px 18px',borderRadius:100,fontSize:12,fontWeight:600,cursor:'pointer',background:'#FF6B2B',color:'white',border:'none',display:'inline-block'}}>
           {uploading?'Uploading…':'Upload QR Image'}
           <input type="file" accept="image/*" onChange={handleQrUpload} disabled={uploading} style={{display:'none'}}/>
@@ -3274,7 +3274,7 @@ function AdCampaignsTab() {
               <div style={{width:64,height:48,borderRadius:8,overflow:'hidden',flexShrink:0,background:'#F0EAE4'}}>
                 {c.ad_type==='video'
                   ? <video src={c.creative_url} style={{width:'100%',height:'100%',objectFit:'cover'}} muted/>
-                  : <img src={c.creative_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>}
+                  : <img src={c.creative_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}} loading="lazy" />}
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
@@ -3569,7 +3569,7 @@ function SeoTab() {
       <Card>
         <SH c="Default OG Image"/>
         <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:14}}>Shown when a story/page has no cover image of its own. Recommended: 1200×630.</p>
-        {settings['seo.default_og_image'] && <img src={settings['seo.default_og_image']} alt="Default OG" style={{width:'100%',maxWidth:320,borderRadius:10,border:'1px solid #F0EAE4',marginBottom:12,display:'block'}}/>}
+        {settings['seo.default_og_image'] && <img src={settings['seo.default_og_image']} alt="Default OG" style={{width:'100%',maxWidth:320,borderRadius:10,border:'1px solid #F0EAE4',marginBottom:12,display:'block'}} loading="lazy" />}
         <label style={{padding:'8px 18px',borderRadius:100,fontSize:12,fontWeight:600,cursor:'pointer',background:'#FF6B2B',color:'white',border:'none',display:'inline-block'}}>
           {uploading?'Uploading…':'Upload Image'}
           <input type="file" accept="image/*" onChange={handleImageSelect} disabled={uploading} style={{display:'none'}}/>
@@ -3608,13 +3608,17 @@ function RolesPermissionsTab() {
 
   if (!data) return <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>Loading…</p></Card>
 
+  const adminRole = data.roles.find(r => r.key === 'admin')
   const editableRoles = data.roles.filter(r => r.key !== 'admin')
   const categories = [...new Set(data.permissions.map(p => p.category))]
+  const allKeys = data.permissions.map(p => p.key)
 
   const toggle = (role, key) => setDrafts(d => {
     const current = d[role] || []
     return { ...d, [role]: current.includes(key) ? current.filter(k=>k!==key) : [...current, key] }
   })
+  const selectAll = (role) => setDrafts(d => ({ ...d, [role]: [...allKeys] }))
+  const clearAll = (role) => setDrafts(d => ({ ...d, [role]: [] }))
   const isDirty = (role) => JSON.stringify([...(drafts[role]||[])].sort()) !== JSON.stringify([...(data.grants[role]||[])].sort())
 
   const save = async (role) => {
@@ -3630,8 +3634,32 @@ function RolesPermissionsTab() {
     <div>
       <h3 style={{margin:'0 0 6px',fontSize:15,fontWeight:700}}>Roles &amp; Permissions</h3>
       <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:18}}>
-        Tick which permissions each role has. "Admin" is a superuser and always has everything — it isn't shown below because it can't be restricted.
+        Tick which permissions each role has, or use Select All / Clear All to move faster. "Admin" is a superuser — it always has every permission shown below, read-only, and can't be restricted.
       </p>
+
+      {adminRole && (
+        <Card style={{background:'#FFF9F0',border:'1px solid #FFE3B0'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:12,flexWrap:'wrap'}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:14}}>👑 {adminRole.label} <span style={{fontSize:11,fontWeight:700,color:'#B45309',background:'rgba(180,83,9,.1)',padding:'2px 8px',borderRadius:100,marginLeft:6}}>SUPERUSER</span></div>
+              <div style={{fontSize:12,color:'#8C7B6E',marginTop:2}}>{adminRole.description}</div>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'4px 20px',opacity:.75}}>
+            {categories.map(cat => (
+              <div key={cat} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',color:'#B45309',marginBottom:6}}>{cat}</div>
+                {data.permissions.filter(p=>p.category===cat).map(p => (
+                  <label key={p.key} style={{display:'flex',alignItems:'center',gap:8,fontSize:12.5,fontWeight:500,cursor:'default',padding:'3px 0'}}>
+                    <input type="checkbox" checked disabled/>
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {editableRoles.map(role => (
         <Card key={role.key}>
@@ -3640,9 +3668,13 @@ function RolesPermissionsTab() {
               <div style={{fontWeight:700,fontSize:14}}>{role.label}</div>
               <div style={{fontSize:12,color:'#8C7B6E',marginTop:2}}>{role.description}</div>
             </div>
-            <Btn onClick={()=>save(role.key)} disabled={savingRole===role.key || !isDirty(role.key)}>
-              {savingRole===role.key ? 'Saving…' : 'Save'}
-            </Btn>
+            <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap'}}>
+              <Btn v='secondary' onClick={()=>selectAll(role.key)} style={{fontSize:11,padding:'6px 12px'}}>Select All</Btn>
+              <Btn v='secondary' onClick={()=>clearAll(role.key)} style={{fontSize:11,padding:'6px 12px'}}>Clear All</Btn>
+              <Btn onClick={()=>save(role.key)} disabled={savingRole===role.key || !isDirty(role.key)}>
+                {savingRole===role.key ? 'Saving…' : 'Save'}
+              </Btn>
+            </div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'4px 20px'}}>
             {categories.map(cat => (

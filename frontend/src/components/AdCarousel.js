@@ -42,7 +42,7 @@ export default function AdCarousel({ placement, intervalMs = 5000 }) {
   const media = current.ad_type === 'video' ? (
     <video src={current.creative_url} autoPlay muted loop playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
   ) : (
-    <img src={current.creative_url} alt={current.advertiser_name || 'Sponsored'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+    <img src={current.creative_url} alt={current.advertiser_name || 'Sponsored'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}  loading="lazy" />
   )
 
   return (

@@ -60,7 +60,7 @@ function ProfileStoryCard({ story, onClick, authorName }) {
             src={story.cover_image_url}
             alt=""
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
+           loading="lazy" />
         </div>
       ) : (
         <div style={{
@@ -279,7 +279,7 @@ export default function Profile() {
             overflow: 'hidden',
           }}>
             {profile.avatar_url
-              ? <img src={profile.avatar_url} alt={profile.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <img src={profile.avatar_url} alt={profile.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }}  loading="lazy" />
               : getInitials(profile.full_name || profile.username || '?')
             }
           </div>
@@ -488,7 +488,7 @@ export default function Profile() {
                     background: avatarBg, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800,
                   }}>
                     {editForm.avatar_url
-                      ? <img src={editForm.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <img src={editForm.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}  loading="lazy" />
                       : getInitials(editForm.full_name || profile.username || '?')}
                   </div>
                   <label style={{ padding: '8px 16px', borderRadius: 100, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', background: '#F0EAE4', color: '#1A0800', display: 'inline-block' }}>

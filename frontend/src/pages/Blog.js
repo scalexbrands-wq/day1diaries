@@ -30,7 +30,7 @@ export default function Blog() {
             onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 10px 28px rgba(255,107,43,.12)'}}
             onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='0 2px 16px rgba(26,8,0,.05)'}}>
             {post.cover_image && (
-              <img src={post.cover_image} alt={post.title} style={{ width:'100%', height:160, objectFit:'cover', borderRadius:12, marginBottom:14 }} />
+              <img src={post.cover_image} alt={post.title} style={{ width:'100%', height:160, objectFit:'cover', borderRadius:12, marginBottom:14 }}  loading="lazy" />
             )}
             <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.1rem', fontWeight:700, lineHeight:1.3, marginBottom:8, color:'#1A0800' }}>{post.title}</div>
             {post.excerpt && <p style={{ fontSize:13, color:'#8C7B6E', lineHeight:1.6, display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden', marginBottom:10 }}>{post.excerpt}</p>}

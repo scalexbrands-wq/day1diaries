@@ -90,7 +90,7 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
   }
 
   return (
-    <div className="story-card" onClick={handleCardClick}>
+    <div className={`story-card ${story.audio_url ? 'story-card-voice' : 'story-card-text-full'}`} onClick={handleCardClick}>
       {/* ── Creative lock overlay ── */}
       {isLocked && (
         <div className="story-lock-overlay" onClick={e => e.stopPropagation()}>
@@ -126,7 +126,7 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
           onClick={(e) => { e.stopPropagation(); navigate(`/profile/${author.username}`) }}
         >
           {author.avatar_url
-            ? <img src={author.avatar_url} alt={author.full_name} />
+            ? <img src={author.avatar_url} alt={author.full_name}  loading="lazy" />
             : getInitials(author.full_name || author.username || '?')}
         </div>
         <div className="story-card-meta">
@@ -148,14 +148,24 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
       {/* Title — visible when locked to tease the reader */}
       <div className="story-card-title" title={story.title}>{story.title}</div>
 
+      {/* Voice story — audio player + pending-transcription placeholder */}
+      {story.audio_url && !isLocked && (
+        <div onClick={e => e.stopPropagation()} style={{ marginBottom: 10 }}>
+          <audio controls src={story.audio_url} style={{ width: '100%', height: 36 }} />
+          {story.transcript_status === 'pending' && (
+            <div style={{ fontSize: 11, color: '#8C7B6E', marginTop: 6 }}>🎙️ Transcribing...</div>
+          )}
+        </div>
+      )}
+
       {/* Body — blurred when locked */}
       <div className={`story-card-text${isLocked ? ' story-locked-blur' : ''}`}>
-        {story.content}
+        {story.audio_url && story.transcript_status === 'pending' ? '' : story.content}
       </div>
 
       {story.cover_image_url && (
         <div className={isLocked ? 'story-locked-blur' : ''} style={{ marginBottom: 12, borderRadius: 10, overflow: 'hidden', maxHeight: 200 }}>
-          <img src={story.cover_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={story.cover_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}  loading="lazy" />
         </div>
       )}
 

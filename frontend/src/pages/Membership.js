@@ -150,7 +150,7 @@ function MembershipDashboard({ membership, card, onRenew }) {
         {card?.status === 'processing' && <p style={{ fontSize:13, color:'#8C7B6E' }}>Your card is being generated — refresh in a moment.</p>}
         {card?.status === 'completed' && (
           <div>
-            <img src={card.card_image_url} alt="Membership card" style={{ width:'100%', maxWidth:420, borderRadius:12, display:'block', marginBottom:12 }}/>
+            <img src={card.card_image_url} alt="Membership card" style={{ width:'100%', maxWidth:420, borderRadius:12, display:'block', marginBottom:12 }} loading="lazy" />
             <div style={{ display:'flex', gap:10 }}>
               <a href={card.card_image_url} download><Btn variant="secondary">Download PNG</Btn></a>
               <a href={card.card_pdf_url} download><Btn variant="secondary">Download PDF</Btn></a>
@@ -331,7 +331,7 @@ function ApplicationFlow({ plan, onDone, onCancel }) {
 
           {paymentMethod === 'upi' && paymentSettings.upiQrUrl && (
             <div style={{ marginBottom:16, textAlign:'center' }}>
-              <img src={paymentSettings.upiQrUrl} alt="UPI QR" style={{ width:200, height:200, objectFit:'contain', border:'1px solid #F0EAE4', borderRadius:10 }}/>
+              <img src={paymentSettings.upiQrUrl} alt="UPI QR" style={{ width:200, height:200, objectFit:'contain', border:'1px solid #F0EAE4', borderRadius:10 }} loading="lazy" />
               <p style={{ fontSize:12, color:'#8C7B6E' }}>Scan to pay {plan.currency} {plan.price}, then upload your payment screenshot below.</p>
             </div>
           )}

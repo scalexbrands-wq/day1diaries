@@ -49,7 +49,7 @@ export default function Leaderboard() {
                     {i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
                   </div>
                   <div className="avatar avatar-sm" style={{ background:getAvatarColor(u.full_name||u.username), color:'white' }}>
-                    {u.avatar_url ? <img src={u.avatar_url} alt={u.full_name}/> : getInitials(u.full_name||u.username||'?')}
+                    {u.avatar_url ? <img src={u.avatar_url} alt={u.full_name} loading="lazy" /> : getInitials(u.full_name||u.username||'?')}
                   </div>
                   <div className="lb-info">
                     <div className="lb-name">{u.full_name || u.username}</div>

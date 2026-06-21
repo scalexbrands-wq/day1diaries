@@ -18,11 +18,11 @@ export default function SavedStories() {
   if (loading) return <div className="loading-center"><div className="spinner"/></div>
 
   return (
-    <div style={{ padding:'16px', maxWidth:720 }}>
+    <div style={{ padding:'16px', maxWidth:960 }}>
       <h2 style={{ marginBottom:20 }}>Saved Stories</h2>
       {stories.length === 0
         ? <div className="empty-state"><div className="empty-state-icon">🔖</div><h3>No saved stories yet</h3><p>Tap the bookmark icon on any story to save it for later.</p></div>
-        : <div style={{ display:'flex', flexDirection:'column', gap:12 }}>{stories.map(s => <StoryCard key={s.id} story={s}/>)}</div>
+        : <div className="story-list-grid">{stories.map(s => <StoryCard key={s.id} story={s}/>)}</div>
       }
     </div>
   )

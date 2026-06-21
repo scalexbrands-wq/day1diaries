@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { VisitorCountProvider } from './contexts/VisitorCountContext'
@@ -7,36 +7,42 @@ import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import Toast from './components/Toast'
 import AnnouncementPopup from './components/AnnouncementPopup'
-import Landing from './pages/Landing'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Feed from './pages/Feed'
-import Discover from './pages/Discover'
-import StoryDetail from './pages/StoryDetail'
-import WriteStory from './pages/WriteStory'
-import Habits from './pages/Habits'
-import Community from './pages/Community'
-import Leaderboard from './pages/Leaderboard'
-import Profile from './pages/Profile'
-import AdminDashboard from './pages/AdminDashboard'
-import SavedStories from './pages/SavedStories'
-import Jobs from './pages/Jobs'
-import PrivacyPolicy from './pages/PrivacyPolicy'
-import TermsOfService from './pages/TermsOfService'
-import ContentPolicy from './pages/ContentPolicy'
-import PostingGuidelines from './pages/PostingGuidelines'
-import About from './pages/About'
-import Blog from './pages/Blog'
-import BlogPost from './pages/BlogPost'
-import Careers from './pages/Careers'
-import JobDetail from './pages/JobDetail'
-import Contact from './pages/Contact'
-import CertificateViewer from './pages/CertificateViewer'
-import Membership from './pages/Membership'
-import RefundPolicy from './pages/RefundPolicy'
-import Tribute from './pages/Tribute'
-import MyGifts from './pages/MyGifts'
-import Wallet from './pages/Wallet'
+
+// Route-level code splitting — each page is its own chunk, fetched only
+// when that route is visited, instead of all bundled into one giant
+// main.js the browser has to parse before anything renders.
+const Landing = lazy(() => import('./pages/Landing'))
+const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
+const Feed = lazy(() => import('./pages/Feed'))
+const Discover = lazy(() => import('./pages/Discover'))
+const StoryDetail = lazy(() => import('./pages/StoryDetail'))
+const WriteStory = lazy(() => import('./pages/WriteStory'))
+const Habits = lazy(() => import('./pages/Habits'))
+const Community = lazy(() => import('./pages/Community'))
+const Leaderboard = lazy(() => import('./pages/Leaderboard'))
+const Profile = lazy(() => import('./pages/Profile'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const SavedStories = lazy(() => import('./pages/SavedStories'))
+const Jobs = lazy(() => import('./pages/Jobs'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const TermsOfService = lazy(() => import('./pages/TermsOfService'))
+const ContentPolicy = lazy(() => import('./pages/ContentPolicy'))
+const PostingGuidelines = lazy(() => import('./pages/PostingGuidelines'))
+const About = lazy(() => import('./pages/About'))
+const Blog = lazy(() => import('./pages/Blog'))
+const BlogPost = lazy(() => import('./pages/BlogPost'))
+const Careers = lazy(() => import('./pages/Careers'))
+const JobDetail = lazy(() => import('./pages/JobDetail'))
+const Contact = lazy(() => import('./pages/Contact'))
+const CertificateViewer = lazy(() => import('./pages/CertificateViewer'))
+const Membership = lazy(() => import('./pages/Membership'))
+const RefundPolicy = lazy(() => import('./pages/RefundPolicy'))
+const Tribute = lazy(() => import('./pages/Tribute'))
+const MyGifts = lazy(() => import('./pages/MyGifts'))
+const Wallet = lazy(() => import('./pages/Wallet'))
+const Groups = lazy(() => import('./pages/Groups'))
+const GroupDetail = lazy(() => import('./pages/GroupDetail'))
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth()
@@ -98,12 +104,15 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <VisitorCountProvider>
+        <Suspense fallback={<div className="loading-center" style={{ minHeight:'100vh' }}><div className="spinner"/></div>}>
         <Routes>
           <Route path="/"                    element={<Landing/>} />
           <Route path="/login"               element={<Login/>} />
           <Route path="/register"            element={<Register/>} />
           <Route path="/feed"                element={<PrivateRoute><AppLayout><Feed/></AppLayout></PrivateRoute>} />
           <Route path="/discover"            element={<PrivateRoute><AppLayout><Discover/></AppLayout></PrivateRoute>} />
+          <Route path="/groups"              element={<PrivateRoute><AppLayout><Groups/></AppLayout></PrivateRoute>} />
+          <Route path="/groups/:slug"        element={<PrivateRoute><AppLayout><GroupDetail/></AppLayout></PrivateRoute>} />
           <Route path="/story/:id"           element={<ShareableLayout><StoryDetail/></ShareableLayout>} />
           <Route path="/tribute/:slug"       element={<ShareableLayout><Tribute/></ShareableLayout>} />
           <Route path="/gifts"               element={<PrivateRoute><AppLayout><MyGifts/></AppLayout></PrivateRoute>} />
@@ -132,6 +141,7 @@ export default function App() {
           <Route path="/certificate/:id"     element={<CertificateViewer/>} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
         </VisitorCountProvider>
       </AuthProvider>
     </BrowserRouter>

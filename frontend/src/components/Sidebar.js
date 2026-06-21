@@ -6,6 +6,7 @@ import { signOut, getMembershipStatus, getGiftModuleStatus } from '../lib/api'
 const BASE_NAV = [
   { to:'/feed',        icon:'⌂', label:'My Feed' },
   { to:'/discover',    icon:'◉', label:'Discover' },
+  { to:'/groups',      icon:'☷', label:'Groups' },
   { to:'/community',   icon:'🌍', label:'Community' },
   { to:'/habits',      icon:'◈', label:'Habits' },
   { to:'/jobs',        icon:'💼', label:'Jobs' },
@@ -98,7 +99,7 @@ export default function Sidebar() {
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
             <div style={{ width:28, height:28, borderRadius:'50%', background:getAvatarColor(profile.full_name||''), color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>
               {profile.avatar_url
-                ? <img src={profile.avatar_url} alt={profile.full_name} style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }}/>
+                ? <img src={profile.avatar_url} alt={profile.full_name} style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover' }} loading="lazy" />
                 : getInitials(profile.full_name || profile.username || '?')}
             </div>
             <div style={{ flex:1, minWidth:0 }}>

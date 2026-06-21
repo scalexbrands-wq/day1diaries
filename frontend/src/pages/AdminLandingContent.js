@@ -119,7 +119,7 @@ function HeroEditor() {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14 }}>
               {heroImages.map((url, i) => (
                 <div key={url} style={{ position:'relative' }}>
-                  <img src={url} alt={`Hero slide ${i+1}`} style={{ width:'100%', height:90, objectFit:'cover', borderRadius:10, border:'1px solid #F0EAE4', display:'block' }}/>
+                  <img src={url} alt={`Hero slide ${i+1}`} style={{ width:'100%', height:90, objectFit:'cover', borderRadius:10, border:'1px solid #F0EAE4', display:'block' }} loading="lazy" />
                   <button onClick={()=>removeImage(i)} disabled={uploading} title="Remove" style={{ position:'absolute', top:-8, right:-8, width:22, height:22, borderRadius:'50%', background:'#DC2626', color:'white', border:'2px solid white', cursor:'pointer', fontSize:12, lineHeight:1, fontWeight:700 }}>×</button>
                 </div>
               ))}
@@ -259,7 +259,7 @@ function BottomSectionEditor() {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14 }}>
               {images.map((url, i) => (
                 <div key={url} style={{ position:'relative' }}>
-                  <img src={url} alt={`Slide ${i+1}`} style={{ width:'100%', height:90, objectFit:'cover', borderRadius:10, border:'1px solid #F0EAE4', display:'block' }}/>
+                  <img src={url} alt={`Slide ${i+1}`} style={{ width:'100%', height:90, objectFit:'cover', borderRadius:10, border:'1px solid #F0EAE4', display:'block' }} loading="lazy" />
                   <button onClick={()=>removeImage(i)} disabled={uploading} title="Remove" style={{ position:'absolute', top:-8, right:-8, width:22, height:22, borderRadius:'50%', background:'#DC2626', color:'white', border:'2px solid white', cursor:'pointer', fontSize:12, lineHeight:1, fontWeight:700 }}>×</button>
                 </div>
               ))}
