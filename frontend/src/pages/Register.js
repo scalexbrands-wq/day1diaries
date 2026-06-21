@@ -1,10 +1,13 @@
 import React, { useState } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { signUp, confirmSignUp, resendConfirmationCode } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../components/Toast'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 export default function Register() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const { reloadSession } = useAuth()
@@ -95,25 +98,26 @@ export default function Register() {
   return (
     <div style={{ minHeight:'100vh', background:'var(--cream)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ background:'white', borderRadius:24, padding:'40px 36px', width:'100%', maxWidth:440, boxShadow:'0 12px 40px rgba(26,10,0,.10)' }}>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}><LanguageSwitcher /></div>
         <div style={{ textAlign:'center', marginBottom:28 }}>
           <div style={{ fontFamily:'Playfair Display,serif', fontSize:'24px', fontWeight:900, color:'var(--orange)', marginBottom:6 }}>Day1 Diaries</div>
-          <h2 style={{ fontSize:'1.2rem', marginBottom:4 }}>Join 10,000+ freshers</h2>
-          <p style={{ fontSize:'13px', color:'var(--gray-400)' }}>Share your story. Find your people.</p>
+          <h2 style={{ fontSize:'1.2rem', marginBottom:4 }}>{t('auth.registerTitle')}</h2>
+          <p style={{ fontSize:'13px', color:'var(--gray-400)' }}>{t('auth.registerSubtitle')}</p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="grid-2">
             <div className="form-group">
-              <label className="form-label">Full Name</label>
+              <label className="form-label">{t('auth.fullName')}</label>
               <input type="text" className="form-control" placeholder="Priya Sharma" value={form.full_name} onChange={set('full_name')} required />
             </div>
             <div className="form-group">
-              <label className="form-label">Username</label>
+              <label className="form-label">{t('auth.username')}</label>
               <input type="text" className="form-control" placeholder="priya_s" value={form.username} onChange={set('username')} required />
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">Email</label>
+            <label className="form-label">{t('auth.email')}</label>
             <input type="email" className="form-control" placeholder="you@example.com" value={form.email} onChange={set('email')} required />
           </div>
           <div className="form-group">
@@ -122,7 +126,7 @@ export default function Register() {
             <div style={{ fontSize:'11px', color:'var(--gray-400)', marginTop:4 }}>We'll send you a welcome message with our WhatsApp community invite.</div>
           </div>
           <div className="form-group">
-            <label className="form-label">Password</label>
+            <label className="form-label">{t('auth.password')}</label>
             <input type="password" className="form-control" placeholder="At least 8 characters" value={form.password} onChange={set('password')} required />
             <div style={{ fontSize:'11px', color:'var(--gray-400)', marginTop:4 }}>Must include uppercase, lowercase, and a number.</div>
           </div>
@@ -135,12 +139,12 @@ export default function Register() {
           </p>
 
           <button type="submit" disabled={loading} className="btn btn-primary w-full" style={{ justifyContent:'center', marginTop:6 }}>
-            {loading ? <span className="spinner spinner-sm"/> : 'Create Account'}
+            {loading ? <span className="spinner spinner-sm"/> : t('auth.registerButton')}
           </button>
         </form>
 
         <p style={{ textAlign:'center', fontSize:'13px', color:'var(--gray-400)', marginTop:20 }}>
-          Already have an account? <Link to="/login" style={{ color:'var(--orange)', fontWeight:600 }}>Sign in</Link>
+          {t('auth.haveAccount')} <Link to="/login" style={{ color:'var(--orange)', fontWeight:600 }}>{t('auth.loginLink')}</Link>
         </p>
       </div>
     </div>

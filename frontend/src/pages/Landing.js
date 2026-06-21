@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { getLandingData, getSeoDefaults } from '../lib/api'
 import Seo from '../components/Seo'
 import VisitorCounter from '../components/VisitorCounter'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 /* ── helpers ─────────────────────────────────────────────── */
 const COLORS = ['#FF6B2B','#7C3AED','#059669','#2563EB','#EC4899','#0EA5E9','#F59E0B','#DC2626']
@@ -80,6 +82,7 @@ function useCountUp(target, suffix, run) {
 
 /* ── Main ──────────────────────────────────────────────────── */
 export default function Landing() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [data, setData] = useState(null)
@@ -240,25 +243,26 @@ export default function Landing() {
           <VisitorCounter/>
         </div>
         <div className="lp-nav-desktop" style={{ display:'flex', alignItems:'center', gap:28 }}>
-          {[['#features','Features'],['#habits','Habits'],['#jobs','Opportunities'],['#community','Community']].map(([h,l])=>(
+          {[['#features',t('nav.features')],['#habits',t('nav.habits')],['#jobs',t('nav.opportunities')],['#community',t('nav.community')]].map(([h,l])=>(
             <a key={h} href={h} className="lp-nav-link">{l}</a>
           ))}
-          <Link to="/login" className="lp-nav-link">Sign In</Link>
+          <LanguageSwitcher />
+          <Link to="/login" className="lp-nav-link">{t('nav.signIn')}</Link>
           <Link to="/register" style={S.btn('linear-gradient(135deg,#FF6B2B,#8B5CF6)','white',{ padding:'9px 22px', fontSize:13.5, boxShadow:'0 4px 20px rgba(139,92,246,.35)' })}
             onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 6px 28px rgba(139,92,246,.5)';e.currentTarget.style.transform='translateY(-1px)'}}
             onMouseLeave={e=>{e.currentTarget.style.boxShadow='0 4px 20px rgba(139,92,246,.35)';e.currentTarget.style.transform='none'}}>
-            Get Started Free ✨
+            {t('nav.getStartedFree')} ✨
           </Link>
         </div>
         <button className="lp-hamburger" onClick={()=>setMobileMenuOpen(o=>!o)}>{mobileMenuOpen?'✕':'☰'}</button>
         {mobileMenuOpen && (
           <div className="lp-mobile-menu">
-            <a href="#features" onClick={()=>setMobileMenuOpen(false)}>Features</a>
-            <a href="#habits" onClick={()=>setMobileMenuOpen(false)}>Habits</a>
-            <a href="#jobs" onClick={()=>setMobileMenuOpen(false)}>Opportunities</a>
-            <a href="#community" onClick={()=>setMobileMenuOpen(false)}>Community</a>
-            <Link to="/login" onClick={()=>setMobileMenuOpen(false)}>Sign In</Link>
-            <Link to="/register" onClick={()=>setMobileMenuOpen(false)} style={{ color:'#FF6B2B', fontWeight:600 }}>Get Started Free →</Link>
+            <a href="#features" onClick={()=>setMobileMenuOpen(false)}>{t('nav.features')}</a>
+            <a href="#habits" onClick={()=>setMobileMenuOpen(false)}>{t('nav.habits')}</a>
+            <a href="#jobs" onClick={()=>setMobileMenuOpen(false)}>{t('nav.opportunities')}</a>
+            <a href="#community" onClick={()=>setMobileMenuOpen(false)}>{t('nav.community')}</a>
+            <Link to="/login" onClick={()=>setMobileMenuOpen(false)}>{t('nav.signIn')}</Link>
+            <Link to="/register" onClick={()=>setMobileMenuOpen(false)} style={{ color:'#FF6B2B', fontWeight:600 }}>{t('nav.getStartedFree')} →</Link>
           </div>
         )}
       </nav>
@@ -279,7 +283,7 @@ export default function Landing() {
             <span style={{ width:6, height:6, borderRadius:'50%', background:'#FF6B2B', display:'inline-block', position:'relative' }}>
               <span className="lp-pulse"/>
             </span>
-            {hero.eyebrow || 'For Every Fresher, Everywhere'}
+            {hero.eyebrow || t('landing.heroEyebrow')}
           </div>
           <h1 style={{ fontFamily:"'Playfair Display',serif", fontWeight:900, fontSize:'clamp(2.4rem,4vw,3.9rem)', lineHeight:1.04, marginBottom:22, letterSpacing:'-.5px' }}>
             {parts[0]}<em style={{ color:'#FF6B2B', fontStyle:'italic', position:'relative' }}>
@@ -296,17 +300,17 @@ export default function Landing() {
             <Link to="/register" style={S.btn('#FF6B2B','white',{ padding:'15px 34px', fontSize:15.5, boxShadow:'0 8px 28px rgba(255,107,43,.38)' })}
               onMouseEnter={e=>{e.currentTarget.style.background='#E55B1F';e.currentTarget.style.transform='translateY(-2px)'}}
               onMouseLeave={e=>{e.currentTarget.style.background='#FF6B2B';e.currentTarget.style.transform='none'}}>
-              {hero.cta_primary_text || 'Share My Day 1 ✍️'}
+              {hero.cta_primary_text || t('landing.shareMyDay1')}
             </Link>
             <a href="#features" style={S.btn('transparent','#1A0800',{ padding:'15px 34px', fontSize:15.5, border:'1.5px solid rgba(26,8,0,.18)' })}
               onMouseEnter={e=>{e.currentTarget.style.borderColor='#FF6B2B';e.currentTarget.style.color='#FF6B2B'}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor='rgba(26,8,0,.18)';e.currentTarget.style.color='#1A0800'}}>
-              {hero.cta_secondary_text || 'See How It Works →'}
+              {hero.cta_secondary_text || t('landing.seeHowItWorks')}
             </a>
           </div>
           {/* Stats bar */}
           <div ref={proofRef} className="lp-hero-stats" style={{ display:'flex', gap:0, flexWrap:'wrap', paddingTop:28, borderTop:'1px solid rgba(26,8,0,.08)' }}>
-            {[[c1,'Total Users','👥'],[c2,'Stories Shared','📝'],[c3,'Habit Adoptions','🔥'],[c4,'Feel Less Alone','✨']].map(([v,l,ic],idx)=>(
+            {[[c1,t('landing.totalUsers'),'👥'],[c2,t('landing.storiesShared'),'📝'],[c3,t('landing.habitAdoptions'),'🔥'],[c4,t('landing.feelLessAlone'),'✨']].map(([v,l,ic],idx)=>(
               <div key={l} className="lp-hero-stat-item" style={{ paddingRight:28, marginRight:28, borderRight: idx < 3 ? '1px solid rgba(26,8,0,.08)' : 'none' }}>
                 <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.9rem', fontWeight:900, color:'#FF6B2B', display:'flex', alignItems:'center', gap:6 }}>{v} <span style={{fontSize:'1rem'}}>{ic}</span></div>
                 <div style={{ fontSize:11, color:'#8C7B6E', marginTop:2 }}>{l}</div>
@@ -423,7 +427,7 @@ export default function Landing() {
       {/* ── HOW IT WORKS ── */}
       <section id="features" style={S.sec('white')}>
         <div style={{ textAlign:'center', marginBottom:56 }}>
-          <span className="lp-reveal" style={S.eyebrow()}>How It Works</span>
+          <span className="lp-reveal" style={S.eyebrow()}>{t('landing.howItWorks')}</span>
           <h2 className="lp-reveal" style={{ ...S.h2(), maxWidth:480, margin:'0 auto' }}>Four steps. One unforgettable story.</h2>
         </div>
         <div className="lp-how" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:0, position:'relative', maxWidth:900, margin:'0 auto' }}>
@@ -451,7 +455,7 @@ export default function Landing() {
         <div style={{ position:'absolute', top:0, left:0, right:0, height:1, background:'linear-gradient(90deg,transparent,rgba(139,92,246,.4),rgba(255,107,43,.4),transparent)' }}/>
         <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1, background:'linear-gradient(90deg,transparent,rgba(6,182,212,.3),rgba(139,92,246,.3),transparent)' }}/>
         <div>
-          <span className="lp-reveal" style={{ ...S.eyebrow('#A78BFA'), letterSpacing:'.18em' }}>Platform Features</span>
+          <span className="lp-reveal" style={{ ...S.eyebrow('#A78BFA'), letterSpacing:'.18em' }}>{t('landing.platformFeatures')}</span>
           <h2 className="lp-reveal" style={{ ...S.h2('white'), fontSize:'clamp(1.9rem,3.2vw,2.8rem)' }}>Everything a fresher needs to<br/>
             <span style={{ background:'linear-gradient(90deg,#FF6B2B,#FFD166)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>thrive</span>, documented.
           </h2>
@@ -510,7 +514,7 @@ export default function Landing() {
       {/* ── STORY CATEGORIES ── */}
       <section style={S.sec('white')}>
         <div style={{ textAlign:'center', marginBottom:42 }}>
-          <span className="lp-reveal" style={S.eyebrow()}>Story Categories</span>
+          <span className="lp-reveal" style={S.eyebrow()}>{t('landing.storyCategories')}</span>
           <h2 className="lp-reveal" style={S.h2()}>Every kind of first.</h2>
         </div>
         {loading ? <Spinner/> : (
@@ -528,14 +532,14 @@ export default function Landing() {
           </div>
         )}
         <div style={{ textAlign:'center', marginTop:36 }}>
-          <Link to="/discover" style={S.btn('transparent','#FF6B2B',{ border:'1.5px solid #FF6B2B' })}>Browse All Stories →</Link>
+          <Link to="/discover" style={S.btn('transparent','#FF6B2B',{ border:'1.5px solid #FF6B2B' })}>{t('landing.browseAllStories')}</Link>
         </div>
       </section>
 
       {/* ── HABITS ── */}
       <section id="habits" style={S.sec('#F5EDE4')}>
         <div>
-          <span className="lp-reveal" style={S.eyebrow()}>Habit Change Module</span>
+          <span className="lp-reveal" style={S.eyebrow()}>{t('landing.habitModule')}</span>
           <h2 className="lp-reveal" style={{ ...S.h2(), marginBottom:12 }}>The feature that makes<br/>Day1 Diaries different.</h2>
           <p className="lp-reveal" style={{ fontSize:'1rem', color:'#4A2800', lineHeight:1.78, fontWeight:300, maxWidth:480 }}>Choose a habit, adopt it, log every single day. Watch thousands do it with you — and earn points for every log.</p>
         </div>
@@ -590,7 +594,7 @@ export default function Landing() {
       <section id="jobs" style={S.sec('#1A0800')}>
         <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', flexWrap:'wrap', gap:16, marginBottom:48 }}>
           <div>
-            <span className="lp-reveal" style={S.eyebrow('#FFD166')}>Trending Opportunities</span>
+            <span className="lp-reveal" style={S.eyebrow('#FFD166')}>{t('landing.trendingOpportunities')}</span>
             <h2 className="lp-reveal" style={{ ...S.h2('white'), marginBottom:10 }}>Your Day 1 at a new job<br/>starts here.</h2>
             <p className="lp-reveal" style={{ fontSize:'1rem', color:'rgba(255,255,255,.4)', lineHeight:1.75, fontWeight:300, maxWidth:420 }}>Real openings from companies that believe every first day matters.</p>
           </div>
@@ -634,7 +638,7 @@ export default function Landing() {
       {/* ── TESTIMONIALS ── */}
       <section style={S.sec('#FDF6EE')}>
         <div style={{ textAlign:'center', marginBottom:48 }}>
-          <span className="lp-reveal" style={S.eyebrow()}>Real Stories, Real Freshers</span>
+          <span className="lp-reveal" style={S.eyebrow()}>{t('landing.testimonialsTitle')}</span>
           <h2 className="lp-reveal" style={S.h2()}>What they're saying</h2>
         </div>
         {loading ? <Spinner/> : (
@@ -660,7 +664,7 @@ export default function Landing() {
       {/* ── COMMUNITY / LEADERBOARD ── */}
       <section id="community" style={S.sec('white')}>
         <div>
-          <span className="lp-reveal" style={S.eyebrow()}>Community & Gamification</span>
+          <span className="lp-reveal" style={S.eyebrow()}>{t('landing.communityTitle')}</span>
           <h2 className="lp-reveal" style={{ ...S.h2(), marginBottom:12 }}>Climb from Beginner to Legend.<br/>Get recognised.</h2>
           <p className="lp-reveal" style={{ fontSize:'1rem', color:'#4A2800', lineHeight:1.78, fontWeight:300, maxWidth:480 }}>Every story you share, every habit you log, every person you inspire — it all builds your score and coins.</p>
         </div>
@@ -733,15 +737,15 @@ export default function Landing() {
             <Link to="/login" style={S.btn('rgba(255,255,255,.08)','white',{ padding:'16px 38px', fontSize:16, border:'1.5px solid rgba(255,255,255,.2)' })}
               onMouseEnter={e=>{e.currentTarget.style.background='rgba(255,255,255,.14)'}}
               onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,.08)'}}>
-              Sign In
+              {t('nav.signIn')}
             </Link>
           </div>
           <div style={{ display:'flex', gap:40, justifyContent:'center', paddingTop:40, borderTop:'1px solid rgba(255,255,255,.1)', flexWrap:'wrap' }}>
             {[
-              [(data?.stats?.total_users||0).toLocaleString()+'+','Total Users','👥'],
-              [(data?.stats?.total_stories||0).toLocaleString()+'+','Stories Shared','📝'],
+              [(data?.stats?.total_users||0).toLocaleString()+'+',t('landing.totalUsers'),'👥'],
+              [(data?.stats?.total_stories||0).toLocaleString()+'+',t('landing.storiesShared'),'📝'],
               ['100+','Join Daily','🔥'],
-              ['98%','Feel Less Alone','✨'],
+              ['98%',t('landing.feelLessAlone'),'✨'],
             ].map(([v,l,ic])=>(
               <div key={l} style={{ textAlign:'center' }}>
                 <div style={{ fontSize:'1.5rem', marginBottom:4 }}>{ic}</div>

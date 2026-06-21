@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { VisitorCountProvider } from './contexts/VisitorCountContext'
 import { getLandingTemplate } from './lib/api'
@@ -8,6 +9,7 @@ import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import Toast from './components/Toast'
 import AnnouncementPopup from './components/AnnouncementPopup'
+import LanguageSwitcher from './components/LanguageSwitcher'
 
 // Route-level code splitting — each page is its own chunk, fetched only
 // when that route is visited, instead of all bundled into one giant
@@ -80,17 +82,21 @@ const AppLayout = ({ children }) => (
 // logged-in visitors get the normal app shell; logged-out visitors get a
 // minimal public header with Sign In/Sign Up instead of the full sidebar
 // (which would otherwise show nav items that just bounce them to /login).
-const PublicHeader = () => (
-  <nav style={{ position:'sticky', top:0, zIndex:100, background:'rgba(253,246,238,.95)', backdropFilter:'blur(16px)', borderBottom:'1px solid rgba(255,107,43,.1)', padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-    <Link to="/" style={{ fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:900, color:'#FF6B2B', textDecoration:'none' }}>
-      Day<span style={{color:'#1A0800'}}>1</span> Diaries
-    </Link>
-    <div style={{ display:'flex', gap:10 }}>
-      <Link to="/login" style={{ fontSize:13, fontWeight:600, color:'#1A0800', textDecoration:'none', padding:'8px 16px', borderRadius:100, border:'1.5px solid rgba(26,8,0,.15)' }}>Sign In</Link>
-      <Link to="/register" style={{ fontSize:13, fontWeight:600, color:'white', textDecoration:'none', padding:'8px 16px', borderRadius:100, background:'#FF6B2B' }}>Get Started Free →</Link>
-    </div>
-  </nav>
-)
+const PublicHeader = () => {
+  const { t } = useTranslation()
+  return (
+    <nav style={{ position:'sticky', top:0, zIndex:100, background:'rgba(253,246,238,.95)', backdropFilter:'blur(16px)', borderBottom:'1px solid rgba(255,107,43,.1)', padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+      <Link to="/" style={{ fontFamily:"'Playfair Display',serif", fontSize:18, fontWeight:900, color:'#FF6B2B', textDecoration:'none' }}>
+        Day<span style={{color:'#1A0800'}}>1</span> Diaries
+      </Link>
+      <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+        <LanguageSwitcher />
+        <Link to="/login" style={{ fontSize:13, fontWeight:600, color:'#1A0800', textDecoration:'none', padding:'8px 16px', borderRadius:100, border:'1.5px solid rgba(26,8,0,.15)' }}>{t('nav.signIn')}</Link>
+        <Link to="/register" style={{ fontSize:13, fontWeight:600, color:'white', textDecoration:'none', padding:'8px 16px', borderRadius:100, background:'#FF6B2B' }}>{t('nav.getStartedFree')} →</Link>
+      </div>
+    </nav>
+  )
+}
 // Picks which of the 3 landing page designs renders on "/", based on
 // the admin's choice in Admin > Landing Content > Template.
 const LANDING_TEMPLATES = { classic: Landing, editorial: LandingEditorial, bento: LandingBento, kinetic: LandingKinetic, slideshow: LandingSlideshow }

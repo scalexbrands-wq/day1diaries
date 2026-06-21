@@ -1,10 +1,13 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { signIn, resendConfirmationCode } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../components/Toast'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 
 export default function Login() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const { reloadSession } = useAuth()
@@ -41,19 +44,20 @@ export default function Login() {
   return (
     <div style={{ minHeight:'100vh', background:'var(--cream)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <div style={{ background:'white', borderRadius:24, padding:'40px 36px', width:'100%', maxWidth:420, boxShadow:'0 12px 40px rgba(26,10,0,.10)' }}>
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}><LanguageSwitcher /></div>
         <div style={{ textAlign:'center', marginBottom:28 }}>
           <div style={{ fontFamily:'Playfair Display,serif', fontSize:'24px', fontWeight:900, color:'var(--orange)', marginBottom:6 }}>Day1 Diaries</div>
-          <h2 style={{ fontSize:'1.2rem', marginBottom:4 }}>Welcome back</h2>
-          <p style={{ fontSize:'13px', color:'var(--gray-400)' }}>Sign in to your account</p>
+          <h2 style={{ fontSize:'1.2rem', marginBottom:4 }}>{t('auth.signInTitle')}</h2>
+          <p style={{ fontSize:'13px', color:'var(--gray-400)' }}>{t('auth.signInSubtitle')}</p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Email</label>
+            <label className="form-label">{t('auth.email')}</label>
             <input type="email" className="form-control" placeholder="you@example.com" value={email} onChange={e=>setEmail(e.target.value)} required />
           </div>
           <div className="form-group">
-            <label className="form-label">Password</label>
+            <label className="form-label">{t('auth.password')}</label>
             <input type="password" className="form-control" placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} required />
           </div>
 
@@ -67,12 +71,12 @@ export default function Login() {
           )}
 
           <button type="submit" disabled={loading} className="btn btn-primary w-full" style={{ justifyContent:'center', marginTop:6 }}>
-            {loading ? <span className="spinner spinner-sm"/> : 'Sign In'}
+            {loading ? <span className="spinner spinner-sm"/> : t('auth.signInButton')}
           </button>
         </form>
 
         <p style={{ textAlign:'center', fontSize:'13px', color:'var(--gray-400)', marginTop:20 }}>
-          Don't have an account? <Link to="/register" style={{ color:'var(--orange)', fontWeight:600 }}>Sign up</Link>
+          {t('auth.noAccount')} <Link to="/register" style={{ color:'var(--orange)', fontWeight:600 }}>{t('auth.registerLink')}</Link>
         </p>
       </div>
     </div>

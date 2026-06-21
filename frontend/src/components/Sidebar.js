@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { signOut, getMembershipStatus, getGiftModuleStatus } from '../lib/api'
+import LanguageSwitcher from './LanguageSwitcher'
 
 const BASE_NAV = [
-  { to:'/feed',        icon:'⌂', label:'My Feed' },
-  { to:'/discover',    icon:'◉', label:'Discover' },
-  { to:'/groups',      icon:'☷', label:'Groups' },
-  { to:'/community',   icon:'🌍', label:'Community' },
-  { to:'/habits',      icon:'◈', label:'Habits' },
-  { to:'/jobs',        icon:'💼', label:'Jobs' },
-  { to:'/leaderboard', icon:'◎', label:'Leaderboard' },
-  { to:'/saved',       icon:'◇', label:'Saved' },
+  { to:'/feed',        icon:'⌂', labelKey:'nav.feed' },
+  { to:'/discover',    icon:'◉', labelKey:'nav.discover' },
+  { to:'/groups',      icon:'☷', labelKey:'nav.groups' },
+  { to:'/community',   icon:'🌍', labelKey:'nav.community' },
+  { to:'/habits',      icon:'◈', labelKey:'nav.habits' },
+  { to:'/jobs',        icon:'💼', labelKey:'nav.jobs' },
+  { to:'/leaderboard', icon:'◎', labelKey:'nav.leaderboard' },
+  { to:'/saved',       icon:'◇', labelKey:'nav.saved' },
 ]
-const MEMBERSHIP_NAV_ITEM = { to:'/membership', icon:'🎫', label:'Membership' }
+const MEMBERSHIP_NAV_ITEM = { to:'/membership', icon:'🎫', labelKey:'nav.membership' }
 const GIFT_NAV_ITEMS = [
-  { to:'/gifts',  icon:'🎁', label:'Gifts' },
-  { to:'/wallet', icon:'🪙', label:'Wallet' },
+  { to:'/gifts',  icon:'🎁', labelKey:'nav.gifts' },
+  { to:'/wallet', icon:'🪙', labelKey:'nav.wallet' },
 ]
 
 export const COLORS = ['#FF6B2B','#7C3AED','#059669','#2563EB','#EC4899','#0EA5E9','#F59E0B']
@@ -30,6 +32,7 @@ const LEVELS = {
 }
 
 export default function Sidebar() {
+  const { t } = useTranslation()
   const { user, profile, permissions, reloadSession } = useAuth()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -71,26 +74,27 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav style={{ padding:'12px 0', flex:1, overflowY:'auto' }}>
-        <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'0 18px 8px' }}>Menu</div>
-        {NAV.map(({ to, icon, label }) => (
+        <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'0 18px 8px' }}>{t('nav.menu')}</div>
+        {NAV.map(({ to, icon, labelKey }) => (
           <NavLink key={to} to={to} onClick={() => setMobileOpen(false)} style={({ isActive }) => navStyle(isActive)}>
-            <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>{icon}</span>{label}
+            <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>{icon}</span>{t(labelKey)}
           </NavLink>
         ))}
 
         {(profile?.role === 'admin' || (permissions||[]).length > 0) && (
           <>
-            <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'12px 18px 8px' }}>Admin</div>
+            <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'12px 18px 8px' }}>{t('nav.admin')}</div>
             <NavLink to="/admin" onClick={() => setMobileOpen(false)} style={({ isActive }) => navStyle(isActive)}>
-              <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>⊞</span>Dashboard
+              <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>⊞</span>{t('nav.dashboard')}
             </NavLink>
           </>
         )}
 
-        <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'12px 18px 8px' }}>Account</div>
+        <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'12px 18px 8px' }}>{t('nav.account')}</div>
         <NavLink to={`/profile/${profile?.username || 'me'}`} onClick={() => setMobileOpen(false)} style={({ isActive }) => navStyle(isActive)}>
-          <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>◯</span>My Profile
+          <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>◯</span>{t('nav.myProfile')}
         </NavLink>
+        <div style={{ padding:'14px 18px 4px' }}><LanguageSwitcher /></div>
       </nav>
 
       {/* User footer */}
@@ -110,7 +114,7 @@ export default function Sidebar() {
             </div>
           </div>
           <button onClick={handleSignOut} className="btn btn-secondary btn-sm w-full" style={{ justifyContent:'center' }}>
-            Sign Out
+            {t('nav.signOut')}
           </button>
         </div>
       )}
