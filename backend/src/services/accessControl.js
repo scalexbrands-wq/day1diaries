@@ -43,6 +43,25 @@ async function hasActiveMembership(userId) {
   return rows.length > 0
 }
 
+// A plan can override a feature's limit for its own members (e.g. "Basic"
+// caps story viewing at 20/month while "Premium" is unlimited) by listing
+// that feature_key in its `linked_features` JSONB column with its own
+// { limit, reset_frequency }. Returns null when the member's plan doesn't
+// customize this feature, so callers fall back to the rule's global
+// member_limit/reset_frequency (today's pre-per-plan behavior).
+async function getPlanFeatureOverride(userId, featureKey) {
+  const { rows } = await pool.query(
+    `SELECT mp.linked_features FROM memberships m
+     JOIN membership_plans mp ON mp.id = m.plan_id
+     WHERE m.user_id = $1 AND m.status = 'active' AND (m.end_date IS NULL OR m.end_date >= CURRENT_DATE)
+     LIMIT 1`,
+    [userId]
+  )
+  const linked = rows[0]?.linked_features
+  if (!Array.isArray(linked)) return null
+  return linked.find(f => f && f.feature_key === featureKey) || null
+}
+
 // Returns { allowed, remaining, reason, isPremium }. Anonymous (no userId)
 // is always allowed and untracked — gating only applies to logged-in users.
 async function checkAndConsume(userId, featureKey) {
@@ -56,7 +75,15 @@ async function checkAndConsume(userId, featureKey) {
   }
 
   const isPremium = await hasActiveMembership(userId)
-  const limit = isPremium ? rule.member_limit : rule.free_limit
+  let limit = isPremium ? rule.member_limit : rule.free_limit
+  let resetFrequency = rule.reset_frequency
+  if (isPremium) {
+    const override = await getPlanFeatureOverride(userId, featureKey)
+    if (override) {
+      limit = override.limit
+      resetFrequency = override.reset_frequency || rule.reset_frequency
+    }
+  }
 
   if (limit === -1) {
     return { allowed: true, remaining: -1, reason: 'unlimited', isPremium }
@@ -65,7 +92,7 @@ async function checkAndConsume(userId, featureKey) {
     return { allowed: false, remaining: 0, reason: 'Upgrade to a premium membership to access this feature.', isPremium }
   }
 
-  const periodKey = periodKeyFor(rule.reset_frequency)
+  const periodKey = periodKeyFor(resetFrequency)
   const { rows: usageRows } = await pool.query(
     'SELECT usage_count FROM feature_usage WHERE user_id = $1 AND feature_key = $2 AND period_key = $3',
     [userId, featureKey, periodKey]
@@ -108,11 +135,19 @@ async function peekUsage(userId, featureKey) {
   if (!rule || !rule.is_active) return { limit: -1, used: 0, remaining: -1 }
 
   const isPremium = await hasActiveMembership(userId)
-  const limit = isPremium ? rule.member_limit : rule.free_limit
+  let limit = isPremium ? rule.member_limit : rule.free_limit
+  let resetFrequency = rule.reset_frequency
+  if (isPremium) {
+    const override = await getPlanFeatureOverride(userId, featureKey)
+    if (override) {
+      limit = override.limit
+      resetFrequency = override.reset_frequency || rule.reset_frequency
+    }
+  }
   if (limit === -1) return { limit: -1, used: 0, remaining: -1 }
   if (limit === 0) return { limit: 0, used: 0, remaining: 0 }
 
-  const periodKey = periodKeyFor(rule.reset_frequency)
+  const periodKey = periodKeyFor(resetFrequency)
   const { rows } = await pool.query(
     'SELECT usage_count FROM feature_usage WHERE user_id = $1 AND feature_key = $2 AND period_key = $3',
     [userId, featureKey, periodKey]

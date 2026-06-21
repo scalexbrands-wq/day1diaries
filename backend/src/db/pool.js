@@ -744,6 +744,27 @@ async function initDB() {
     // used for online-payment reconciliation).
     await pool.query(`ALTER TABLE wallet_claims ADD COLUMN IF NOT EXISTS gift_order_id UUID REFERENCES gift_orders(id)`)
 
+    // membership_plans.linked_features — admin-picked feature_access_rules
+    // keys whose member_limit should be surfaced as a real (not freeform)
+    // benefit line for that plan, alongside the manual `benefits` text.
+    await pool.query(`ALTER TABLE membership_plans ADD COLUMN IF NOT EXISTS linked_features JSONB DEFAULT '[]'`)
+
+    // gift.allowed_audiences can include 'custom' — gift.custom_user_ids
+    // holds the hand-picked profile ids allowed in that case.
+    // (No table/column needed — stored as an app_settings row, same as
+    // the rest of the gift.* settings.)
+
+    // site_visit_counter — single-row global page-visit count, incremented
+    // on every page load and directly editable by an admin.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS site_visit_counter (
+        id         INT PRIMARY KEY DEFAULT 1,
+        count      BIGINT NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`INSERT INTO site_visit_counter (id) VALUES (1) ON CONFLICT (id) DO NOTHING`)
+
     console.log('DB schema init OK')
   } catch (err) {
     console.error('DB init error (non-fatal):', err.message)

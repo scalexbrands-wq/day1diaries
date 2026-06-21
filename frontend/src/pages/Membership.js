@@ -94,7 +94,8 @@ function PlanSelector({ plans, onSelect }) {
           </div>
           {p.description && <p style={{ fontSize:12, color:'#5C3D2E', marginBottom:10 }}>{p.description}</p>}
           <ul style={{ fontSize:12, color:'#4A2800', paddingLeft:18, marginBottom:16, flex:1 }}>
-            {(p.benefits || []).map((b, i) => <li key={i} style={{ marginBottom:4 }}>{b}</li>)}
+            {(p.linked_feature_benefits || []).map((b, i) => <li key={`f${i}`} style={{ marginBottom:4, fontWeight:600 }}>✓ {b}</li>)}
+            {(p.benefits || []).map((b, i) => <li key={`b${i}`} style={{ marginBottom:4 }}>{b}</li>)}
           </ul>
           <Btn onClick={() => onSelect(p)} style={{ width:'100%', justifyContent:'center' }}>Apply Now</Btn>
         </Card>

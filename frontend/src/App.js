@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { VisitorCountProvider } from './contexts/VisitorCountContext'
 import './index.css'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
@@ -93,6 +94,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <VisitorCountProvider>
         <Routes>
           <Route path="/"                    element={<Landing/>} />
           <Route path="/login"               element={<Login/>} />
@@ -127,6 +129,7 @@ export default function App() {
           <Route path="/certificate/:id"     element={<CertificateViewer/>} />
           <Route path="*"                    element={<Navigate to="/" replace />} />
         </Routes>
+        </VisitorCountProvider>
       </AuthProvider>
     </BrowserRouter>
   )

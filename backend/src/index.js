@@ -41,6 +41,7 @@ const adminSeoRoutes = require('./routes/admin-seo')
 const giftRoutes = require('./routes/gift')
 const adminGiftRoutes = require('./routes/admin-gift')
 const notificationRoutes = require('./routes/notifications')
+const statsRoutes = require('./routes/stats')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -117,6 +118,7 @@ app.use('/admin/seo', adminSeoRoutes)
 app.use('/gift', giftRoutes)
 app.use('/admin/gift', adminGiftRoutes)
 app.use('/notifications', notificationRoutes)
+app.use('/stats', statsRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))

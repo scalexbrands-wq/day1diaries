@@ -36,7 +36,7 @@ export default function Sidebar() {
   const [giftEnabled, setGiftEnabled] = useState(true)
 
   useEffect(() => { getMembershipStatus().then(({ data }) => setMembershipEnabled(data !== false)) }, [])
-  useEffect(() => { getGiftModuleStatus().then(({ data }) => setGiftEnabled(data?.enabled !== false)) }, [])
+  useEffect(() => { getGiftModuleStatus().then(({ data }) => setGiftEnabled(data?.enabled !== false && data?.allowedForMe !== false)) }, [])
   const NAV = [
     ...BASE_NAV.slice(0, 5),
     ...(membershipEnabled ? [MEMBERSHIP_NAV_ITEM] : []),

@@ -24,9 +24,41 @@ router.get('/status', async (req, res) => {
   res.json({ enabled: await accessControl.isModuleEnabled() })
 })
 
+// Turns a plan's linked_features into real, rule-backed benefit lines — e.g.
+// "Unlimited Story Viewing" — rather than relying solely on the freeform
+// `benefits` text the admin typed in. Each entry is either the per-plan
+// override `{ feature_key, limit, reset_frequency }` (this plan customized
+// it) or, for backward compatibility with the earlier plain-string format,
+// just a feature_key (falls back to the rule's global member_limit).
+function describeLimit(limit, resetFrequency) {
+  if (limit === -1) return 'Unlimited'
+  if (limit === 0) return 'Not included'
+  return `${limit} per ${resetFrequency === 'never' ? 'lifetime' : resetFrequency || 'period'}`
+}
+
 router.get('/plans', async (req, res) => {
-  const { rows } = await pool.query(`SELECT * FROM membership_plans WHERE status = 'active' ORDER BY priority_level DESC, price ASC`)
-  res.json({ plans: rows })
+  const [plansRes, rulesRes] = await Promise.all([
+    pool.query(`SELECT * FROM membership_plans WHERE status = 'active' ORDER BY priority_level DESC, price ASC`),
+    pool.query(`SELECT feature_key, label, member_limit, reset_frequency FROM feature_access_rules WHERE is_active = true`),
+  ])
+  const ruleByKey = {}
+  for (const r of rulesRes.rows) ruleByKey[r.feature_key] = r
+
+  const plans = plansRes.rows.map(p => ({
+    ...p,
+    linked_feature_benefits: (p.linked_features || [])
+      .map(entry => {
+        const isOverride = entry && typeof entry === 'object'
+        const featureKey = isOverride ? entry.feature_key : entry
+        const rule = ruleByKey[featureKey]
+        if (!rule) return null
+        const limit = isOverride ? entry.limit : rule.member_limit
+        const resetFrequency = isOverride ? (entry.reset_frequency || rule.reset_frequency) : rule.reset_frequency
+        return `${rule.label}: ${describeLimit(limit, resetFrequency)}`
+      })
+      .filter(Boolean),
+  }))
+  res.json({ plans })
 })
 
 router.get('/form-fields', async (req, res) => {

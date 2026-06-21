@@ -22,13 +22,13 @@ router.get('/plans', async (req, res) => {
 })
 
 router.post('/plans', async (req, res) => {
-  const { name, description, price, currency, duration_type, duration_days, benefits, badge_emoji, badge_color, priority_level } = req.body
+  const { name, description, price, currency, duration_type, duration_days, benefits, linked_features, badge_emoji, badge_color, priority_level } = req.body
   if (!name || !duration_type) return res.status(400).json({ error: 'name and duration_type are required' })
   const { rows } = await pool.query(
-    `INSERT INTO membership_plans (name, description, price, currency, duration_type, duration_days, benefits, badge_emoji, badge_color, priority_level)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    `INSERT INTO membership_plans (name, description, price, currency, duration_type, duration_days, benefits, linked_features, badge_emoji, badge_color, priority_level)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
     [name, description || null, price || 0, currency || 'INR', duration_type, duration_days || null,
-     JSON.stringify(benefits || []), badge_emoji || '⭐', badge_color || '#FF6B2B', priority_level || 0]
+     JSON.stringify(benefits || []), JSON.stringify(linked_features || []), badge_emoji || '⭐', badge_color || '#FF6B2B', priority_level || 0]
   )
   res.status(201).json({ plan: rows[0] })
 })
@@ -41,9 +41,9 @@ router.put('/plans/:id', async (req, res) => {
   const merged = { ...existing, ...req.body }
   const { rows } = await pool.query(
     `UPDATE membership_plans SET name=$1, description=$2, price=$3, currency=$4, duration_type=$5, duration_days=$6,
-       benefits=$7, badge_emoji=$8, badge_color=$9, priority_level=$10, status=$11, updated_at=now() WHERE id=$12 RETURNING *`,
+       benefits=$7, linked_features=$8, badge_emoji=$9, badge_color=$10, priority_level=$11, status=$12, updated_at=now() WHERE id=$13 RETURNING *`,
     [merged.name, merged.description, merged.price, merged.currency, merged.duration_type, merged.duration_days,
-     JSON.stringify(merged.benefits || []), merged.badge_emoji, merged.badge_color, merged.priority_level, merged.status, req.params.id]
+     JSON.stringify(merged.benefits || []), JSON.stringify(merged.linked_features || []), merged.badge_emoji, merged.badge_color, merged.priority_level, merged.status, req.params.id]
   )
   res.json({ plan: rows[0] })
 })
@@ -53,9 +53,9 @@ router.post('/plans/:id/clone', async (req, res) => {
   const p = existingRows[0]
   if (!p) return res.status(404).json({ error: 'Plan not found' })
   const { rows } = await pool.query(
-    `INSERT INTO membership_plans (name, description, price, currency, duration_type, duration_days, benefits, badge_emoji, badge_color, priority_level, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'draft') RETURNING *`,
-    [`${p.name} (Copy)`, p.description, p.price, p.currency, p.duration_type, p.duration_days, JSON.stringify(p.benefits), p.badge_emoji, p.badge_color, p.priority_level]
+    `INSERT INTO membership_plans (name, description, price, currency, duration_type, duration_days, benefits, linked_features, badge_emoji, badge_color, priority_level, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'draft') RETURNING *`,
+    [`${p.name} (Copy)`, p.description, p.price, p.currency, p.duration_type, p.duration_days, JSON.stringify(p.benefits), JSON.stringify(p.linked_features || []), p.badge_emoji, p.badge_color, p.priority_level]
   )
   res.status(201).json({ plan: rows[0] })
 })

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { getLandingData, getSeoDefaults } from '../lib/api'
 import Seo from '../components/Seo'
+import VisitorCounter from '../components/VisitorCounter'
 
 /* ── helpers ─────────────────────────────────────────────── */
 const COLORS = ['#FF6B2B','#7C3AED','#059669','#2563EB','#EC4899','#0EA5E9','#F59E0B','#DC2626']
@@ -231,10 +232,13 @@ export default function Landing() {
 
       {/* ── NAVBAR ── */}
       <nav className="lp-nav" style={{ position:'fixed', top:0, left:0, right:0, zIndex:500, padding:'16px 56px', display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(253,246,238,.94)', backdropFilter:'blur(18px)', borderBottom:'1px solid rgba(255,107,43,.1)' }}>
-        <Link to="/" style={{ fontFamily:"'Playfair Display',serif", fontSize:21, fontWeight:900, color:'#FF6B2B', textDecoration:'none', display:'flex', alignItems:'center', gap:6 }}>
-          Day<span style={{color:'#1A0800'}}>1</span> Diaries
-          <span style={{ fontSize:10, fontWeight:700, letterSpacing:'.06em', background:'#FF6B2B', color:'white', borderRadius:4, padding:'2px 6px', verticalAlign:'middle' }}>BETA</span>
-        </Link>
+        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+          <Link to="/" style={{ fontFamily:"'Playfair Display',serif", fontSize:21, fontWeight:900, color:'#FF6B2B', textDecoration:'none', display:'flex', alignItems:'center', gap:6 }}>
+            Day<span style={{color:'#1A0800'}}>1</span> Diaries
+            <span style={{ fontSize:10, fontWeight:700, letterSpacing:'.06em', background:'#FF6B2B', color:'white', borderRadius:4, padding:'2px 6px', verticalAlign:'middle' }}>BETA</span>
+          </Link>
+          <VisitorCounter/>
+        </div>
         <div className="lp-nav-desktop" style={{ display:'flex', alignItems:'center', gap:28 }}>
           {[['#features','Features'],['#habits','Habits'],['#jobs','Opportunities'],['#community','Community']].map(([h,l])=>(
             <a key={h} href={h} className="lp-nav-link">{l}</a>

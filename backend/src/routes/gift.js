@@ -26,14 +26,23 @@ function generateTributeSlug() {
 // ════════════════════════════════════════════════════════════
 
 // 'everyone' (or an empty/missing list) means unrestricted. Otherwise the
-// list is a set of: 'member' (active membership), 'contributor', 'admin'.
+// list is a set of: 'member' (active membership), 'contributor', 'admin',
+// 'custom' (hand-picked user ids in gift.custom_user_ids).
 async function isAudienceAllowed(profile) {
-  const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = 'gift.allowed_audiences'`)
-  const audiences = rows[0]?.value
+  const { rows } = await pool.query(
+    `SELECT key, value FROM app_settings WHERE key IN ('gift.allowed_audiences','gift.custom_user_ids')`
+  )
+  const settings = {}
+  for (const row of rows) settings[row.key] = row.value
+  const audiences = settings['gift.allowed_audiences']
   if (!Array.isArray(audiences) || audiences.length === 0 || audiences.includes('everyone')) return true
   if (!profile) return false
   if (audiences.includes(profile.role)) return true
   if (audiences.includes('member') && await hasActiveMembership(profile.id)) return true
+  if (audiences.includes('custom')) {
+    const customIds = Array.isArray(settings['gift.custom_user_ids']) ? settings['gift.custom_user_ids'] : []
+    if (customIds.includes(profile.id)) return true
+  }
   return false
 }
 

@@ -418,7 +418,7 @@ router.get('/analytics', async (req, res) => {
 // SETTINGS (gift.* keys on the shared app_settings table)
 // ════════════════════════════════════════════════════════════
 
-const SETTINGS_KEYS = ['gift.module_enabled', 'gift.allowed_audiences']
+const SETTINGS_KEYS = ['gift.module_enabled', 'gift.allowed_audiences', 'gift.custom_user_ids']
 
 router.get('/settings', async (req, res) => {
   const { rows } = await pool.query('SELECT key, value FROM app_settings WHERE key = ANY($1)', [SETTINGS_KEYS])

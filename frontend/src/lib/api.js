@@ -632,6 +632,23 @@ export const getAuthConfig = async () => {
 }
 
 // ── Admin: App settings ──────────────────────────────────────────
+// ============================================================
+// SITE VISIT COUNTER
+// ============================================================
+
+export const getVisitCount = async () => {
+  const result = await apiFetch('/stats/visit')
+  return { data: result.data?.count, error: result.error }
+}
+export const incrementVisitCount = async () => {
+  const result = await apiFetch('/stats/visit', { method: 'POST' })
+  return { data: result.data?.count, error: result.error }
+}
+export const adminSetVisitCount = async (count) => {
+  const result = await apiFetch('/stats/visit', { method: 'PATCH', body: JSON.stringify({ count }) })
+  return { data: result.data?.count, error: result.error }
+}
+
 export const adminGetSettings = async () => {
   const result = await apiFetch('/admin/settings')
   return { data: result.data?.settings, error: result.error }

@@ -6,6 +6,7 @@ import {
   getChallenges, adminUpsertChallenge, adminDeleteChallenge,
   getCommunityUpdates, adminUpsertCommunityUpdate, adminDeleteCommunityUpdate,
   getHabits, adminGetSettings, adminUpdateSettings,
+  getVisitCount, adminSetVisitCount,
   adminGetAboutSections, adminUpsertAboutSection, adminDeleteAboutSection,
   adminGetBlogPosts, adminUpsertBlogPost, adminDeleteBlogPost,
   adminGetCareersJobs, adminUpsertCareersJob, adminDeleteCareersJob,
@@ -271,6 +272,7 @@ function SettingsTab() {
   const required = settings.email_verification_required !== false
 
   return (
+    <>
     <Card>
       <SH c="Authentication"/>
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16,padding:'4px 0'}}>
@@ -300,6 +302,59 @@ function SettingsTab() {
       <div style={{marginTop:10, fontSize:12, fontWeight:600, color: required ? '#059669' : '#FF6B2B'}}>
         {required ? '✓ Verification required' : '✓ Verification not required — instant sign-up'}
       </div>
+    </Card>
+    <VisitorCounterSettings/>
+    </>
+  )
+}
+
+/* ── Site-wide page-visit counter — shown at the top of every page,
+   incremented on every page load; admins can override the number
+   directly (e.g. to seed it with prior analytics history). ── */
+function VisitorCounterSettings() {
+  const [count, setCount] = useState(null)
+  const [input, setInput] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(() => {
+    getVisitCount().then(({ data, error }) => {
+      if (error) { toast.error(error.message); return }
+      setCount(data)
+      setInput(String(data))
+    })
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const save = async () => {
+    const next = parseInt(input, 10)
+    if (!Number.isFinite(next) || next < 0) { toast.error('Enter a non-negative whole number'); return }
+    setSaving(true)
+    const { data, error } = await adminSetVisitCount(next)
+    setSaving(false)
+    if (error) { toast.error(error.message); return }
+    setCount(data)
+    setInput(String(data))
+    toast.success('Visitor count updated')
+  }
+
+  return (
+    <Card>
+      <SH c="Page Visitor Counter"/>
+      <div style={{fontSize:12,color:'#8C7B6E',lineHeight:1.6,marginBottom:14}}>
+        Shown at the top of every page, from the landing page onward. It increments by one on every page load. Override the number below if needed.
+      </div>
+      {count == null ? <div style={{fontSize:13,color:'#8C7B6E'}}>Loading…</div> : (
+        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <input
+            type="number" min="0" value={input} onChange={e=>setInput(e.target.value)}
+            style={{width:160,padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',outline:'none'}}
+            onFocus={e=>e.target.style.borderColor='#FF6B2B'} onBlur={e=>e.target.style.borderColor='#DDD3CA'}
+          />
+          <Btn onClick={save} disabled={saving}>{saving?'Saving…':'Save'}</Btn>
+          <span style={{fontSize:12,color:'#8C7B6E'}}>Current: {count.toLocaleString()}</span>
+        </div>
+      )}
     </Card>
   )
 }
@@ -2361,23 +2416,79 @@ function GiftModuleToggleCard({ initial, onSaved }) {
   )
 }
 
-const AUDIENCE_LABELS = { member: 'Members (active membership)', contributor: 'Contributors', admin: 'Admins' }
+const AUDIENCE_LABELS = { member: 'Membership (active membership)', contributor: 'Contributors', admin: 'Admins', custom: 'Custom Users (hand-picked)' }
 
-function GiftAudienceCard({ initial, onSaved }) {
+function CustomUserPicker({ selectedIds, onChange }) {
+  const [users, setUsers] = useState([])
+  const [search, setSearch] = useState('')
+
+  useEffect(() => { adminGetUsers().then(({data}) => setUsers(data||[])) }, [])
+
+  const selected = users.filter(u => selectedIds.includes(u.id))
+  const q = search.trim().toLowerCase()
+  const matches = q ? users.filter(u =>
+    !selectedIds.includes(u.id) &&
+    (u.username?.toLowerCase().includes(q) || u.full_name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q))
+  ).slice(0, 8) : []
+
+  return (
+    <div style={{marginTop:10,marginLeft:20}}>
+      <input
+        placeholder="Search by name, username, or email…" value={search} onChange={e=>setSearch(e.target.value)}
+        style={{width:'100%',padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12.5,fontFamily:'inherit',outline:'none',marginBottom:8}}
+      />
+      {matches.length > 0 && (
+        <div style={{border:'1px solid #F0EAE4',borderRadius:8,marginBottom:10,maxHeight:160,overflowY:'auto'}}>
+          {matches.map(u => (
+            <div key={u.id} onClick={()=>{onChange([...selectedIds, u.id]); setSearch('')}}
+              style={{padding:'7px 10px',fontSize:12.5,cursor:'pointer',borderBottom:'1px solid #F8F3EC'}}>
+              {u.full_name} <span style={{color:'#8C7B6E'}}>@{u.username}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+        {selected.map(u => (
+          <span key={u.id} style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,107,43,.1)',color:'#FF6B2B',borderRadius:100,padding:'4px 10px',fontSize:12,fontWeight:600}}>
+            {u.full_name}
+            <button onClick={()=>onChange(selectedIds.filter(id=>id!==u.id))} style={{background:'none',border:'none',cursor:'pointer',color:'#FF6B2B',fontSize:13,padding:0,lineHeight:1}}>×</button>
+          </span>
+        ))}
+        {selected.length === 0 && <span style={{fontSize:12,color:'#8C7B6E'}}>No users picked yet.</span>}
+      </div>
+    </div>
+  )
+}
+
+function GiftAudienceCard({ initial, initialCustomIds, onSaved }) {
   const initialAudiences = Array.isArray(initial) ? initial : []
-  const [audiences, setAudiences] = useState(initialAudiences)
+  const initialCustom = Array.isArray(initialCustomIds) ? initialCustomIds : []
+  const initialIsEveryone = initialAudiences.length === 0 || initialAudiences.includes('everyone')
+  // `mode` is a UI-only toggle, separate from `audiences` — otherwise an
+  // empty audiences array (the state right after switching to "Restricted"
+  // but before checking any box) reads as "no restriction" again, and the
+  // checkboxes — which are disabled while in "Everyone" mode — could never
+  // be reached to actually pick an audience.
+  const [mode, setMode] = useState(initialIsEveryone ? 'everyone' : 'restricted')
+  const [audiences, setAudiences] = useState(initialAudiences.filter(a => a !== 'everyone'))
+  const [customIds, setCustomIds] = useState(initialCustom)
   const [saving, setSaving] = useState(false)
-  const isEveryone = audiences.length === 0 || audiences.includes('everyone')
-  const dirty = JSON.stringify([...audiences].sort()) !== JSON.stringify([...initialAudiences].sort())
+  const isEveryone = mode === 'everyone'
+  const dirty = mode !== (initialIsEveryone ? 'everyone' : 'restricted')
+    || JSON.stringify([...audiences].sort()) !== JSON.stringify([...initialAudiences].filter(a=>a!=='everyone').sort())
+    || JSON.stringify([...customIds].sort()) !== JSON.stringify([...initialCustom].sort())
 
   const toggle = (key) => {
-    const current = audiences.filter(a => a !== 'everyone')
-    setAudiences(current.includes(key) ? current.filter(a => a !== key) : [...current, key])
+    setAudiences(audiences.includes(key) ? audiences.filter(a => a !== key) : [...audiences, key])
   }
 
   const save = async () => {
+    if (!isEveryone && audiences.length === 0) return toast.error('Check at least one audience, or choose "Everyone"')
     setSaving(true)
-    const { error } = await adminUpdateGiftSettings({ 'gift.allowed_audiences': isEveryone ? ['everyone'] : audiences })
+    const { error } = await adminUpdateGiftSettings({
+      'gift.allowed_audiences': isEveryone ? ['everyone'] : audiences,
+      'gift.custom_user_ids': customIds,
+    })
     setSaving(false)
     if (error) return toast.error(error.message)
     toast.success(isEveryone ? 'Now open to everyone' : `Restricted to: ${audiences.map(a=>AUDIENCE_LABELS[a]||a).join(', ')}`)
@@ -2393,13 +2504,21 @@ function GiftAudienceCard({ initial, onSaved }) {
       </p>
       <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:14}}>
         <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
-          <input type="radio" checked={isEveryone} onChange={()=>setAudiences(['everyone'])}/> Everyone (no restriction)
+          <input type="radio" checked={isEveryone} onChange={()=>setMode('everyone')}/> Everyone (no restriction)
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+          <input type="radio" checked={!isEveryone} onChange={()=>setMode('restricted')}/> Restricted to specific audiences
         </label>
         {Object.keys(AUDIENCE_LABELS).map(key => (
-          <label key={key} style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer',marginLeft:20}}>
-            <input type="checkbox" disabled={isEveryone} checked={!isEveryone && audiences.includes(key)} onChange={()=>toggle(key)}/>
-            {AUDIENCE_LABELS[key]}
-          </label>
+          <div key={key}>
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer',marginLeft:20}}>
+              <input type="checkbox" disabled={isEveryone} checked={!isEveryone && audiences.includes(key)} onChange={()=>toggle(key)}/>
+              {AUDIENCE_LABELS[key]}
+            </label>
+            {key==='custom' && !isEveryone && audiences.includes('custom') && (
+              <CustomUserPicker selectedIds={customIds} onChange={setCustomIds}/>
+            )}
+          </div>
         ))}
       </div>
       <Btn onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Btn>
@@ -2418,7 +2537,10 @@ function GiftSettingsTab() {
     <div>
       <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Gifting Settings</h3>
       <GiftModuleToggleCard key={`module-${settings['gift.module_enabled']}`} initial={settings['gift.module_enabled']} onSaved={load}/>
-      <GiftAudienceCard key={`audience-${JSON.stringify(settings['gift.allowed_audiences'])}`} initial={settings['gift.allowed_audiences']} onSaved={load}/>
+      <GiftAudienceCard
+        key={`audience-${JSON.stringify(settings['gift.allowed_audiences'])}-${JSON.stringify(settings['gift.custom_user_ids'])}`}
+        initial={settings['gift.allowed_audiences']} initialCustomIds={settings['gift.custom_user_ids']} onSaved={load}
+      />
     </div>
   )
 }
@@ -2428,6 +2550,52 @@ const MEMBERSHIP_SUB_TABS = [['dashboard','Dashboard'],['plans','Plans'],['formb
 const DURATION_TYPES = ['monthly','quarterly','annual','lifetime','custom']
 const FIELD_TYPES = ['text','textarea','email','phone','number','dropdown','checkbox','radio','file','image','linkedin_url','company_name']
 const RESET_FREQS = ['daily','weekly','monthly','yearly','never']
+const RESET_FREQ_LABELS = { daily:'day', weekly:'week', monthly:'month', yearly:'year', never:'lifetime (no reset)' }
+
+function limitMode(limit) {
+  if (limit === -1) return 'unlimited'
+  if (limit === 0) return 'disabled'
+  return 'limited'
+}
+
+// Replaces raw "-1 / 0 / N" number inputs with a plain-language dropdown —
+// "Unlimited" / "Not available" / "Limited to N per period" — for both the
+// global Feature Access Control rule editor and the per-plan limit editor.
+// hidePeriod=true skips its own reset-period select when the caller (e.g.
+// AccessRuleCard) renders one shared period selector for multiple pickers.
+function LimitPicker({ limit, resetFrequency, onChange, hidePeriod }) {
+  const mode = limitMode(limit)
+  const setMode = (m) => {
+    if (m === 'unlimited') onChange({ limit: -1, reset_frequency: resetFrequency })
+    else if (m === 'disabled') onChange({ limit: 0, reset_frequency: resetFrequency })
+    else onChange({ limit: limit > 0 ? limit : 5, reset_frequency: resetFrequency || 'monthly' })
+  }
+  return (
+    <div>
+      <select value={mode} onChange={e=>setMode(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12.5,fontFamily:'inherit',background:'white',color:'#1A0800'}}>
+        <option value="unlimited">♾️ Unlimited</option>
+        <option value="disabled">🚫 Not available</option>
+        <option value="limited">🔢 Limited to…</option>
+      </select>
+      {mode === 'limited' && (
+        <div style={{display:'flex',gap:6,marginTop:6,alignItems:'center'}}>
+          <input
+            type="number" min="1" value={limit>0?limit:5}
+            onChange={e=>onChange({ limit: Math.max(1, Number(e.target.value)||1), reset_frequency: resetFrequency || 'monthly' })}
+            style={{width:64,padding:'7px 8px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12.5,fontFamily:'inherit'}}
+          />
+          {!hidePeriod && (
+            <select value={resetFrequency||'monthly'} onChange={e=>onChange({ limit, reset_frequency: e.target.value })}
+              style={{padding:'7px 8px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12.5,fontFamily:'inherit',background:'white'}}>
+              {RESET_FREQS.map(f => <option key={f} value={f}>per {RESET_FREQ_LABELS[f]}</option>)}
+            </select>
+          )}
+          {hidePeriod && <span style={{fontSize:12,color:'#8C7B6E'}}>per {RESET_FREQ_LABELS[resetFrequency]||'period'}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function MembershipTab() {
   const [sub, setSub] = useState('dashboard')
@@ -2488,15 +2656,35 @@ function MembershipDashboardTab() {
 
 function MembershipPlansTab() {
   const [list, setList] = useState([])
+  const [rules, setRules] = useState([])
   const [form, setForm] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(() => { adminListMembershipPlans().then(({data}) => setList(data||[])) }, [])
   useEffect(() => { load() }, [load])
+  useEffect(() => { adminListAccessRules().then(({data}) => setRules((data||[]).filter(r=>r.is_active))) }, [])
 
-  const openNew = () => { setEditingId(null); setForm({ name:'', description:'', price:99, currency:'INR', duration_type:'monthly', duration_days:30, benefits:[], badge_emoji:'⭐', badge_color:'#FF6B2B', priority_level:0 }) }
-  const openEdit = (p) => { setEditingId(p.id); setForm({ ...p, benefits: p.benefits||[] }) }
+  const openNew = () => { setEditingId(null); setForm({ name:'', description:'', price:99, currency:'INR', duration_type:'monthly', duration_days:30, benefits:[], linked_features:[], badge_emoji:'⭐', badge_color:'#FF6B2B', priority_level:0 }) }
+  // linked_features entries used to be plain feature_key strings (every
+  // plan just inherited the global member_limit); normalize those to the
+  // new { feature_key, limit, reset_frequency } shape so older saved plans
+  // still open cleanly in this per-plan limit editor.
+  const normalizeLinkedFeatures = (linked) => (linked||[]).map(entry => {
+    if (entry && typeof entry === 'object') return entry
+    const rule = rules.find(r => r.feature_key === entry)
+    return { feature_key: entry, limit: rule?.member_limit ?? -1, reset_frequency: rule?.reset_frequency || 'monthly' }
+  })
+  const openEdit = (p) => { setEditingId(p.id); setForm({ ...p, benefits: p.benefits||[], linked_features: normalizeLinkedFeatures(p.linked_features) }) }
+  const toggleFeature = (key) => setForm(f => {
+    const exists = f.linked_features.find(x => x.feature_key === key)
+    if (exists) return { ...f, linked_features: f.linked_features.filter(x => x.feature_key !== key) }
+    const rule = rules.find(r => r.feature_key === key)
+    return { ...f, linked_features: [...f.linked_features, { feature_key: key, limit: rule?.member_limit ?? -1, reset_frequency: rule?.reset_frequency || 'monthly' }] }
+  })
+  const updateFeatureLimit = (key, patch) => setForm(f => ({
+    ...f, linked_features: f.linked_features.map(x => x.feature_key === key ? { ...x, ...patch } : x)
+  }))
 
   const save = async () => {
     if (!form.name.trim()) return toast.error('Plan name is required')
@@ -2556,8 +2744,33 @@ function MembershipPlansTab() {
             {DURATION_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
           {form.duration_type!=='lifetime' && (<><L c="Duration (days)"/><Inp type="number" value={form.duration_days||''} onChange={e=>setForm(f=>({...f,duration_days:Number(e.target.value)}))}/></>)}
-          <L c="Benefits (one per line)"/>
+          <L c="Benefits (one per line) — freeform marketing copy"/>
           <TA value={benefitsText} onChange={e=>setBenefitsText(e.target.value)} placeholder={'Unlimited stories\nUnlimited habits\nFull community access'} style={{minHeight:90}}/>
+
+          <L c="Linked Features — pick what this specific plan unlocks, and set its own limit per feature"/>
+          <div style={{border:'1.5px solid #DDD3CA',borderRadius:8,padding:'10px 12px',marginBottom:12,maxHeight:280,overflowY:'auto'}}>
+            {rules.length===0 && <p style={{fontSize:12,color:'#8C7B6E',margin:0}}>No feature access rules configured yet — add some in Membership → Access Control first.</p>}
+            {rules.map(r => {
+              const entry = form.linked_features.find(x => x.feature_key === r.feature_key)
+              return (
+                <div key={r.feature_key} style={{marginBottom:10,paddingBottom:10,borderBottom:'1px solid #F8F3EC'}}>
+                  <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12.5,fontWeight:600,cursor:'pointer'}}>
+                    <input type="checkbox" checked={!!entry} onChange={()=>toggleFeature(r.feature_key)}/>
+                    {r.label}
+                    <span style={{fontSize:11,fontWeight:500,color:'#8C7B6E'}}>
+                      (free users get: {r.free_limit===-1?'unlimited':r.free_limit===0?'nothing':`${r.free_limit} per ${RESET_FREQ_LABELS[r.reset_frequency]}`})
+                    </span>
+                  </label>
+                  {entry && (
+                    <div style={{marginLeft:26,marginTop:6,maxWidth:280}}>
+                      <LimitPicker limit={entry.limit} resetFrequency={entry.reset_frequency} onChange={(v)=>updateFeatureLimit(r.feature_key, v)}/>
+                      <div style={{fontSize:10.5,color:'#8C7B6E',marginTop:4}}>This plan's own limit for this feature — defaults to the global "Paid Members" setting, but you can override it just for this plan.</div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
             <div><L c="Badge Emoji"/><Inp value={form.badge_emoji} onChange={e=>setForm(f=>({...f,badge_emoji:e.target.value}))}/></div>
             <div><L c="Badge Color"/><Inp type="color" value={form.badge_color} onChange={e=>setForm(f=>({...f,badge_color:e.target.value}))} style={{padding:2,height:38}}/></div>
@@ -2831,16 +3044,27 @@ function AccessRuleCard({ rule, onSaved }) {
           <input type="checkbox" checked={form.is_active} onChange={e=>setForm(f=>({...f,is_active:e.target.checked}))}/> Enforced
         </label>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12}}>
-        <div><L c="Free Limit"/><Inp type="number" value={form.free_limit} onChange={e=>setForm(f=>({...f,free_limit:Number(e.target.value)}))}/></div>
-        <div><L c="Member Limit"/><Inp type="number" value={form.member_limit} onChange={e=>setForm(f=>({...f,member_limit:Number(e.target.value)}))}/></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:12}}>
         <div>
-          <L c="Reset Frequency"/>
-          <select value={form.reset_frequency} onChange={e=>setForm(f=>({...f,reset_frequency:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit'}}>
-            {RESET_FREQS.map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
+          <L c="Free Users (no membership)"/>
+          <LimitPicker limit={form.free_limit} hidePeriod onChange={({limit})=>setForm(f=>({...f,free_limit:limit}))}/>
+        </div>
+        <div>
+          <L c="Paid Members (default, unless a plan overrides it)"/>
+          <LimitPicker limit={form.member_limit} hidePeriod onChange={({limit})=>setForm(f=>({...f,member_limit:limit}))}/>
         </div>
       </div>
+      {(limitMode(form.free_limit)==='limited' || limitMode(form.member_limit)==='limited') && (
+        <div style={{marginBottom:12}}>
+          <L c="Reset Period — applies to any 'Limited to…' choice above"/>
+          <select value={form.reset_frequency} onChange={e=>setForm(f=>({...f,reset_frequency:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',background:'white'}}>
+            {RESET_FREQS.map(f => <option key={f} value={f}>per {RESET_FREQ_LABELS[f]}</option>)}
+          </select>
+        </div>
+      )}
+      <p style={{fontSize:11,color:'#8C7B6E',marginTop:0,marginBottom:12}}>
+        Individual membership plans can override the "Paid Members" limit for this feature — see Membership → Plans → Linked Features.
+      </p>
       <Btn onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Btn>
     </Card>
   )
@@ -2854,7 +3078,9 @@ function MembershipAccessControlTab() {
   return (
     <div>
       <h3 style={{margin:'0 0 6px',fontSize:15,fontWeight:700}}>Feature Access Control</h3>
-      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:16}}>Limit: -1 = unlimited, 0 = disabled, N = N per reset period.</p>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:16}}>
+        Set what Free Users vs. Paid Members can do with each feature, by default. Choose "Unlimited", "Not available", or "Limited to…" a number per day/week/month/year/lifetime.
+      </p>
       {list.map(r => <AccessRuleCard key={r.id} rule={r} onSaved={load}/>)}
     </div>
   )
