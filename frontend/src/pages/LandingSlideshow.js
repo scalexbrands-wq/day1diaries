@@ -98,7 +98,7 @@ export default function LandingSlideshow() {
       <Link to="/login" className="ss-skip">Sign In →</Link>
       <div className="ss-dots">
         {SLIDES.map((s, i) => (
-          <button key={s} className={`ss-dot ${active === i ? 'active' : ''} ${['features','jobs','cta'].includes(s) ? 'on-dark' : ''}`} onClick={() => goTo(i)} aria-label={`Go to slide ${i + 1}`} />
+          <button key={s} className={`ss-dot ${active === i ? 'active' : ''} ${['why','features','jobs','cta'].includes(s) ? 'on-dark' : ''}`} onClick={() => goTo(i)} aria-label={`Go to slide ${i + 1}`} />
         ))}
       </div>
       <div className="ss-nav-arrows">
@@ -129,24 +129,40 @@ export default function LandingSlideshow() {
         </div>
       </section>
 
-      {/* SLIDE 2 — WHY US */}
-      <section ref={setRef(1)} data-idx={1} style={slideStyle({ background:'white' })}>
-        <div style={{ textAlign:'center', marginBottom:44 }}>
-          <Eyebrow>Why Day1 Diaries</Eyebrow>
-          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3.6vw,2.8rem)', fontWeight:900, maxWidth:600, margin:'0 auto' }}>Smarter moderation, real peer support, habits that stick.</h2>
+      {/* SLIDE 2 — AI-POWERED (same neon-on-navy treatment the Classic
+          template already uses for this exact content, just packaged
+          as one slide) */}
+      <section ref={setRef(1)} data-idx={1} style={slideStyle({ background:'linear-gradient(135deg,#080B1A 0%,#100A2E 45%,#0A1628 100%)', color:'white', overflowY:'auto' })}>
+        <div style={{ position:'absolute', top:-120, left:-100, width:420, height:420, borderRadius:'50%', background:'radial-gradient(circle,rgba(139,92,246,.18) 0%,transparent 65%)' }} />
+        <div style={{ position:'absolute', bottom:-100, right:-80, width:380, height:380, borderRadius:'50%', background:'radial-gradient(circle,rgba(255,107,43,.15) 0%,transparent 65%)' }} />
+        <div style={{ position:'relative', zIndex:2, textAlign:'center', marginBottom:32 }}>
+          <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'rgba(139,92,246,.12)', border:'1px solid rgba(139,92,246,.32)', borderRadius:100, padding:'7px 18px', marginBottom:18 }}>
+            <span style={{ width:7, height:7, borderRadius:'50%', background:'#A78BFA' }} />
+            <span style={{ fontSize:10.5, fontWeight:700, letterSpacing:'.14em', color:'#A78BFA', textTransform:'uppercase' }}>✨ AI-Powered Community Platform</span>
+          </div>
+          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3.6vw,2.8rem)', fontWeight:900, marginBottom:10, background:'linear-gradient(120deg,#FF6B2B,#8B5CF6,#06B6D4)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>Smarter. Safer. Unstoppable.</h2>
+          <p style={{ fontSize:13, color:'rgba(255,255,255,.45)', maxWidth:460, margin:'0 auto' }}>Our AI works around the clock — detecting harm, guiding goals, and helping freshers navigate their Day 1.</p>
         </div>
-        <div className="ss-grid3" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:28, maxWidth:1000, margin:'0 auto' }}>
-          {[
-            ['🛡️','AI Content Guard','Smart moderation detects harmful content before it reaches anyone.','#F43F5E'],
-            ['🎯','Avoid Day-1 Mistakes','Learn from thousands of real first-day stories before yours starts.','#F59E0B'],
-            ['🔥','Habits That Stick','Adopt a habit, log daily, build a streak alongside thousands.','#8B5CF6'],
-          ].map(([icon,title,text,color]) => (
-            <div key={title} style={{ textAlign:'center' }}>
-              <div style={{ width:56, height:56, borderRadius:16, background:`${color}14`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 16px' }}>{icon}</div>
-              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.15rem', fontWeight:700, marginBottom:8 }}>{title}</div>
-              <div style={{ fontSize:13, color:'#8C7B6E', lineHeight:1.7 }}>{text}</div>
-            </div>
-          ))}
+        <div style={{ position:'relative', zIndex:2 }}>
+          <div className="ss-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, maxWidth:980, margin:'0 auto 24px' }}>
+            {[
+              ['🛡️','AI Content Guard','Auto-detects harmful content before it reaches anyone.','#F43F5E','rgba(244,63,94,.08)'],
+              ['🎯','Avoid Day-1 Mistakes','Learn from thousands of real first-day stories.','#F59E0B','rgba(245,158,11,.08)'],
+              ['🔥','Achieve Your Goals','AI nudges you back when you slip on a habit streak.','#A78BFA','rgba(139,92,246,.08)'],
+              ['💰','Free Forever','Every feature, every habit, every story — zero cost.','#34D399','rgba(16,185,129,.08)'],
+            ].map(([icon,title,text,color,bg]) => (
+              <div key={title} style={{ background:bg, border:`1px solid ${color}30`, borderRadius:18, padding:18 }}>
+                <div style={{ fontSize:24, marginBottom:10 }}>{icon}</div>
+                <div style={{ fontSize:12.5, fontWeight:700, color, marginBottom:6 }}>{title}</div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,.4)', lineHeight:1.6 }}>{text}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:8, justifyContent:'center' }}>
+            {['🤖 AI Moderation','🔥 100+ Daily Joiners','✅ Zero Toxic Content','🎯 Smart Goal Tracking','🏆 Gamified Growth'].map(chip => (
+              <span key={chip} style={{ background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.12)', borderRadius:100, padding:'6px 14px', fontSize:11, fontWeight:500, color:'rgba(255,255,255,.65)' }}>{chip}</span>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -187,16 +203,16 @@ export default function LandingSlideshow() {
       </section>
 
       {/* SLIDE 5 — POINTS */}
-      <section ref={setRef(4)} data-idx={4} style={slideStyle({ background:'#FDF6EE' })}>
+      <section ref={setRef(4)} data-idx={4} style={slideStyle({ background:'#FDF6EE', overflowY:'auto' })}>
         <div style={{ textAlign:'center', marginBottom:40 }}>
           <Eyebrow>Earn While You Engage</Eyebrow>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3.6vw,2.8rem)', fontWeight:900 }}>Every action earns you points.</h2>
         </div>
         <div className="ss-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, maxWidth:880, margin:'0 auto' }}>
-          {[['Daily Login','+10','🌅'],['Like a Story','+10','❤️'],['Comment','+20','💬'],['Habit Log','+10','🔥']].map(([action,pts,icon]) => (
+          {[['Daily Login','+10','🌅'],['Like a Story','+10','❤️'],['Comment','+20','💬'],['Share Story','+10','🔗'],['Post a Story','+20','✍️'],['Habit Log','+10','🔥'],['Story Unlock','-10','🔒'],['Level Up','🏆','👑']].map(([action,pts,icon]) => (
             <div key={action} style={{ background:'white', border:'1px solid rgba(26,8,0,.07)', borderRadius:16, padding:18, textAlign:'center' }}>
               <div style={{ fontSize:18, marginBottom:6 }}>{icon}</div>
-              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.3rem', fontWeight:900, color:'#FF6B2B' }}>{pts}</div>
+              <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.3rem', fontWeight:900, color: String(pts).startsWith('-') ? '#DC2626' : '#FF6B2B' }}>{pts}</div>
               <div style={{ fontSize:11, fontWeight:600, marginTop:2 }}>{action}</div>
             </div>
           ))}
@@ -207,14 +223,14 @@ export default function LandingSlideshow() {
       </section>
 
       {/* SLIDE 6 — CATEGORIES */}
-      <section ref={setRef(5)} data-idx={5} style={slideStyle({ background:'white' })}>
+      <section ref={setRef(5)} data-idx={5} style={slideStyle({ background:'white', overflowY:'auto' })}>
         <div style={{ textAlign:'center', marginBottom:40 }}>
           <Eyebrow>Story Categories</Eyebrow>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3.6vw,2.8rem)', fontWeight:900 }}>Every kind of first.</h2>
         </div>
         {!loading && (
           <div className="ss-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, maxWidth:880, margin:'0 auto' }}>
-            {categories.slice(0, 8).map(c => (
+            {categories.map(c => (
               <div key={c.id} className="ss-cat" onClick={() => navigate(`/discover?cat=${encodeURIComponent(c.name)}`)}>
                 <div style={{ fontSize:24, marginBottom:8 }}>{c.icon}</div>
                 <div style={{ fontSize:12.5, fontWeight:600 }}>{c.name}</div>
@@ -225,14 +241,14 @@ export default function LandingSlideshow() {
       </section>
 
       {/* SLIDE 7 — HABITS */}
-      <section ref={setRef(6)} data-idx={6} style={slideStyle({ background:'#F5EDE4' })}>
+      <section ref={setRef(6)} data-idx={6} style={slideStyle({ background:'#F5EDE4', overflowY:'auto' })}>
         <div style={{ textAlign:'center', marginBottom:36 }}>
           <Eyebrow>Habit Change Module</Eyebrow>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3.6vw,2.8rem)', fontWeight:900, maxWidth:520, margin:'0 auto' }}>The feature that makes us different.</h2>
         </div>
-        <div className="ss-2col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:32, maxWidth:880, margin:'0 auto', alignItems:'center' }}>
+        <div className="ss-2col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:32, maxWidth:880, margin:'0 auto', alignItems:'start' }}>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {!loading && habits.slice(0, 4).map(h => (
+            {!loading && habits.map(h => (
               <div key={h.id} style={{ display:'flex', alignItems:'center', gap:12, background:'white', borderRadius:12, padding:'10px 14px' }}>
                 <span style={{ fontSize:18, width:26, textAlign:'center' }}>{h.icon || '✨'}</span>
                 <div style={{ flex:1, minWidth:0 }}>
@@ -258,7 +274,7 @@ export default function LandingSlideshow() {
       </section>
 
       {/* SLIDE 8 — JOBS (dark) */}
-      <section ref={setRef(7)} data-idx={7} style={slideStyle({ background:'#1A0800', color:'white' })}>
+      <section ref={setRef(7)} data-idx={7} style={slideStyle({ background:'#1A0800', color:'white', overflowY:'auto' })}>
         <div style={{ textAlign:'center', marginBottom:36 }}>
           <Eyebrow color="#FFD166">Trending Opportunities</Eyebrow>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3.6vw,2.8rem)', fontWeight:900 }}>Your Day 1 at a new job starts here.</h2>
@@ -267,7 +283,7 @@ export default function LandingSlideshow() {
           <div className="ss-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, maxWidth:920, margin:'0 auto' }}>
             {(openJobs.length ? openJobs : [
               { title:'Frontend Engineer', department:'Engineering' }, { title:'Product Designer', department:'Design' },
-            ]).slice(0, 4).map((job, i) => (
+            ]).map((job, i) => (
               <div key={job.id || i} style={{ background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', borderRadius:16, padding:18, cursor:'pointer' }} onClick={() => navigate('/careers')}>
                 <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:700, fontSize:14, marginBottom:6 }}>{job.title}</div>
                 <div style={{ fontSize:11.5, color:'rgba(255,255,255,.4)' }}>{job.department}</div>
@@ -281,14 +297,14 @@ export default function LandingSlideshow() {
       </section>
 
       {/* SLIDE 9 — TESTIMONIALS */}
-      <section ref={setRef(8)} data-idx={8} style={slideStyle({ background:'#FDF6EE' })}>
+      <section ref={setRef(8)} data-idx={8} style={slideStyle({ background:'#FDF6EE', overflowY:'auto' })}>
         <div style={{ textAlign:'center', marginBottom:36 }}>
           <Eyebrow>Real Stories, Real Freshers</Eyebrow>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3.6vw,2.8rem)', fontWeight:900 }}>What they're saying.</h2>
         </div>
         {!loading && (
           <div className="ss-grid3" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20, maxWidth:920, margin:'0 auto' }}>
-            {testimonials.slice(0, 3).map(t => (
+            {testimonials.map(t => (
               <div key={t.id} className="ss-testi">
                 <div style={{ color:'#FFD166', marginBottom:8 }}>{'★'.repeat(t.rating || 5)}</div>
                 <div style={{ fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:13, lineHeight:1.65, marginBottom:14 }}>"{t.quote}"</div>
@@ -300,14 +316,14 @@ export default function LandingSlideshow() {
       </section>
 
       {/* SLIDE 10 — COMMUNITY */}
-      <section ref={setRef(9)} data-idx={9} style={slideStyle({ background:'white' })}>
+      <section ref={setRef(9)} data-idx={9} style={slideStyle({ background:'white', overflowY:'auto' })}>
         <div style={{ textAlign:'center', marginBottom:36 }}>
           <Eyebrow>Community & Gamification</Eyebrow>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3.6vw,2.8rem)', fontWeight:900 }}>Climb from Beginner to Legend.</h2>
         </div>
-        <div className="ss-2col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:32, maxWidth:880, margin:'0 auto' }}>
+        <div className="ss-2col" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:32, maxWidth:880, margin:'0 auto', alignItems:'start' }}>
           <div style={{ background:'#F5EDE4', borderRadius:16, overflow:'hidden' }}>
-            {!loading && leaderboard.slice(0, 4).map((u, i) => (
+            {!loading && leaderboard.map((u, i) => (
               <div key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer' }} onClick={() => navigate(`/profile/${u.username}`)}>
                 <div style={{ fontWeight:700, width:20, textAlign:'center' }}>{['🥇','🥈','🥉'][i] || i + 1}</div>
                 <div style={{ width:28, height:28, borderRadius:'50%', background:getAvatarColor(u.full_name||u.username||''), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'white', overflow:'hidden' }}>
@@ -319,8 +335,12 @@ export default function LandingSlideshow() {
             ))}
           </div>
           <div style={{ display:'flex', flexDirection:'column', gap:6, justifyContent:'center' }}>
-            {[['🥉','Beginner'],['🏆','Hero'],['👑','Legend']].map(([icon,name]) => (
-              <div key={name} style={{ display:'flex', alignItems:'center', gap:10, fontSize:13, fontWeight:600 }}><span style={{ fontSize:16 }}>{icon}</span>{name}</div>
+            {[['🥉','Beginner','0–1K pts'],['🥈','Explorer','1K–5K pts'],['🥇','Achiever','5K–20K pts'],['🏆','Hero','20K–50K pts'],['🔥','Super Hero','50K–100K pts'],['👑','Legend','100K+ pts']].map(([icon,name,pts]) => (
+              <div key={name} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 12px', background:'#F5EDE4', borderRadius:10 }}>
+                <span style={{ fontSize:16 }}>{icon}</span>
+                <span style={{ fontSize:12.5, fontWeight:600, flex:1 }}>{name}</span>
+                <span style={{ fontSize:10.5, color:'#8C7B6E' }}>{pts}</span>
+              </div>
             ))}
           </div>
         </div>
