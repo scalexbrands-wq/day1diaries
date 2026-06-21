@@ -1,6 +1,6 @@
 const express = require('express')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
 
 const router = express.Router()
 
@@ -33,7 +33,7 @@ router.post('/:id/dismiss', requireAuth, async (req, res) => {
 // ── Admin CRUD ────────────────────────────────────────────────
 
 // GET /announcements (admin)
-router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/', requireAuth, requirePermission('manage_announcements'), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT * FROM announcements ORDER BY created_at DESC'
   )
@@ -41,7 +41,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // POST /announcements (admin)
-router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/', requireAuth, requirePermission('manage_announcements'), async (req, res) => {
   const { title, message, emoji, bg_color } = req.body
   if (!title?.trim() || !message?.trim()) {
     return res.status(400).json({ error: 'title and message required' })
@@ -55,7 +55,7 @@ router.post('/', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // PUT /announcements/:id (admin)
-router.put('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.put('/:id', requireAuth, requirePermission('manage_announcements'), async (req, res) => {
   const { title, message, emoji, bg_color, is_active } = req.body
   const { rows } = await pool.query(
     `UPDATE announcements
@@ -68,7 +68,7 @@ router.put('/:id', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // DELETE /announcements/:id (admin)
-router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireAuth, requirePermission('manage_announcements'), async (req, res) => {
   await pool.query('DELETE FROM announcements WHERE id=$1', [req.params.id])
   res.json({ deleted: true })
 })

@@ -5,13 +5,14 @@
 // stored in localStorage + /auth/me for the profile row).
 // ============================================================
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { getSession, getStoredTokens } from '../lib/api'
+import { getSession, getStoredTokens, getMyRoleCheck } from '../lib/api'
 
 const AuthContext = createContext({})
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)       // profile row (from /auth/me) acts as "user"
   const [profile, setProfile] = useState(null) // kept separate for parity with old component code
+  const [permissions, setPermissions] = useState([]) // RBAC — resolved permission keys for profile.role
   const [loading, setLoading] = useState(true)
 
   const loadSession = async () => {
@@ -19,6 +20,7 @@ export const AuthProvider = ({ children }) => {
     if (!tokens) {
       setUser(null)
       setProfile(null)
+      setPermissions([])
       setLoading(false)
       return
     }
@@ -27,9 +29,16 @@ export const AuthProvider = ({ children }) => {
     if (error || !data?.session) {
       setUser(null)
       setProfile(null)
+      setPermissions([])
     } else {
       setUser(data.session.user)
       setProfile(data.session.user)
+      // Awaited (not fire-and-forget) — otherwise `loading` would flip to
+      // false before permissions resolve, and AdminRoute could bounce a
+      // legitimately-permitted role (Moderator, Finance, etc.) to /feed
+      // on first paint before this request comes back.
+      const { data: rc } = await getMyRoleCheck()
+      setPermissions(rc?.role === 'admin' ? ['*'] : (rc?.permissions || []))
     }
     setLoading(false)
   }
@@ -44,9 +53,10 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   const refreshProfile = () => loadSession()
+  const hasPermission = (...keys) => permissions.includes('*') || keys.some(k => permissions.includes(k))
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, refreshProfile, reloadSession: loadSession }}>
+    <AuthContext.Provider value={{ user, profile, permissions, hasPermission, loading, refreshProfile, reloadSession: loadSession }}>
       {children}
     </AuthContext.Provider>
   )

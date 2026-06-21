@@ -1,7 +1,7 @@
 const express = require('express')
 const multer = require('multer')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
 const imageStorage = require('../utils/imageStorage')
 
 const router = express.Router()
@@ -60,13 +60,13 @@ router.get('/data', async (req, res) => {
 // ============================================================
 
 // GET /landing/admin/hero — fetch raw hero row for the admin edit form
-router.get('/admin/hero', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/admin/hero', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM landing_hero WHERE id = 1')
   res.json({ data: rows[0] || null })
 })
 
 // PATCH /landing/admin/hero
-router.patch('/admin/hero', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/admin/hero', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const allowed = [
     'eyebrow','headline','headline_highlight','subheadline',
     'cta_primary_text','cta_secondary_text','diary_date','diary_title',
@@ -90,7 +90,7 @@ router.patch('/admin/hero', requireAuth, requireRole('admin'), async (req, res) 
 const MAX_HERO_IMAGES = 3
 
 // POST /landing/admin/hero/images — add one slideshow image (multipart, field "image"); max 3
-router.post('/admin/hero/images', requireAuth, requireRole('admin'), upload.single('image'), async (req, res) => {
+router.post('/admin/hero/images', requireAuth, requirePermission('manage_landing_content'), upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded' })
 
   const { rows: existingRows } = await pool.query('SELECT hero_image_urls FROM landing_hero WHERE id = 1')
@@ -113,7 +113,7 @@ router.post('/admin/hero/images', requireAuth, requireRole('admin'), upload.sing
 })
 
 // DELETE /landing/admin/hero/images/:index — remove one slideshow image by its array index
-router.delete('/admin/hero/images/:index', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/admin/hero/images/:index', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const index = parseInt(req.params.index, 10)
   const { rows: existingRows } = await pool.query('SELECT hero_image_urls FROM landing_hero WHERE id = 1')
   const current = existingRows[0]?.hero_image_urls || []
@@ -134,12 +134,12 @@ router.delete('/admin/hero/images/:index', requireAuth, requireRole('admin'), as
 // (same shape as Hero: text fields + up to 3 slideshow images)
 // ════════════════════════════════════════════════════════════
 
-router.get('/admin/bottom-section', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/admin/bottom-section', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM landing_bottom_section WHERE id = 1')
   res.json({ data: rows[0] || null })
 })
 
-router.patch('/admin/bottom-section', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/admin/bottom-section', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const allowed = ['heading', 'subheadline', 'body_text', 'cta_text', 'cta_link', 'is_active', 'image_urls']
   const updates = {}
   for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
@@ -156,7 +156,7 @@ router.patch('/admin/bottom-section', requireAuth, requireRole('admin'), async (
 
 const MAX_BOTTOM_SECTION_IMAGES = 3
 
-router.post('/admin/bottom-section/images', requireAuth, requireRole('admin'), upload.single('image'), async (req, res) => {
+router.post('/admin/bottom-section/images', requireAuth, requirePermission('manage_landing_content'), upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded' })
 
   const { rows: existingRows } = await pool.query('SELECT image_urls FROM landing_bottom_section WHERE id = 1')
@@ -178,7 +178,7 @@ router.post('/admin/bottom-section/images', requireAuth, requireRole('admin'), u
   res.json({ data: rows[0] })
 })
 
-router.delete('/admin/bottom-section/images/:index', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/admin/bottom-section/images/:index', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const index = parseInt(req.params.index, 10)
   const { rows: existingRows } = await pool.query('SELECT image_urls FROM landing_bottom_section WHERE id = 1')
   const current = existingRows[0]?.image_urls || []
@@ -195,13 +195,13 @@ router.delete('/admin/bottom-section/images/:index', requireAuth, requireRole('a
 })
 
 // GET /landing/admin/categories
-router.get('/admin/categories', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/admin/categories', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM landing_categories ORDER BY sort_order')
   res.json({ categories: rows })
 })
 
 // POST /landing/admin/categories — create or update (if id provided)
-router.post('/admin/categories', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/admin/categories', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const { id, icon, name, story_count_override, is_active, is_cta, sort_order } = req.body
   if (id) {
     const { rows } = await pool.query(
@@ -220,19 +220,19 @@ router.post('/admin/categories', requireAuth, requireRole('admin'), async (req, 
 })
 
 // DELETE /landing/admin/categories/:id
-router.delete('/admin/categories/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/admin/categories/:id', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   await pool.query('DELETE FROM landing_categories WHERE id = $1', [req.params.id])
   res.json({ success: true })
 })
 
 // GET /landing/admin/testimonials
-router.get('/admin/testimonials', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/admin/testimonials', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM landing_testimonials ORDER BY sort_order')
   res.json({ testimonials: rows })
 })
 
 // POST /landing/admin/testimonials — create or update
-router.post('/admin/testimonials', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/admin/testimonials', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const { id, quote, author_name, author_role, author_initials, avatar_gradient, rating, is_active, sort_order } = req.body
   if (id) {
     const { rows } = await pool.query(
@@ -251,13 +251,13 @@ router.post('/admin/testimonials', requireAuth, requireRole('admin'), async (req
 })
 
 // DELETE /landing/admin/testimonials/:id
-router.delete('/admin/testimonials/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/admin/testimonials/:id', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   await pool.query('DELETE FROM landing_testimonials WHERE id = $1', [req.params.id])
   res.json({ success: true })
 })
 
 // PATCH /landing/admin/stories/:id/feature — toggle is_featured
-router.patch('/admin/stories/:id/feature', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/admin/stories/:id/feature', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const { featured } = req.body
   const { rows } = await pool.query(
     'UPDATE stories SET is_featured = $1 WHERE id = $2 RETURNING *',
@@ -267,7 +267,7 @@ router.patch('/admin/stories/:id/feature', requireAuth, requireRole('admin'), as
 })
 
 // GET /landing/admin/featured-stories — for the picker UI
-router.get('/admin/featured-stories', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/admin/featured-stories', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT s.id, s.title, s.category, s.is_featured,
             json_build_object('username', p.username, 'full_name', p.full_name) AS profiles

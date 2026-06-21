@@ -166,6 +166,22 @@ export const uploadProfileBanner = async (file) => {
 export const isContributorOrAdmin = (profile) =>
   profile?.role === 'admin' || profile?.role === 'contributor'
 
+// RBAC — caller's role + resolved permission keys (admin = every
+// permission; everyone else = their role's grants).
+export const getMyRoleCheck = async () => {
+  const result = await apiFetch('/profiles/me/role-check')
+  return { data: result.data, error: result.error }
+}
+
+export const adminGetRbacMatrix = async () => {
+  const result = await apiFetch('/admin/rbac')
+  return { data: result.data, error: result.error }
+}
+export const adminSetRolePermissions = async (role, permissions) => {
+  const result = await apiFetch(`/admin/rbac/${role}`, { method: 'PUT', body: JSON.stringify({ permissions }) })
+  return { data: result.data, error: result.error }
+}
+
 // ============================================================
 // STORIES
 // ============================================================

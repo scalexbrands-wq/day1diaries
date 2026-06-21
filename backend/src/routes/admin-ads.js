@@ -1,11 +1,11 @@
 const express = require('express')
 const multer = require('multer')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
 const imageStorage = require('../utils/imageStorage')
 
 const router = express.Router()
-router.use(requireAuth, requireRole('admin'))
+router.use(requireAuth, requirePermission('manage_marketing'))
 
 const upload = multer({
   storage: multer.memoryStorage(),

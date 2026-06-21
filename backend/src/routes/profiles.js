@@ -1,8 +1,9 @@
 const express = require('express')
 const multer = require('multer')
 const { pool } = require('../db/pool')
-const { requireAuth, optionalAuth } = require('../middleware/auth')
+const { requireAuth, optionalAuth, requirePermission } = require('../middleware/auth')
 const imageStorage = require('../utils/imageStorage')
+const { PERMISSION_KEYS } = require('../services/permissions')
 
 const router = express.Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
@@ -83,18 +84,32 @@ router.post('/me/banner', requireAuth, upload.single('image'), async (req, res) 
 })
 
 // ── GET /profiles/me/role-check ──────────────────────────────
-router.get('/me/role-check', requireAuth, (req, res) => {
-  res.json({ role: req.profile?.role || 'user', isContributorOrAdmin: ['admin','contributor'].includes(req.profile?.role) })
+// Includes the caller's resolved permission keys (admin = every
+// permission in the catalog; everyone else = their role's grants in
+// role_permissions) so the frontend can show/hide admin UI per-permission
+// instead of hardcoding role checks.
+router.get('/me/role-check', requireAuth, async (req, res) => {
+  const role = req.profile?.role || 'user'
+  let permissions = []
+  if (role === 'admin') {
+    permissions = PERMISSION_KEYS
+  } else {
+    const { rows } = await pool.query('SELECT permission_key FROM role_permissions WHERE role = $1', [role])
+    permissions = rows.map(r => r.permission_key)
+  }
+  res.json({ role, isContributorOrAdmin: ['admin','contributor'].includes(role), permissions })
 })
 
 // ── Admin: GET /profiles/admin/categories ──────────────────
-router.get('/admin/categories', requireAuth, async (req, res) => {
+// NOTE: previously only required login (no role/permission check at
+// all) — any signed-in user could create/edit/delete story categories.
+router.get('/admin/categories', requireAuth, requirePermission('manage_categories'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM story_categories ORDER BY sort_order, name')
   res.json({ categories: rows })
 })
 
 // ── Admin: POST /profiles/admin/categories — upsert ─────────
-router.post('/admin/categories', requireAuth, async (req, res) => {
+router.post('/admin/categories', requireAuth, requirePermission('manage_categories'), async (req, res) => {
   const { id, name, icon, sort_order, is_active } = req.body
   if (!name?.trim()) return res.status(400).json({ error: 'name is required' })
   if (id) {
@@ -112,7 +127,7 @@ router.post('/admin/categories', requireAuth, async (req, res) => {
 })
 
 // ── Admin: DELETE /profiles/admin/categories/:id ─────────────
-router.delete('/admin/categories/:id', requireAuth, async (req, res) => {
+router.delete('/admin/categories/:id', requireAuth, requirePermission('manage_categories'), async (req, res) => {
   await pool.query('DELETE FROM story_categories WHERE id=$1', [req.params.id])
   res.json({ success: true })
 })

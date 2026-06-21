@@ -1,6 +1,6 @@
 const express = require('express')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
 
 const router = express.Router()
 
@@ -20,7 +20,7 @@ router.post('/visit', async (req, res) => {
 })
 
 // PATCH /stats/visit — admin override of the counter value
-router.patch('/visit', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/visit', requireAuth, requirePermission('manage_settings'), async (req, res) => {
   const count = parseInt(req.body.count, 10)
   if (!Number.isFinite(count) || count < 0) return res.status(400).json({ error: 'count must be a non-negative integer' })
   const { rows } = await pool.query(

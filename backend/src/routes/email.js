@@ -1,13 +1,13 @@
 const express = require('express')
 const cronParser = require('cron-parser')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
 const audiences = require('../services/emailAudience')
 const { createAndProcessSend, testSend } = require('../services/emailSender')
 const { render, extractVariables } = require('../utils/emailRender')
 
 const router = express.Router()
-router.use(requireAuth, requireRole('admin'))
+router.use(requireAuth, requirePermission('manage_email'))
 
 const CATEGORIES = ['welcome', 'story', 'habit', 'challenge', 'event', 'leaderboard', 'certificate', 'weekly_digest', 'monthly_digest', 'custom']
 

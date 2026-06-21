@@ -1,7 +1,7 @@
 const express = require('express')
 const QRCode = require('qrcode')
 const { pool } = require('../db/pool')
-const { requireAuth, optionalAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, optionalAuth, requirePermission } = require('../middleware/auth')
 const { uploadBuffer } = require('../utils/s3')
 const { getEmbeddedFontCss } = require('../utils/fontEmbed')
 const { renderCertificate, renderSocialPreview } = require('../utils/certificateRender')
@@ -58,7 +58,7 @@ async function renderCertificateAssets(certRow, certificateData) {
 // Admin-only — issued on behalf of the story's author.
 // body: { storyId, companyName, jobTitle, joiningDate, industry, location, companyLogoUrl,
 //         communityManagerName, coFounderName }
-router.post('/generate', requireAuth, requireRole('admin'), async (req, res) => {
+router.post('/generate', requireAuth, requirePermission('manage_certificates'), async (req, res) => {
   const {
     storyId, companyName, jobTitle, joiningDate, industry, location, companyLogoUrl,
     communityManagerName, coFounderName,

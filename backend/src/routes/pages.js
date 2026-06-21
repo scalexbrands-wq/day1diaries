@@ -1,6 +1,6 @@
 const express = require('express')
 const { pool } = require('../db/pool')
-const { requireAuth, optionalAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, optionalAuth, requirePermission } = require('../middleware/auth')
 const { requireFeatureAccess } = require('../services/accessControl')
 
 const router = express.Router()
@@ -42,14 +42,14 @@ router.get('/about', async (req, res) => {
 })
 
 // ── GET /admin/pages/about — admin, all sections ──────────────
-adminRouter.get('/about', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.get('/about', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM about_sections ORDER BY sort_order, created_at')
   res.json({ sections: rows })
 })
 
 // ── POST /admin/pages/about — create or update a section ──────
 // body: { id?, title, content, image_url, video_url, sort_order, is_active }
-adminRouter.post('/about', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.post('/about', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { id, title, content, image_url, video_url, sort_order, is_active } = req.body
 
   if (id) {
@@ -70,7 +70,7 @@ adminRouter.post('/about', requireAuth, requireRole('admin'), async (req, res) =
 })
 
 // ── DELETE /admin/pages/about/:id ──────────────────────────────
-adminRouter.delete('/about/:id', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.delete('/about/:id', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   await pool.query('DELETE FROM about_sections WHERE id = $1', [req.params.id])
   res.json({ success: true })
 })
@@ -99,14 +99,14 @@ router.get('/blog/:slug', async (req, res) => {
 })
 
 // ── GET /admin/pages/blog — admin, all posts (incl. drafts) ────
-adminRouter.get('/blog', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.get('/blog', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM blog_posts ORDER BY created_at DESC')
   res.json({ posts: rows })
 })
 
 // ── POST /admin/pages/blog — create or update a post ───────────
 // body: { id?, title, excerpt, content, cover_image, author_name, is_published }
-adminRouter.post('/blog', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.post('/blog', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { id, title, excerpt, content, cover_image, author_name, is_published } = req.body
   if (!title || !content) return res.status(400).json({ error: 'title and content are required' })
 
@@ -135,7 +135,7 @@ adminRouter.post('/blog', requireAuth, requireRole('admin'), async (req, res) =>
 })
 
 // ── DELETE /admin/pages/blog/:id ────────────────────────────────
-adminRouter.delete('/blog/:id', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.delete('/blog/:id', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   await pool.query('DELETE FROM blog_posts WHERE id = $1', [req.params.id])
   res.json({ success: true })
 })
@@ -255,7 +255,7 @@ router.patch('/careers/applications/:id/my-update', requireAuth, async (req, res
 })
 
 // ── GET /admin/pages/careers — admin, all jobs ────────────────────
-adminRouter.get('/careers', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.get('/careers', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT j.*, (SELECT count(*) FROM job_applications a WHERE a.job_id = j.id) AS applications_count
      FROM careers_jobs j ORDER BY j.sort_order, j.created_at DESC`
@@ -264,7 +264,7 @@ adminRouter.get('/careers', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // ── GET /admin/pages/careers/stats — admin, KPI summary ──────────
-adminRouter.get('/careers/stats', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.get('/careers/stats', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { rows } = await pool.query(`
     SELECT json_build_object(
       'open_jobs',         (SELECT count(*) FROM careers_jobs WHERE is_active = true),
@@ -277,7 +277,7 @@ adminRouter.get('/careers/stats', requireAuth, requireRole('admin'), async (req,
 })
 
 // ── POST /admin/pages/careers — create or update a job ─────────────
-adminRouter.post('/careers', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.post('/careers', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { id, title, department, location, job_type, salary_min, salary_max, currency, description, requirements, is_active, sort_order } = req.body
   if (!title || !description) return res.status(400).json({ error: 'title and description are required' })
 
@@ -304,13 +304,13 @@ adminRouter.post('/careers', requireAuth, requireRole('admin'), async (req, res)
 })
 
 // ── DELETE /admin/pages/careers/:id ──────────────────────────────────
-adminRouter.delete('/careers/:id', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.delete('/careers/:id', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   await pool.query('DELETE FROM careers_jobs WHERE id = $1', [req.params.id])
   res.json({ success: true })
 })
 
 // ── GET /admin/pages/careers/:id/applications — admin, applicants for a job ──
-adminRouter.get('/careers/:id/applications', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.get('/careers/:id/applications', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { rows } = await pool.query(
     'SELECT * FROM job_applications WHERE job_id = $1 ORDER BY created_at DESC',
     [req.params.id]
@@ -319,7 +319,7 @@ adminRouter.get('/careers/:id/applications', requireAuth, requireRole('admin'), 
 })
 
 // ── GET /admin/pages/applications — admin, ALL applications across jobs ──
-adminRouter.get('/applications', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.get('/applications', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT a.*, j.title AS job_title
      FROM job_applications a LEFT JOIN careers_jobs j ON j.id = a.job_id
@@ -329,7 +329,7 @@ adminRouter.get('/applications', requireAuth, requireRole('admin'), async (req, 
 })
 
 // ── PATCH /admin/pages/applications/:id — admin, update status ──
-adminRouter.patch('/applications/:id', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.patch('/applications/:id', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { status } = req.body
   if (!['new', 'reviewed', 'shortlisted', 'rejected', 'hired'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' })
@@ -359,13 +359,13 @@ router.post('/contact', async (req, res) => {
 })
 
 // ── GET /admin/pages/contact — admin, all messages ──────────────
-adminRouter.get('/contact', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.get('/contact', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM contact_messages ORDER BY created_at DESC')
   res.json({ messages: rows })
 })
 
 // ── PATCH /admin/pages/contact/:id — admin, update status ────────
-adminRouter.patch('/contact/:id', requireAuth, requireRole('admin'), async (req, res) => {
+adminRouter.patch('/contact/:id', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { status } = req.body
   if (!['new', 'read', 'replied'].includes(status)) return res.status(400).json({ error: 'Invalid status' })
   const { rows } = await pool.query(

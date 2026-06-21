@@ -1,6 +1,6 @@
 const express = require('express')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
 const { requireFeatureAccess } = require('../services/accessControl')
 
 const router = express.Router()
@@ -169,13 +169,13 @@ router.get('/challenges/mine', requireAuth, async (req, res) => {
 // ============================================================
 
 // GET /habits/admin/all
-router.get('/admin/all', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.get('/admin/all', requireAuth, requirePermission('manage_habits'), async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM habits ORDER BY adopters_count DESC')
   res.json({ habits: rows })
 })
 
 // POST /habits/admin — create
-router.post('/admin', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.post('/admin', requireAuth, requirePermission('manage_habits'), async (req, res) => {
   const { title, description, icon, category, adopters_count, completion_rate, likes_count, is_active } = req.body
   if (!title?.trim()) return res.status(400).json({ error: 'Title required' })
 
@@ -190,7 +190,7 @@ router.post('/admin', requireAuth, requireRole('admin', 'contributor'), async (r
 })
 
 // PATCH /habits/admin/:id — update
-router.patch('/admin/:id', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.patch('/admin/:id', requireAuth, requirePermission('manage_habits'), async (req, res) => {
   // Contributors can only edit habits they created; admins can edit any
   if (req.profile.role === 'contributor') {
     const { rows } = await pool.query('SELECT created_by FROM habits WHERE id = $1', [req.params.id])
@@ -209,7 +209,7 @@ router.patch('/admin/:id', requireAuth, requireRole('admin', 'contributor'), asy
 })
 
 // DELETE /habits/admin/:id
-router.delete('/admin/:id', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.delete('/admin/:id', requireAuth, requirePermission('manage_habits'), async (req, res) => {
   if (req.profile.role === 'contributor') {
     const { rows } = await pool.query('SELECT created_by FROM habits WHERE id = $1', [req.params.id])
     if (!rows.length) return res.status(404).json({ error: 'Not found' })
@@ -222,7 +222,7 @@ router.delete('/admin/:id', requireAuth, requireRole('admin', 'contributor'), as
 // ── CHALLENGES ADMIN ───────────────────────────────────────────
 
 // POST /habits/admin/challenges — create
-router.post('/admin/challenges', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.post('/admin/challenges', requireAuth, requirePermission('manage_challenges'), async (req, res) => {
   const { title, description, habit_id, duration_days, start_date, end_date,
           reward_points, daily_points, weekly_points, participants_limit, visibility, status } = req.body
   if (!title?.trim()) return res.status(400).json({ error: 'Title required' })
@@ -241,7 +241,7 @@ router.post('/admin/challenges', requireAuth, requireRole('admin', 'contributor'
 })
 
 // PATCH /habits/admin/challenges/:id
-router.patch('/admin/challenges/:id', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.patch('/admin/challenges/:id', requireAuth, requirePermission('manage_challenges'), async (req, res) => {
   if (req.profile.role === 'contributor') {
     const { rows } = await pool.query('SELECT created_by FROM habit_challenges WHERE id = $1', [req.params.id])
     if (!rows.length) return res.status(404).json({ error: 'Not found' })
@@ -261,7 +261,7 @@ router.patch('/admin/challenges/:id', requireAuth, requireRole('admin', 'contrib
 })
 
 // DELETE /habits/admin/challenges/:id
-router.delete('/admin/challenges/:id', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.delete('/admin/challenges/:id', requireAuth, requirePermission('manage_challenges'), async (req, res) => {
   if (req.profile.role === 'contributor') {
     const { rows } = await pool.query('SELECT created_by FROM habit_challenges WHERE id = $1', [req.params.id])
     if (!rows.length) return res.status(404).json({ error: 'Not found' })

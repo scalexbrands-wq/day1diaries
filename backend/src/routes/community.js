@@ -1,6 +1,6 @@
 const express = require('express')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole, optionalAuth } = require('../middleware/auth')
+const { requireAuth, requirePermission, optionalAuth } = require('../middleware/auth')
 const { requireFeatureAccess } = require('../services/accessControl')
 
 const router = express.Router()
@@ -58,7 +58,7 @@ router.post('/:id/register', requireAuth, requireFeatureAccess('event_registrati
 // ============================================================
 
 // POST /community/admin — create
-router.post('/admin', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.post('/admin', requireAuth, requirePermission('manage_community_events'), async (req, res) => {
   const {
     title, description, cover_image_url, event_type, event_date,
     duration_mins, seats_available, speaker_name, speaker_bio,
@@ -81,7 +81,7 @@ router.post('/admin', requireAuth, requireRole('admin', 'contributor'), async (r
 })
 
 // PATCH /community/admin/:id
-router.patch('/admin/:id', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.patch('/admin/:id', requireAuth, requirePermission('manage_community_events'), async (req, res) => {
   if (req.profile.role === 'contributor') {
     const { rows } = await pool.query('SELECT created_by FROM community_updates WHERE id = $1', [req.params.id])
     if (!rows.length) return res.status(404).json({ error: 'Not found' })
@@ -101,7 +101,7 @@ router.patch('/admin/:id', requireAuth, requireRole('admin', 'contributor'), asy
 })
 
 // DELETE /community/admin/:id
-router.delete('/admin/:id', requireAuth, requireRole('admin', 'contributor'), async (req, res) => {
+router.delete('/admin/:id', requireAuth, requirePermission('manage_community_events'), async (req, res) => {
   if (req.profile.role === 'contributor') {
     const { rows } = await pool.query('SELECT created_by FROM community_updates WHERE id = $1', [req.params.id])
     if (!rows.length) return res.status(404).json({ error: 'Not found' })

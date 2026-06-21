@@ -1,11 +1,12 @@
 const express = require('express')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
+const { ROLE_KEYS } = require('../services/permissions')
 
 const router = express.Router()
 
 // ── GET /admin/stats ──────────────────────────────────────────
-router.get('/stats', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/stats', requireAuth, requirePermission('view_analytics'), async (req, res) => {
   const { rows } = await pool.query(`
     SELECT json_build_object(
       'total_users',       (SELECT count(*) FROM profiles),
@@ -21,7 +22,7 @@ router.get('/stats', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // ── GET /admin/users ──────────────────────────────────────────
-router.get('/users', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/users', requireAuth, requirePermission('view_users'), async (req, res) => {
   const page = parseInt(req.query.page) || 0
   const limit = parseInt(req.query.limit) || 100
   const { rows } = await pool.query(
@@ -34,7 +35,7 @@ router.get('/users', requireAuth, requireRole('admin'), async (req, res) => {
 // ── GET /admin/users/:id/stories ───────────────────────────────
 // Stories published by a user — used by the admin certificate generator
 // to pick which story to issue a certificate for.
-router.get('/users/:id/stories', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/users/:id/stories', requireAuth, requirePermission('view_users'), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, title, category, created_at FROM stories
      WHERE user_id = $1 AND status = 'published' ORDER BY created_at DESC`,
@@ -44,11 +45,11 @@ router.get('/users/:id/stories', requireAuth, requireRole('admin'), async (req, 
 })
 
 // ── PATCH /admin/users/:id/role ────────────────────────────────
-// body: { role }  — 'user' | 'contributor' | 'admin'
-router.patch('/users/:id/role', requireAuth, requireRole('admin'), async (req, res) => {
+// body: { role } — any key in ROLE_KEYS (see services/permissions.js)
+router.patch('/users/:id/role', requireAuth, requirePermission('manage_roles'), async (req, res) => {
   const { role } = req.body
-  if (!['user', 'contributor', 'admin'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role' })
+  if (!ROLE_KEYS.includes(role)) {
+    return res.status(400).json({ error: `Invalid role — must be one of: ${ROLE_KEYS.join(', ')}` })
   }
   const { rows } = await pool.query(
     'UPDATE profiles SET role = $1 WHERE id = $2 RETURNING *',
@@ -60,15 +61,26 @@ router.patch('/users/:id/role', requireAuth, requireRole('admin'), async (req, r
 
 // ── PATCH /admin/users/:id ─────────────────────────────────────
 // body: { full_name, username, bio, location, role, is_blocked }
-router.patch('/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
+// Changing `role` specifically requires manage_roles, even though the
+// rest of this endpoint only requires manage_users — otherwise a
+// Moderator (who has manage_users for blocking) could promote themselves
+// or anyone else to admin through this combined endpoint.
+router.patch('/users/:id', requireAuth, requirePermission('manage_users'), async (req, res) => {
   const allowed = ['full_name', 'username', 'bio', 'location', 'role', 'is_blocked', 'coins']
   const updates = {}
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key]
   }
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields' })
-  if (updates.role && !['user', 'contributor', 'admin'].includes(updates.role)) {
-    return res.status(400).json({ error: 'Invalid role' })
+  if (updates.role !== undefined) {
+    if (req.profile.role !== 'admin') {
+      const { rows } = await pool.query(
+        "SELECT 1 FROM role_permissions WHERE role = $1 AND permission_key = 'manage_roles'",
+        [req.profile.role]
+      )
+      if (!rows.length) return res.status(403).json({ error: 'Forbidden — insufficient permissions to change roles' })
+    }
+    if (!ROLE_KEYS.includes(updates.role)) return res.status(400).json({ error: `Invalid role — must be one of: ${ROLE_KEYS.join(', ')}` })
   }
   if (updates.coins !== undefined) {
     const coins = Number(updates.coins)
@@ -85,7 +97,7 @@ router.patch('/users/:id', requireAuth, requireRole('admin'), async (req, res) =
 })
 
 // ── DELETE /admin/users/:id ────────────────────────────────────
-router.delete('/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/users/:id', requireAuth, requirePermission('delete_users'), async (req, res) => {
   const { id } = req.params
   // Delete stories, comments, likes, saves, follows first, then profile
   await pool.query('DELETE FROM likes WHERE user_id = $1', [id])
@@ -99,7 +111,7 @@ router.delete('/users/:id', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // ── GET /admin/flagged-stories ─────────────────────────────────
-router.get('/flagged-stories', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/flagged-stories', requireAuth, requirePermission('moderate_content'), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT s.*,
        json_build_object(
@@ -117,7 +129,7 @@ router.get('/flagged-stories', requireAuth, requireRole('admin'), async (req, re
 
 // ── PATCH /admin/stories/:id/moderate ──────────────────────────
 // body: { status }  — 'published' | 'removed'
-router.patch('/stories/:id/moderate', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/stories/:id/moderate', requireAuth, requirePermission('moderate_content'), async (req, res) => {
   const { status } = req.body
   if (!['published', 'removed'].includes(status)) return res.status(400).json({ error: 'Invalid status' })
 
@@ -130,7 +142,7 @@ router.patch('/stories/:id/moderate', requireAuth, requireRole('admin'), async (
 
 // ── PATCH /admin/users/:id/block ───────────────────────────────
 // body: { is_blocked: true | false }
-router.patch('/users/:id/block', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/users/:id/block', requireAuth, requirePermission('manage_users'), async (req, res) => {
   const { is_blocked } = req.body
   const { rows } = await pool.query(
     'UPDATE profiles SET is_blocked = $1 WHERE id = $2 RETURNING id, username, full_name, is_blocked',
@@ -142,7 +154,7 @@ router.patch('/users/:id/block', requireAuth, requireRole('admin'), async (req, 
 
 // ── GET /admin/settings ─────────────────────────────────────────
 // Returns all app settings as a flat object, e.g. { email_verification_required: true }
-router.get('/settings', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/settings', requireAuth, requirePermission('manage_settings'), async (req, res) => {
   const { rows } = await pool.query('SELECT key, value FROM app_settings')
   const settings = {}
   for (const row of rows) settings[row.key] = row.value
@@ -151,7 +163,7 @@ router.get('/settings', requireAuth, requireRole('admin'), async (req, res) => {
 
 // ── PATCH /admin/settings ───────────────────────────────────────
 // body: { key: value, ... } — upserts one or more settings
-router.patch('/settings', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/settings', requireAuth, requirePermission('manage_settings'), async (req, res) => {
   const entries = Object.entries(req.body || {})
   if (!entries.length) return res.status(400).json({ error: 'No settings provided' })
 

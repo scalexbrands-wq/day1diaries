@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
+import { useAuth } from '../contexts/AuthContext'
 import {
   getAdminStats, adminGetUsers, adminFlaggedStories, adminModerateStory, adminBlockUser, adminUpdateUser, adminDeleteUser,
   adminGetHabits, adminUpsertHabit, adminDeleteHabit,
@@ -39,6 +40,7 @@ import {
   adminListAdCampaigns, adminGetAdAnalytics, adminCreateAdCampaign, adminUpdateAdCampaign,
   adminSetAdCampaignStatus, adminDeleteAdCampaign,
   adminGetMarketingSettings, adminUpdateMarketingSettings,
+  adminGetRbacMatrix, adminSetRolePermissions,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -65,51 +67,68 @@ const Modal = ({title,onClose,children}) => (
   </div>
 )
 
+// Each tab lists the permission key(s) that unlock it — a tab shows if
+// the signed-in role has ANY of them (or is the 'admin' superuser).
+// 'rbac' has none listed here; it's gated separately to the true admin
+// role only (see AdminDashboard below) so no role can grant itself more
+// access by editing the matrix.
 const TABS = [
-  ['overview','📊 Overview'],
-  ['announcements','📢 Announcements'],
-  ['habits','💪 Habits'],
-  ['challenges','🏆 Challenges'],
-  ['events','📅 Events'],
-  ['email','✉️ Email Center'],
-  ['membership','🎫 Membership'],
-  ['gifting','🎁 Gifting'],
-  ['marketing','📣 Marketing'],
-  ['seo','🔎 SEO'],
-  ['users','👥 Users'],
-  ['content','🛡️ Moderation'],
-  ['landing','🎯 Landing'],
-  ['sitepages','🌐 Site Pages'],
-  ['categories','📂 Categories'],
-  ['settings','⚙️ Settings'],
+  ['overview','📊 Overview', ['view_analytics']],
+  ['announcements','📢 Announcements', ['manage_announcements']],
+  ['habits','💪 Habits', ['manage_habits']],
+  ['challenges','🏆 Challenges', ['manage_challenges']],
+  ['events','📅 Events', ['manage_community_events']],
+  ['email','✉️ Email Center', ['manage_email']],
+  ['membership','🎫 Membership', ['manage_membership','review_membership_applications','manage_membership_payments']],
+  ['gifting','🎁 Gifting', ['manage_gifting','manage_gift_payments','manage_wallet_claims']],
+  ['marketing','📣 Marketing', ['manage_marketing']],
+  ['seo','🔎 SEO', ['manage_seo']],
+  ['users','👥 Users', ['view_users','manage_users','delete_users','manage_roles']],
+  ['content','🛡️ Moderation', ['moderate_content']],
+  ['landing','🎯 Landing', ['manage_landing_content']],
+  ['sitepages','🌐 Site Pages', ['manage_site_pages']],
+  ['categories','📂 Categories', ['manage_categories']],
+  ['settings','⚙️ Settings', ['manage_settings']],
 ]
 
 export default function AdminDashboard() {
-  const [tab, setTab] = useState('overview')
+  const { profile, permissions, hasPermission } = useAuth()
+  const isSuperAdmin = profile?.role === 'admin'
+  const visibleTabs = TABS.filter(([,,perms]) => isSuperAdmin || hasPermission(...perms))
+  const [tab, setTab] = useState(null)
+  const activeTab = tab && (isSuperAdmin || visibleTabs.some(([k])=>k===tab) || tab==='rbac') ? tab : (visibleTabs[0]?.[0] || null)
+
+  if (!permissions) return <Card>Loading…</Card>
+
   return (
     <div className="admin-dash" style={{padding:'24px 32px',maxWidth:1100}}>
       <style>{`@media (max-width: 600px) { .admin-dash { padding: 16px !important; } }`}</style>
       <div style={{display:'flex',gap:0,borderBottom:'2px solid #F0EAE4',marginBottom:24,flexWrap:'wrap'}}>
-        {TABS.map(([k,l]) => (
-          <button key={k} onClick={()=>setTab(k)} style={{padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',color:tab===k?'#FF6B2B':'#8C7B6E',borderBottom:tab===k?'2px solid #FF6B2B':'2px solid transparent',marginBottom:'-2px',whiteSpace:'nowrap'}}>{l}</button>
+        {visibleTabs.map(([k,l]) => (
+          <button key={k} onClick={()=>setTab(k)} style={{padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',color:activeTab===k?'#FF6B2B':'#8C7B6E',borderBottom:activeTab===k?'2px solid #FF6B2B':'2px solid transparent',marginBottom:'-2px',whiteSpace:'nowrap'}}>{l}</button>
         ))}
+        {isSuperAdmin && (
+          <button onClick={()=>setTab('rbac')} style={{padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',color:activeTab==='rbac'?'#FF6B2B':'#8C7B6E',borderBottom:activeTab==='rbac'?'2px solid #FF6B2B':'2px solid transparent',marginBottom:'-2px',whiteSpace:'nowrap'}}>🔐 Roles &amp; Permissions</button>
+        )}
       </div>
-      {tab==='overview'       && <OverviewTab/>}
-      {tab==='announcements'  && <AnnouncementsTab/>}
-      {tab==='habits'         && <HabitsTab/>}
-      {tab==='challenges' && <ChallengesTab/>}
-      {tab==='events'     && <EventsTab/>}
-      {tab==='email'      && <EmailCenterTab/>}
-      {tab==='membership' && <MembershipTab/>}
-      {tab==='gifting' && <GiftingTab/>}
-      {tab==='marketing' && <MarketingTab/>}
-      {tab==='seo' && <SeoTab/>}
-      {tab==='users'      && <UsersTab/>}
-      {tab==='content'    && <ModerationTab/>}
-      {tab==='landing'    && <AdminLandingContent/>}
-      {tab==='sitepages'  && <SitePagesTab/>}
-      {tab==='categories' && <CategoriesTab/>}
-      {tab==='settings'   && <SettingsTab/>}
+      {!activeTab && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>No admin permissions are assigned to your role yet.</p></Card>}
+      {activeTab==='overview'       && <OverviewTab/>}
+      {activeTab==='announcements'  && <AnnouncementsTab/>}
+      {activeTab==='habits'         && <HabitsTab/>}
+      {activeTab==='challenges' && <ChallengesTab/>}
+      {activeTab==='events'     && <EventsTab/>}
+      {activeTab==='email'      && <EmailCenterTab/>}
+      {activeTab==='membership' && <MembershipTab/>}
+      {activeTab==='gifting' && <GiftingTab/>}
+      {activeTab==='marketing' && <MarketingTab/>}
+      {activeTab==='seo' && <SeoTab/>}
+      {activeTab==='users'      && <UsersTab/>}
+      {activeTab==='content'    && <ModerationTab/>}
+      {activeTab==='landing'    && <AdminLandingContent/>}
+      {activeTab==='sitepages'  && <SitePagesTab/>}
+      {activeTab==='categories' && <CategoriesTab/>}
+      {activeTab==='settings'   && <SettingsTab/>}
+      {activeTab==='rbac'       && isSuperAdmin && <RolesPermissionsTab/>}
     </div>
   )
 }
@@ -813,6 +832,10 @@ function UsersTab() {
               >
                 <option value="user">User</option>
                 <option value="contributor">Contributor</option>
+                <option value="moderator">Moderator</option>
+                <option value="marketer">Marketer</option>
+                <option value="support">Support</option>
+                <option value="finance">Finance</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -3564,6 +3587,78 @@ function SeoTab() {
           To submit the sitemap in Google Search Console: verify <b>day1diaries.com</b> using <b>domain-level verification</b> (DNS TXT record), not a single-subdomain property — domain verification covers <code>api.day1diaries.com</code> too, so the sitemap there is accepted.
         </p>
       </Card>
+    </div>
+  )
+}
+
+/* ══ ROLES & PERMISSIONS (true admin only) ══════════════════════ */
+function RolesPermissionsTab() {
+  const [data, setData] = useState(null) // { roles, permissions, grants }
+  const [drafts, setDrafts] = useState({}) // role -> string[] (working copy per role)
+  const [savingRole, setSavingRole] = useState(null)
+
+  const load = useCallback(() => {
+    adminGetRbacMatrix().then(({data, error}) => {
+      if (error) return toast.error(error.message)
+      setData(data)
+      setDrafts(data.grants)
+    })
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  if (!data) return <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>Loading…</p></Card>
+
+  const editableRoles = data.roles.filter(r => r.key !== 'admin')
+  const categories = [...new Set(data.permissions.map(p => p.category))]
+
+  const toggle = (role, key) => setDrafts(d => {
+    const current = d[role] || []
+    return { ...d, [role]: current.includes(key) ? current.filter(k=>k!==key) : [...current, key] }
+  })
+  const isDirty = (role) => JSON.stringify([...(drafts[role]||[])].sort()) !== JSON.stringify([...(data.grants[role]||[])].sort())
+
+  const save = async (role) => {
+    setSavingRole(role)
+    const { error } = await adminSetRolePermissions(role, drafts[role]||[])
+    setSavingRole(null)
+    if (error) return toast.error(error.message)
+    toast.success(`${data.roles.find(r=>r.key===role)?.label || role} permissions saved`)
+    load()
+  }
+
+  return (
+    <div>
+      <h3 style={{margin:'0 0 6px',fontSize:15,fontWeight:700}}>Roles &amp; Permissions</h3>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:18}}>
+        Tick which permissions each role has. "Admin" is a superuser and always has everything — it isn't shown below because it can't be restricted.
+      </p>
+
+      {editableRoles.map(role => (
+        <Card key={role.key}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14,gap:12,flexWrap:'wrap'}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:14}}>{role.label}</div>
+              <div style={{fontSize:12,color:'#8C7B6E',marginTop:2}}>{role.description}</div>
+            </div>
+            <Btn onClick={()=>save(role.key)} disabled={savingRole===role.key || !isDirty(role.key)}>
+              {savingRole===role.key ? 'Saving…' : 'Save'}
+            </Btn>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'4px 20px'}}>
+            {categories.map(cat => (
+              <div key={cat} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:'.04em',textTransform:'uppercase',color:'#FF6B2B',marginBottom:6}}>{cat}</div>
+                {data.permissions.filter(p=>p.category===cat).map(p => (
+                  <label key={p.key} style={{display:'flex',alignItems:'center',gap:8,fontSize:12.5,fontWeight:500,cursor:'pointer',padding:'3px 0'}}>
+                    <input type="checkbox" checked={(drafts[role.key]||[]).includes(p.key)} onChange={()=>toggle(role.key, p.key)}/>
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Card>
+      ))}
     </div>
   )
 }

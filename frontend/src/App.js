@@ -44,10 +44,13 @@ const PrivateRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" replace />
 }
 const AdminRoute = ({ children }) => {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, permissions, loading } = useAuth()
   if (loading) return <div className="loading-center"><div className="spinner"/></div>
   if (!user) return <Navigate to="/login" replace />
-  if (profile?.role !== 'admin') return <Navigate to="/feed" replace />
+  // Anyone with at least one RBAC permission gets into the admin shell;
+  // AdminDashboard itself only renders the tabs each permission unlocks.
+  const canAccessAdmin = profile?.role === 'admin' || permissions.length > 0
+  if (!canAccessAdmin) return <Navigate to="/feed" replace />
   return children
 }
 const AppLayout = ({ children }) => (

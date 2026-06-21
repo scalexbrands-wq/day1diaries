@@ -1,6 +1,6 @@
 const express = require('express')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
 const razorpay = require('../utils/razorpay')
 const { renderGiftAssets } = require('../services/giftRenderService')
 const { sendGiftEmail, TEMPLATE_NAMES } = require('../services/giftEmails')
@@ -8,7 +8,13 @@ const { createNotification } = require('../services/notifications')
 const { findTier } = require('../utils/walletTiers')
 
 const router = express.Router()
-router.use(requireAuth, requireRole('admin'))
+router.use(requireAuth)
+// Catalog management (categories/types/templates/analytics/settings).
+const manageGifting = requirePermission('manage_gifting')
+// Money-related: also lets the Finance role in, without giving Finance
+// the catalog-management permission.
+const manageGiftPayments = requirePermission('manage_gifting', 'manage_gift_payments')
+const manageWalletClaims = requirePermission('manage_gifting', 'manage_wallet_claims')
 
 const STYLE_KEYS = ['luxury_gold', 'glassmorphism_orange', 'scrapbook_warm', 'executive_black_gold', 'magazine_cover']
 
@@ -36,12 +42,12 @@ async function deleteOrExplain(res, table, id, label) {
 // CATEGORIES
 // ════════════════════════════════════════════════════════════
 
-router.get('/categories', async (req, res) => {
+router.get('/categories', manageGifting, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM gift_categories ORDER BY sort_order')
   res.json({ categories: rows })
 })
 
-router.post('/categories', async (req, res) => {
+router.post('/categories', manageGifting, async (req, res) => {
   const { label, emoji, sort_order } = req.body
   if (!label) return res.status(400).json({ error: 'label is required' })
   const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next FROM gift_categories')
@@ -52,7 +58,7 @@ router.post('/categories', async (req, res) => {
   res.status(201).json({ category: rows[0] })
 })
 
-router.put('/categories/:id', async (req, res) => {
+router.put('/categories/:id', manageGifting, async (req, res) => {
   const { label, emoji, sort_order, is_active } = req.body
   const { rows } = await pool.query(
     `UPDATE gift_categories SET label=COALESCE($1,label), emoji=COALESCE($2,emoji),
@@ -63,18 +69,18 @@ router.put('/categories/:id', async (req, res) => {
   res.json({ category: rows[0] })
 })
 
-router.delete('/categories/:id', (req, res) => deleteOrExplain(res, 'gift_categories', req.params.id, 'Category'))
+router.delete('/categories/:id', manageGifting, (req, res) => deleteOrExplain(res, 'gift_categories', req.params.id, 'Category'))
 
 // ════════════════════════════════════════════════════════════
 // TYPES & PRICING
 // ════════════════════════════════════════════════════════════
 
-router.get('/types', async (req, res) => {
+router.get('/types', manageGifting, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM gift_types ORDER BY sort_order')
   res.json({ types: rows })
 })
 
-router.post('/types', async (req, res) => {
+router.post('/types', manageGifting, async (req, res) => {
   const { label, description, base_price, currency, sort_order } = req.body
   if (!label) return res.status(400).json({ error: 'label is required' })
   const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next FROM gift_types')
@@ -85,7 +91,7 @@ router.post('/types', async (req, res) => {
   res.status(201).json({ type: rows[0] })
 })
 
-router.put('/types/:id', async (req, res) => {
+router.put('/types/:id', manageGifting, async (req, res) => {
   const { label, description, base_price, currency, sort_order, is_active } = req.body
   const { rows } = await pool.query(
     `UPDATE gift_types SET label=COALESCE($1,label), description=COALESCE($2,description),
@@ -97,18 +103,18 @@ router.put('/types/:id', async (req, res) => {
   res.json({ type: rows[0] })
 })
 
-router.delete('/types/:id', (req, res) => deleteOrExplain(res, 'gift_types', req.params.id, 'Gift type'))
+router.delete('/types/:id', manageGifting, (req, res) => deleteOrExplain(res, 'gift_types', req.params.id, 'Gift type'))
 
 // ════════════════════════════════════════════════════════════
 // TEMPLATES
 // ════════════════════════════════════════════════════════════
 
-router.get('/templates', async (req, res) => {
+router.get('/templates', manageGifting, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM gift_templates ORDER BY created_at')
   res.json({ templates: rows, styleKeys: STYLE_KEYS })
 })
 
-router.post('/templates', async (req, res) => {
+router.post('/templates', manageGifting, async (req, res) => {
   const { label, style_key, preview_image_url } = req.body
   if (!label) return res.status(400).json({ error: 'label is required' })
   if (!STYLE_KEYS.includes(style_key)) return res.status(400).json({ error: `style_key must be one of: ${STYLE_KEYS.join(', ')}` })
@@ -119,7 +125,7 @@ router.post('/templates', async (req, res) => {
   res.status(201).json({ template: rows[0] })
 })
 
-router.put('/templates/:id', async (req, res) => {
+router.put('/templates/:id', manageGifting, async (req, res) => {
   const { label, style_key, preview_image_url, is_active } = req.body
   if (style_key && !STYLE_KEYS.includes(style_key)) return res.status(400).json({ error: `style_key must be one of: ${STYLE_KEYS.join(', ')}` })
   const { rows } = await pool.query(
@@ -131,13 +137,13 @@ router.put('/templates/:id', async (req, res) => {
   res.json({ template: rows[0] })
 })
 
-router.delete('/templates/:id', (req, res) => deleteOrExplain(res, 'gift_templates', req.params.id, 'Template'))
+router.delete('/templates/:id', manageGifting, (req, res) => deleteOrExplain(res, 'gift_templates', req.params.id, 'Template'))
 
 // ════════════════════════════════════════════════════════════
 // ORDERS
 // ════════════════════════════════════════════════════════════
 
-router.get('/orders', async (req, res) => {
+router.get('/orders', manageGiftPayments, async (req, res) => {
   const { status, q } = req.query
   const conditions = []
   const params = []
@@ -161,7 +167,7 @@ router.get('/orders', async (req, res) => {
   res.json({ orders: rows })
 })
 
-router.get('/orders/:id', async (req, res) => {
+router.get('/orders/:id', manageGiftPayments, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT g.*, gc.label AS category_label, gt.label AS gift_type_label, tm.label AS template_label,
             s.title AS story_title, sender.full_name AS sender_name, sender.email AS sender_email
@@ -179,7 +185,7 @@ router.get('/orders/:id', async (req, res) => {
   res.json({ order: rows[0], payments })
 })
 
-router.post('/orders/:id/refund', async (req, res) => {
+router.post('/orders/:id/refund', manageGiftPayments, async (req, res) => {
   const { rows: payRows } = await pool.query(
     `SELECT * FROM gift_payments WHERE gift_order_id = $1 AND status = 'verified' ORDER BY created_at DESC LIMIT 1`,
     [req.params.id]
@@ -210,7 +216,7 @@ router.post('/orders/:id/refund', async (req, res) => {
 
 // POST /admin/gift/orders/:id/confirm-cod — admin confirms cash was
 // collected for a Cash on Delivery order, unblocking certificate rendering.
-router.post('/orders/:id/confirm-cod', async (req, res) => {
+router.post('/orders/:id/confirm-cod', manageGiftPayments, async (req, res) => {
   const { rows: orderRows } = await pool.query('SELECT * FROM gift_orders WHERE id = $1', [req.params.id])
   const order = orderRows[0]
   if (!order) return res.status(404).json({ error: 'Order not found' })
@@ -238,7 +244,7 @@ const PAYMENT_STATUSES = ['pending', 'paid', 'free', 'refunded', 'failed']
 // the refund already happened outside the platform). Setting paid/free
 // triggers certificate rendering exactly like the dedicated COD-confirm and
 // payment-verify paths; refunded/failed notify the sender by email.
-router.post('/orders/:id/set-payment-status', async (req, res) => {
+router.post('/orders/:id/set-payment-status', manageGiftPayments, async (req, res) => {
   const { payment_status, notes } = req.body
   if (!PAYMENT_STATUSES.includes(payment_status)) {
     return res.status(400).json({ error: `payment_status must be one of: ${PAYMENT_STATUSES.join(', ')}` })
@@ -297,7 +303,7 @@ router.post('/orders/:id/set-payment-status', async (req, res) => {
 // PAYMENTS (flat list across all orders)
 // ════════════════════════════════════════════════════════════
 
-router.get('/payments', async (req, res) => {
+router.get('/payments', manageGiftPayments, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT pay.*, g.recipient_name, g.tribute_slug, sender.full_name AS sender_name
      FROM gift_payments pay
@@ -312,7 +318,7 @@ router.get('/payments', async (req, res) => {
 // WALLET CLAIMS — user requests to redeem an unlocked coin tier
 // ════════════════════════════════════════════════════════════
 
-router.get('/claims', async (req, res) => {
+router.get('/claims', manageWalletClaims, async (req, res) => {
   const { status } = req.query
   const { rows } = await pool.query(
     status
@@ -327,7 +333,7 @@ router.get('/claims', async (req, res) => {
   res.json({ claims: rows })
 })
 
-router.post('/claims/:id/approve', async (req, res) => {
+router.post('/claims/:id/approve', manageWalletClaims, async (req, res) => {
   const { rows: claimRows } = await pool.query(
     `SELECT c.*, p.full_name, p.username, p.email, p.coins
      FROM wallet_claims c JOIN profiles p ON p.id = c.user_id WHERE c.id = $1`,
@@ -364,7 +370,7 @@ router.post('/claims/:id/approve', async (req, res) => {
   res.json({ claim: rows[0] })
 })
 
-router.post('/claims/:id/reject', async (req, res) => {
+router.post('/claims/:id/reject', manageWalletClaims, async (req, res) => {
   const { rows: claimRows } = await pool.query(
     `SELECT c.*, p.full_name, p.username, p.email FROM wallet_claims c JOIN profiles p ON p.id = c.user_id WHERE c.id = $1`,
     [req.params.id]
@@ -395,7 +401,7 @@ router.post('/claims/:id/reject', async (req, res) => {
 // ANALYTICS
 // ════════════════════════════════════════════════════════════
 
-router.get('/analytics', async (req, res) => {
+router.get('/analytics', manageGifting, async (req, res) => {
   const [totals, byCategory, byType, byTemplate, daily] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS total_gifts, COALESCE(SUM(amount) FILTER (WHERE payment_status IN ('paid','free')), 0) AS total_revenue
                 FROM gift_orders`),
@@ -420,14 +426,14 @@ router.get('/analytics', async (req, res) => {
 
 const SETTINGS_KEYS = ['gift.module_enabled', 'gift.allowed_audiences', 'gift.custom_user_ids']
 
-router.get('/settings', async (req, res) => {
+router.get('/settings', manageGifting, async (req, res) => {
   const { rows } = await pool.query('SELECT key, value FROM app_settings WHERE key = ANY($1)', [SETTINGS_KEYS])
   const settings = {}
   for (const row of rows) settings[row.key] = row.value
   res.json({ settings, razorpayEnabled: razorpay.isConfigured() })
 })
 
-router.patch('/settings', async (req, res) => {
+router.patch('/settings', manageGifting, async (req, res) => {
   const entries = Object.entries(req.body || {}).filter(([k]) => SETTINGS_KEYS.includes(k))
   if (!entries.length) return res.status(400).json({ error: 'No valid gift settings provided' })
   for (const [key, value] of entries) {

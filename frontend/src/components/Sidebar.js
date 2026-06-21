@@ -29,7 +29,7 @@ const LEVELS = {
 }
 
 export default function Sidebar() {
-  const { user, profile, reloadSession } = useAuth()
+  const { user, profile, permissions, reloadSession } = useAuth()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [membershipEnabled, setMembershipEnabled] = useState(true)
@@ -77,7 +77,7 @@ export default function Sidebar() {
           </NavLink>
         ))}
 
-        {profile?.role === 'admin' && (
+        {(profile?.role === 'admin' || (permissions||[]).length > 0) && (
           <>
             <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'12px 18px 8px' }}>Admin</div>
             <NavLink to="/admin" onClick={() => setMobileOpen(false)} style={({ isActive }) => navStyle(isActive)}>

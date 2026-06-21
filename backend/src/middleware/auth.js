@@ -92,4 +92,24 @@ function requireRole(...roles) {
   }
 }
 
-module.exports = { requireAuth, optionalAuth, requireRole }
+/**
+ * requirePermission — RBAC gate. Passes if the caller's role has ANY of
+ * the given permission keys granted in `role_permissions`, or if their
+ * role is 'admin' (hardcoded superuser — always passes, never has rows
+ * in the table, so admin can never lock itself out of its own panel).
+ * Must be used after requireAuth.
+ */
+function requirePermission(...keys) {
+  return async (req, res, next) => {
+    if (!req.profile) return res.status(401).json({ error: 'Profile not found' })
+    if (req.profile.role === 'admin') return next()
+    const { rows } = await pool.query(
+      'SELECT 1 FROM role_permissions WHERE role = $1 AND permission_key = ANY($2) LIMIT 1',
+      [req.profile.role, keys]
+    )
+    if (!rows.length) return res.status(403).json({ error: 'Forbidden — insufficient permissions' })
+    next()
+  }
+}
+
+module.exports = { requireAuth, optionalAuth, requireRole, requirePermission }

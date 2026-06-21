@@ -1,4 +1,5 @@
 const { Pool } = require('pg')
+const { PERMISSION_KEYS, DEFAULT_ROLE_PERMISSIONS } = require('../services/permissions')
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -805,6 +806,46 @@ async function initDB() {
       )
     `)
     await pool.query(`INSERT INTO site_visit_counter (id) VALUES (1) ON CONFLICT (id) DO NOTHING`)
+
+    // Widen profiles.role for the new RBAC roles — this CHECK predates
+    // initDB() (set up directly on the database, not by this file) and
+    // only allowed 'user'/'contributor'/'admin'.
+    await pool.query(`ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_role_check`)
+    await pool.query(`
+      ALTER TABLE profiles ADD CONSTRAINT profiles_role_check
+        CHECK (role = ANY (ARRAY['user','contributor','admin','moderator','marketer','support','finance']))
+    `)
+
+    // ── RBAC — role_permissions ──────────────────────────────────
+    // 'admin' is a hardcoded superuser (see middleware/auth.js
+    // requirePermission) and intentionally never has rows here.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS role_permissions (
+        role           TEXT NOT NULL,
+        permission_key TEXT NOT NULL,
+        created_at     TIMESTAMPTZ DEFAULT now(),
+        PRIMARY KEY (role, permission_key)
+      )
+    `)
+    // Tracks which roles have had their default grants applied at least
+    // once — separate from role_permissions itself, so an admin clearing
+    // a role down to zero permissions doesn't get it silently re-seeded
+    // on the next deploy. Per-role NOT EXISTS check (not an all-or-
+    // nothing flag) so a role added later in DEFAULT_ROLE_PERMISSIONS
+    // still gets seeded on environments that already ran this once.
+    await pool.query(`CREATE TABLE IF NOT EXISTS role_permissions_seeded (role TEXT PRIMARY KEY)`)
+    for (const [role, keys] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+      const { rows } = await pool.query('SELECT 1 FROM role_permissions_seeded WHERE role = $1', [role])
+      if (rows.length) continue
+      for (const key of keys) {
+        if (!PERMISSION_KEYS.includes(key)) continue
+        await pool.query(
+          `INSERT INTO role_permissions (role, permission_key) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+          [role, key]
+        )
+      }
+      await pool.query(`INSERT INTO role_permissions_seeded (role) VALUES ($1) ON CONFLICT DO NOTHING`, [role])
+    }
 
     console.log('DB schema init OK')
   } catch (err) {

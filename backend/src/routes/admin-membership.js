@@ -1,14 +1,17 @@
 const express = require('express')
 const multer = require('multer')
 const { pool } = require('../db/pool')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission } = require('../middleware/auth')
 const imageStorage = require('../utils/imageStorage')
 const membershipService = require('../services/membershipService')
 const razorpay = require('../utils/razorpay')
 const { TEMPLATE_NAMES, sendMembershipEmail } = require('../services/membershipEmails')
 
 const router = express.Router()
-router.use(requireAuth, requireRole('admin'))
+router.use(requireAuth)
+const manageMembership = requirePermission('manage_membership')
+const reviewApplications = requirePermission('manage_membership', 'review_membership_applications')
+const managePayments = requirePermission('manage_membership', 'manage_membership_payments')
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
 
@@ -16,12 +19,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 // PLANS
 // ════════════════════════════════════════════════════════════
 
-router.get('/plans', async (req, res) => {
+router.get('/plans', manageMembership, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM membership_plans ORDER BY priority_level DESC, created_at DESC')
   res.json({ plans: rows })
 })
 
-router.post('/plans', async (req, res) => {
+router.post('/plans', manageMembership, async (req, res) => {
   const { name, description, price, currency, duration_type, duration_days, benefits, linked_features, badge_emoji, badge_color, priority_level } = req.body
   if (!name || !duration_type) return res.status(400).json({ error: 'name and duration_type are required' })
   const { rows } = await pool.query(
@@ -33,7 +36,7 @@ router.post('/plans', async (req, res) => {
   res.status(201).json({ plan: rows[0] })
 })
 
-router.put('/plans/:id', async (req, res) => {
+router.put('/plans/:id', manageMembership, async (req, res) => {
   const { rows: existingRows } = await pool.query('SELECT * FROM membership_plans WHERE id = $1', [req.params.id])
   const existing = existingRows[0]
   if (!existing) return res.status(404).json({ error: 'Plan not found' })
@@ -48,7 +51,7 @@ router.put('/plans/:id', async (req, res) => {
   res.json({ plan: rows[0] })
 })
 
-router.post('/plans/:id/clone', async (req, res) => {
+router.post('/plans/:id/clone', manageMembership, async (req, res) => {
   const { rows: existingRows } = await pool.query('SELECT * FROM membership_plans WHERE id = $1', [req.params.id])
   const p = existingRows[0]
   if (!p) return res.status(404).json({ error: 'Plan not found' })
@@ -60,7 +63,7 @@ router.post('/plans/:id/clone', async (req, res) => {
   res.status(201).json({ plan: rows[0] })
 })
 
-router.post('/plans/:id/:action(archive|activate|deactivate)', async (req, res) => {
+router.post('/plans/:id/:action(archive|activate|deactivate)', manageMembership, async (req, res) => {
   const statusMap = { archive: 'archived', activate: 'active', deactivate: 'draft' }
   const { rows } = await pool.query(`UPDATE membership_plans SET status=$1, updated_at=now() WHERE id=$2 RETURNING *`, [statusMap[req.params.action], req.params.id])
   if (!rows.length) return res.status(404).json({ error: 'Plan not found' })
@@ -71,12 +74,12 @@ router.post('/plans/:id/:action(archive|activate|deactivate)', async (req, res) 
 // APPLICATION FORM BUILDER
 // ════════════════════════════════════════════════════════════
 
-router.get('/form-fields', async (req, res) => {
+router.get('/form-fields', manageMembership, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM membership_form_fields ORDER BY sort_order')
   res.json({ fields: rows })
 })
 
-router.post('/form-fields', async (req, res) => {
+router.post('/form-fields', manageMembership, async (req, res) => {
   const { field_key, label, field_type, is_required, options, sort_order } = req.body
   if (!field_key || !label || !field_type) return res.status(400).json({ error: 'field_key, label and field_type are required' })
   const { rows } = await pool.query(
@@ -87,7 +90,7 @@ router.post('/form-fields', async (req, res) => {
   res.status(201).json({ field: rows[0] })
 })
 
-router.put('/form-fields/:id', async (req, res) => {
+router.put('/form-fields/:id', manageMembership, async (req, res) => {
   const { rows: existingRows } = await pool.query('SELECT * FROM membership_form_fields WHERE id = $1', [req.params.id])
   const existing = existingRows[0]
   if (!existing) return res.status(404).json({ error: 'Field not found' })
@@ -99,7 +102,7 @@ router.put('/form-fields/:id', async (req, res) => {
   res.json({ field: rows[0] })
 })
 
-router.delete('/form-fields/:id', async (req, res) => {
+router.delete('/form-fields/:id', manageMembership, async (req, res) => {
   await pool.query('DELETE FROM membership_form_fields WHERE id = $1', [req.params.id])
   res.json({ success: true })
 })
@@ -108,7 +111,7 @@ router.delete('/form-fields/:id', async (req, res) => {
 // APPLICATIONS
 // ════════════════════════════════════════════════════════════
 
-router.get('/applications', async (req, res) => {
+router.get('/applications', reviewApplications, async (req, res) => {
   const { status } = req.query
   const { rows } = await pool.query(
     status
@@ -123,7 +126,7 @@ router.get('/applications', async (req, res) => {
   res.json({ applications: rows })
 })
 
-router.get('/applications/:id', async (req, res) => {
+router.get('/applications/:id', reviewApplications, async (req, res) => {
   const { rows } = await pool.query(
     `SELECT a.*, p.name AS plan_name, json_build_object('username',pr.username,'full_name',pr.full_name,'email',pr.email,'avatar_url',pr.avatar_url) AS profile
      FROM membership_applications a JOIN membership_plans p ON p.id=a.plan_id JOIN profiles pr ON pr.id::text=a.user_id
@@ -135,7 +138,7 @@ router.get('/applications/:id', async (req, res) => {
   res.json({ application: rows[0], payments: paymentRows })
 })
 
-router.post('/applications/:id/approve', async (req, res) => {
+router.post('/applications/:id/approve', reviewApplications, async (req, res) => {
   try {
     const baseUrl = `${req.protocol}://${req.get('host')}`
     const membership = await membershipService.approveApplication(req.params.id, req.profile.id, baseUrl)
@@ -145,7 +148,7 @@ router.post('/applications/:id/approve', async (req, res) => {
   }
 })
 
-router.post('/applications/:id/reject', async (req, res) => {
+router.post('/applications/:id/reject', reviewApplications, async (req, res) => {
   try {
     await membershipService.rejectApplication(req.params.id, req.profile.id, req.body.notes)
     res.json({ success: true })
@@ -161,7 +164,7 @@ const APPLICATION_STATUSES = ['pending', 'under_review', 'approved', 'rejected',
 // service functions as the dedicated buttons (so membership creation /
 // rejection emails still fire correctly); every other status is a plain
 // column update since there's no membership side-effect to keep in sync.
-router.post('/applications/:id/set-status', async (req, res) => {
+router.post('/applications/:id/set-status', reviewApplications, async (req, res) => {
   const { status, notes } = req.body
   if (!APPLICATION_STATUSES.includes(status)) {
     return res.status(400).json({ error: `status must be one of: ${APPLICATION_STATUSES.join(', ')}` })
@@ -198,7 +201,7 @@ router.post('/applications/:id/set-status', async (req, res) => {
 // PAYMENTS
 // ════════════════════════════════════════════════════════════
 
-router.get('/payments', async (req, res) => {
+router.get('/payments', managePayments, async (req, res) => {
   const { status } = req.query
   const { rows } = await pool.query(
     status
@@ -213,7 +216,7 @@ router.get('/payments', async (req, res) => {
   res.json({ payments: rows })
 })
 
-router.post('/payments/:id/:action(verify|reject)', async (req, res) => {
+router.post('/payments/:id/:action(verify|reject)', managePayments, async (req, res) => {
   const status = req.params.action === 'verify' ? 'verified' : 'rejected'
   const { rows } = await pool.query(
     `UPDATE membership_payments SET status=$1, verified_by=$2, verified_at=now() WHERE id=$3 RETURNING *`,
@@ -241,7 +244,7 @@ router.post('/payments/:id/:action(verify|reject)', async (req, res) => {
 // POST /admin/membership/payments/:id/refund — body: { notes } (optional)
 // For razorpay payments, actually issues the refund via Razorpay's API first;
 // for manual/upi/bank_transfer it's bookkeeping only (no gateway to call).
-router.post('/payments/:id/refund', async (req, res) => {
+router.post('/payments/:id/refund', managePayments, async (req, res) => {
   const { rows: paymentRows } = await pool.query(
     `SELECT pay.*, plan.name AS plan_name FROM membership_payments pay JOIN membership_plans plan ON plan.id = pay.plan_id WHERE pay.id = $1`,
     [req.params.id]
@@ -280,12 +283,12 @@ router.post('/payments/:id/refund', async (req, res) => {
 // ACCESS CONTROL RULES
 // ════════════════════════════════════════════════════════════
 
-router.get('/access-rules', async (req, res) => {
+router.get('/access-rules', manageMembership, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM feature_access_rules ORDER BY label')
   res.json({ rules: rows })
 })
 
-router.put('/access-rules/:id', async (req, res) => {
+router.put('/access-rules/:id', manageMembership, async (req, res) => {
   const { free_limit, member_limit, reset_frequency, is_active } = req.body
   const { rows } = await pool.query(
     `UPDATE feature_access_rules SET free_limit=COALESCE($1,free_limit), member_limit=COALESCE($2,member_limit),
@@ -305,14 +308,14 @@ const SETTINGS_KEYS = [
   'membership.grace_period_days', 'membership.renewal_reminder_days',
 ]
 
-router.get('/settings', async (req, res) => {
+router.get('/settings', manageMembership, async (req, res) => {
   const { rows } = await pool.query('SELECT key, value FROM app_settings WHERE key = ANY($1)', [SETTINGS_KEYS])
   const settings = {}
   for (const row of rows) settings[row.key] = row.value
   res.json({ settings, razorpayEnabled: razorpay.isConfigured() })
 })
 
-router.patch('/settings', async (req, res) => {
+router.patch('/settings', manageMembership, async (req, res) => {
   const entries = Object.entries(req.body || {}).filter(([k]) => SETTINGS_KEYS.includes(k))
   if (!entries.length) return res.status(400).json({ error: 'No valid membership settings provided' })
   for (const [key, value] of entries) {
@@ -328,7 +331,7 @@ router.patch('/settings', async (req, res) => {
   res.json({ settings })
 })
 
-router.post('/settings/upi-qr', upload.single('image'), async (req, res) => {
+router.post('/settings/upi-qr', manageMembership, upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded' })
   const baseUrl = `${req.protocol}://${req.get('host')}`
   const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
@@ -345,7 +348,7 @@ router.post('/settings/upi-qr', upload.single('image'), async (req, res) => {
 // DASHBOARD (live aggregate queries — no denormalized analytics table)
 // ════════════════════════════════════════════════════════════
 
-router.get('/stats', async (req, res) => {
+router.get('/stats', manageMembership, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT json_build_object(
       'total_members',     (SELECT count(*) FROM memberships WHERE status = 'active'),
