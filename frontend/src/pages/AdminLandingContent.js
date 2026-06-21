@@ -5,6 +5,7 @@ import {
   adminGetCategories, adminUpsertCategory, adminDeleteCategory,
   adminGetTestimonials, adminUpsertTestimonial, adminDeleteTestimonial,
   adminGetFeaturedStories, adminToggleFeatureStory,
+  getLandingTemplate, adminSetLandingTemplate,
 } from '../lib/api'
 import { toast } from '../components/Toast'
 
@@ -40,16 +41,64 @@ export default function AdminLandingContent() {
   return (
     <div style={{ padding:'24px 32px', maxWidth:960 }}>
       <div style={{ display:'flex', gap:0, borderBottom:'2px solid #F0EAE4', marginBottom:24 }}>
-        {[['hero','🎯 Hero'],['bottom','🏁 Bottom Section'],['categories','📂 Categories'],['testimonials','💬 Testimonials'],['stories','⭐ Featured Stories']].map(([k,l])=>(
+        {[['template','🎨 Template'],['hero','🎯 Hero'],['bottom','🏁 Bottom Section'],['categories','📂 Categories'],['testimonials','💬 Testimonials'],['stories','⭐ Featured Stories']].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:'8px 20px', background:'none', border:'none', cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:"'DM Sans',sans-serif", color: tab===k?'#FF6B2B':'#8C7B6E', borderBottom: tab===k?'2px solid #FF6B2B':'2px solid transparent', marginBottom:'-2px', transition:'all .15s' }}>{l}</button>
         ))}
       </div>
+      {tab === 'template'     && <TemplateEditor/>}
       {tab === 'hero'         && <HeroEditor/>}
       {tab === 'bottom'       && <BottomSectionEditor/>}
       {tab === 'categories'   && <CategoriesEditor/>}
       {tab === 'testimonials' && <TestimonialsEditor/>}
       {tab === 'stories'      && <FeaturedStoriesEditor/>}
     </div>
+  )
+}
+
+/* ── TEMPLATE EDITOR ─────────────────────────────────────── */
+const TEMPLATE_OPTIONS = [
+  { key:'classic',   label:'Classic',          desc:'The original design — animated AI section, neon dark sections, bold proof stats.' },
+  { key:'editorial', label:'Editorial',        desc:'Magazine-style minimalism — single-column reading flow, serif type, restrained color.' },
+  { key:'bento',     label:'Bento / Vibrant',  desc:'Bold bento-grid layout — saturated gradients, glassmorphism cards, playful and maximalist.' },
+]
+function TemplateEditor() {
+  const [active, setActive] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    getLandingTemplate().then(({ data }) => { setActive(data || 'classic'); setLoading(false) })
+  }, [])
+
+  const select = async (key) => {
+    if (key === active) return
+    setSaving(true)
+    const { data, error } = await adminSetLandingTemplate(key)
+    setSaving(false)
+    if (error) { toast.error(error.message); return }
+    setActive(data)
+    toast.success('Landing page template updated — live now on "/"')
+  }
+
+  if (loading) return <Card>Loading…</Card>
+
+  return (
+    <Card>
+      <SectionHead>Landing Page Design</SectionHead>
+      <p style={{ fontSize:12.5, color:'#8C7B6E', marginBottom:18 }}>Pick which design shows on the public homepage. All three pull the same hero/categories/testimonials/jobs content you manage in the other tabs — only the layout and visual style changes.</p>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
+        {TEMPLATE_OPTIONS.map(opt => (
+          <div key={opt.key} onClick={() => !saving && select(opt.key)}
+            style={{ border:`2px solid ${active===opt.key?'#FF6B2B':'#F0EAE4'}`, borderRadius:14, padding:16, cursor: saving?'wait':'pointer', background: active===opt.key?'rgba(255,107,43,.05)':'white', transition:'all .15s' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+              <span style={{ fontSize:13.5, fontWeight:700, color:'#1A0800' }}>{opt.label}</span>
+              {active===opt.key && <span style={{ fontSize:10, fontWeight:700, color:'#FF6B2B', background:'rgba(255,107,43,.12)', padding:'2px 8px', borderRadius:100 }}>LIVE</span>}
+            </div>
+            <p style={{ fontSize:11.5, color:'#8C7B6E', lineHeight:1.6, margin:0 }}>{opt.desc}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
   )
 }
 

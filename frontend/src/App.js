@@ -1,7 +1,8 @@
-import React, { Suspense, lazy } from 'react'
+import React, { Suspense, lazy, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { VisitorCountProvider } from './contexts/VisitorCountContext'
+import { getLandingTemplate } from './lib/api'
 import './index.css'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
@@ -12,6 +13,8 @@ import AnnouncementPopup from './components/AnnouncementPopup'
 // when that route is visited, instead of all bundled into one giant
 // main.js the browser has to parse before anything renders.
 const Landing = lazy(() => import('./pages/Landing'))
+const LandingEditorial = lazy(() => import('./pages/LandingEditorial'))
+const LandingBento = lazy(() => import('./pages/LandingBento'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const Feed = lazy(() => import('./pages/Feed'))
@@ -86,6 +89,17 @@ const PublicHeader = () => (
     </div>
   </nav>
 )
+// Picks which of the 3 landing page designs renders on "/", based on
+// the admin's choice in Admin > Landing Content > Template.
+const LANDING_TEMPLATES = { classic: Landing, editorial: LandingEditorial, bento: LandingBento }
+const LandingRouter = () => {
+  const [template, setTemplate] = useState(null)
+  useEffect(() => { getLandingTemplate().then(({ data }) => setTemplate(data || 'classic')) }, [])
+  if (!template) return <div className="loading-center" style={{ minHeight:'100vh' }}><div className="spinner"/></div>
+  const TemplateComponent = LANDING_TEMPLATES[template] || Landing
+  return <TemplateComponent />
+}
+
 const ShareableLayout = ({ children }) => {
   const { user, loading } = useAuth()
   if (loading) return <div className="loading-center"><div className="spinner"/></div>
@@ -106,7 +120,7 @@ export default function App() {
         <VisitorCountProvider>
         <Suspense fallback={<div className="loading-center" style={{ minHeight:'100vh' }}><div className="spinner"/></div>}>
         <Routes>
-          <Route path="/"                    element={<Landing/>} />
+          <Route path="/"                    element={<LandingRouter/>} />
           <Route path="/login"               element={<Login/>} />
           <Route path="/register"            element={<Register/>} />
           <Route path="/feed"                element={<PrivateRoute><AppLayout><Feed/></AppLayout></PrivateRoute>} />

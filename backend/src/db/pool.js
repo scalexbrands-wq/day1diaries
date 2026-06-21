@@ -18,6 +18,18 @@ pool.on('error', (err) => {
 
 async function initDB() {
   try {
+    // app_settings — generic key/value store, originally created once in
+    // schema.sql; declared here too (defensively, IF NOT EXISTS) since
+    // gift.js/ads.js/admin-seo.js and now landing template selection all
+    // depend on it existing without ever creating it themselves.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key        TEXT PRIMARY KEY,
+        value      JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+
     // story_views — deduplicated read tracking
     await pool.query(`
       CREATE TABLE IF NOT EXISTS story_views (

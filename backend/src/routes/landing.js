@@ -55,9 +55,33 @@ router.get('/data', async (req, res) => {
   })
 })
 
+const LANDING_TEMPLATES = ['classic', 'editorial', 'bento']
+
+// GET /landing/template — which design template is live right now.
+// Public (no auth) since it's read on every visit to "/" before login.
+router.get('/template', async (req, res) => {
+  const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = 'landing.active_template'`)
+  const template = rows[0]?.value
+  res.json({ template: LANDING_TEMPLATES.includes(template) ? template : 'classic' })
+})
+
 // ============================================================
 // ADMIN — Landing content management
 // ============================================================
+
+// PATCH /landing/admin/template — switch which design is shown on "/"
+router.patch('/admin/template', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
+  const { template } = req.body
+  if (!LANDING_TEMPLATES.includes(template)) {
+    return res.status(400).json({ error: `template must be one of: ${LANDING_TEMPLATES.join(', ')}` })
+  }
+  await pool.query(
+    `INSERT INTO app_settings (key, value) VALUES ('landing.active_template', $1)
+     ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
+    [JSON.stringify(template)]
+  )
+  res.json({ template })
+})
 
 // GET /landing/admin/hero — fetch raw hero row for the admin edit form
 router.get('/admin/hero', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {

@@ -508,6 +508,17 @@ export const getLandingData = async () => {
   return { data: result.data, error: result.error }
 }
 
+// Which of the 3 landing page designs is live on "/" — cached briefly
+// since it's read on every visit to the homepage before login.
+export const getLandingTemplate = () => cachedFetch('landing-template', 60000, async () => {
+  const result = await apiFetch('/landing/template')
+  return { data: result.data?.template || 'classic', error: result.error }
+})
+export const adminSetLandingTemplate = async (template) => {
+  const result = await apiFetch('/landing/admin/template', { method: 'PATCH', body: JSON.stringify({ template }) })
+  return { data: result.data?.template, error: result.error }
+}
+
 // ============================================================
 // SEO
 // ============================================================
