@@ -754,6 +754,47 @@ async function initDB() {
     // (No table/column needed — stored as an app_settings row, same as
     // the rest of the gift.* settings.)
 
+    // ── Marketing module — admin-managed ad campaigns (image/video),
+    // shown inline on Discover and as a banner below Story Detail content.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ad_campaigns (
+        id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name            TEXT NOT NULL,
+        advertiser_name TEXT,
+        ad_type         TEXT NOT NULL CHECK (ad_type IN ('image','video')),
+        creative_url    TEXT NOT NULL,
+        click_url       TEXT NOT NULL,
+        placements      JSONB NOT NULL DEFAULT '["discover","story_detail","feed","jobs","leaderboard","community","wallet"]',
+        status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','paused','archived')),
+        start_date      DATE,
+        end_date        DATE,
+        sort_order      INT DEFAULT 0,
+        created_by      TEXT,
+        created_at      TIMESTAMPTZ DEFAULT now(),
+        updated_at      TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    // ad_events — one row per impression/click, kept granular (not just
+    // counters) so analytics can break usage down by placement/story/date.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ad_events (
+        id           BIGSERIAL PRIMARY KEY,
+        campaign_id  UUID NOT NULL REFERENCES ad_campaigns(id) ON DELETE CASCADE,
+        event_type   TEXT NOT NULL CHECK (event_type IN ('impression','click')),
+        placement    TEXT NOT NULL CHECK (placement IN ('discover','story_detail','feed','jobs','leaderboard','community','wallet')),
+        user_id      TEXT,
+        story_id     UUID,
+        created_at   TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    // Widen the placement CHECK for tables created before 'feed'/'jobs'/
+    // 'leaderboard' existed as ad surfaces alongside Discover and Story Detail.
+    await pool.query(`ALTER TABLE ad_events DROP CONSTRAINT IF EXISTS ad_events_placement_check`)
+    await pool.query(`ALTER TABLE ad_events ADD CONSTRAINT ad_events_placement_check CHECK (placement IN ('discover','story_detail','feed','jobs','leaderboard','community','wallet'))`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ad_events_campaign ON ad_events(campaign_id, event_type)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ad_events_campaign_placement ON ad_events(campaign_id, placement, event_type)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ad_campaigns_status ON ad_campaigns(status)`)
+
     // site_visit_counter — single-row global page-visit count, incremented
     // on every page load and directly editable by an admin.
     await pool.query(`

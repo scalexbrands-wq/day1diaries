@@ -22,15 +22,16 @@ export default function VisitorCounter() {
     }}>
       <span style={{ fontSize: 14 }} role="img" aria-label="fire">🔥</span>
       {count.toLocaleString()}
-      <span style={{ opacity: .85, fontWeight: 600 }}>vibing rn</span>
+      <span className="visitor-counter-label" style={{ opacity: .85, fontWeight: 600 }}>vibing rn</span>
       <style>{`
         @keyframes visitorGradientShift {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
-        @media (max-width: 560px) {
-          .visitor-counter { display: none !important; }
+        @media (max-width: 480px) {
+          .visitor-counter { padding: 6px 10px !important; font-size: 11.5px !important; gap: 4px !important; }
+          .visitor-counter-label { display: none !important; }
         }
       `}</style>
     </div>

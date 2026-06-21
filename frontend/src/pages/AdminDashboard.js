@@ -36,6 +36,9 @@ import {
   adminGetGiftOrders, adminGetGiftOrder, adminRefundGiftOrder,
   adminGetGiftPayments, adminGetGiftAnalytics, adminGetGiftSettings, adminUpdateGiftSettings, adminConfirmGiftCod,
   adminSetGiftPaymentStatus, adminGetWalletClaims, adminApproveWalletClaim, adminRejectWalletClaim,
+  adminListAdCampaigns, adminGetAdAnalytics, adminCreateAdCampaign, adminUpdateAdCampaign,
+  adminSetAdCampaignStatus, adminDeleteAdCampaign,
+  adminGetMarketingSettings, adminUpdateMarketingSettings,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
@@ -71,6 +74,7 @@ const TABS = [
   ['email','✉️ Email Center'],
   ['membership','🎫 Membership'],
   ['gifting','🎁 Gifting'],
+  ['marketing','📣 Marketing'],
   ['seo','🔎 SEO'],
   ['users','👥 Users'],
   ['content','🛡️ Moderation'],
@@ -98,6 +102,7 @@ export default function AdminDashboard() {
       {tab==='email'      && <EmailCenterTab/>}
       {tab==='membership' && <MembershipTab/>}
       {tab==='gifting' && <GiftingTab/>}
+      {tab==='marketing' && <MarketingTab/>}
       {tab==='seo' && <SeoTab/>}
       {tab==='users'      && <UsersTab/>}
       {tab==='content'    && <ModerationTab/>}
@@ -3184,6 +3189,305 @@ function MembershipSettingsTab() {
           <div><L c="Renewal Reminder (days before expiry)"/><Inp type="number" value={settings['membership.renewal_reminder_days']||7} onChange={e=>setSettings(s=>({...s,'membership.renewal_reminder_days':Number(e.target.value)}))}/></div>
         </div>
       </Card>
+    </div>
+  )
+}
+
+/* ══ MARKETING ═════════════════════════════════════════════════ */
+const AD_PLACEMENT_LABELS = { discover: '🌍 Discover Feed', story_detail: '📖 Story Detail', feed: '📰 My Feed', jobs: '💼 Job Feed', leaderboard: '🏆 Leaderboard', community: '🌐 Community', wallet: '🪙 Wallet' }
+
+function AdCampaignsTab() {
+  const [list, setList] = useState([])
+  const [form, setForm] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [file, setFile] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [analyticsFor, setAnalyticsFor] = useState(null) // campaign object, or null
+
+  const load = useCallback(() => { adminListAdCampaigns().then(({data}) => setList(data||[])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const blankForm = { name:'', advertiser_name:'', ad_type:'image', creative_url:'', click_url:'', placements:['discover','story_detail','feed','jobs','leaderboard','community','wallet'], start_date:'', end_date:'', sort_order:0 }
+  const openNew = () => { setEditingId(null); setFile(null); setForm({...blankForm}) }
+  const openEdit = (c) => { setEditingId(c.id); setFile(null); setForm({ ...c, placements: c.placements||[] }) }
+
+  const togglePlacement = (key) => setForm(f => ({ ...f, placements: f.placements.includes(key) ? f.placements.filter(p=>p!==key) : [...f.placements, key] }))
+
+  const save = async () => {
+    if (!form.name.trim()) return toast.error('Campaign name is required')
+    if (!form.click_url.trim()) return toast.error('Click-through URL is required')
+    if (!file && !form.creative_url.trim() && !editingId) return toast.error('Upload a creative file or provide a creative URL')
+    if (!form.placements.length) return toast.error('Pick at least one placement')
+    setSaving(true)
+    const { error } = editingId
+      ? await adminUpdateAdCampaign(editingId, form, file)
+      : await adminCreateAdCampaign(form, file)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(editingId ? 'Campaign updated' : 'Campaign created')
+    setForm(null); load()
+  }
+  const setStatus = async (id, status) => { const {error} = await adminSetAdCampaignStatus(id, status); if(error) return toast.error(error.message); toast.success('Updated'); load() }
+  const remove = async (id) => { if(!window.confirm('Delete this campaign? This also removes its analytics history.')) return; const {error} = await adminDeleteAdCampaign(id); if(error) return toast.error(error.message); toast.success('Deleted'); load() }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <div>
+          <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Ad Campaigns</h3>
+          <p style={{margin:'4px 0 0',fontSize:12,color:'#8C7B6E'}}>Image or video ads shown inline on Discover and as a banner on Story Detail.</p>
+        </div>
+        <Btn onClick={openNew}>+ New Campaign</Btn>
+      </div>
+
+      {list.length===0 && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No ad campaigns yet.</p></Card>}
+      {list.map(c => {
+        const impressions = Number(c.impressions)||0
+        const clicks = Number(c.clicks)||0
+        const ctr = impressions ? ((clicks/impressions)*100).toFixed(1) : '0.0'
+        return (
+          <Card key={c.id}>
+            <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:10}}>
+              <div style={{width:64,height:48,borderRadius:8,overflow:'hidden',flexShrink:0,background:'#F0EAE4'}}>
+                {c.ad_type==='video'
+                  ? <video src={c.creative_url} style={{width:'100%',height:'100%',objectFit:'cover'}} muted/>
+                  : <img src={c.creative_url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                  <span style={{fontWeight:700,fontSize:14}}>{c.name}</span>
+                  <Badge color={STATUS_COLORS[c.status]}>{c.status.toUpperCase()}</Badge>
+                  <span style={{fontSize:11,padding:'2px 8px',borderRadius:100,background:'rgba(124,58,237,.1)',color:'#7C3AED',fontWeight:600}}>{c.ad_type}</span>
+                </div>
+                <div style={{fontSize:12,color:'#8C7B6E'}}>
+                  {c.advertiser_name ? `${c.advertiser_name} · ` : ''}
+                  {(c.placements||[]).map(p=>AD_PLACEMENT_LABELS[p]||p).join(', ')}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:14,fontSize:12,color:'#4A2800',flexShrink:0}}>
+                <div style={{textAlign:'center'}}><div style={{fontWeight:700,fontSize:15}}>{impressions.toLocaleString()}</div><div style={{color:'#8C7B6E'}}>Views</div></div>
+                <div style={{textAlign:'center'}}><div style={{fontWeight:700,fontSize:15}}>{clicks.toLocaleString()}</div><div style={{color:'#8C7B6E'}}>Clicks</div></div>
+                <div style={{textAlign:'center'}}><div style={{fontWeight:700,fontSize:15}}>{ctr}%</div><div style={{color:'#8C7B6E'}}>CTR</div></div>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openEdit(c)}>Edit</Btn>
+              <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>setAnalyticsFor(c)}>Analytics</Btn>
+              {c.status==='active'
+                ? <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>setStatus(c.id,'paused')}>Pause</Btn>
+                : <Btn v='green' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>setStatus(c.id,'active')}>Activate</Btn>}
+              {c.status!=='archived' && <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>setStatus(c.id,'archived')}>Archive</Btn>}
+              <Btn v='danger' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>remove(c.id)}>Delete</Btn>
+            </div>
+          </Card>
+        )
+      })}
+
+      {form && (
+        <Modal title={editingId?'Edit Campaign':'New Campaign'} onClose={()=>setForm(null)}>
+          <L c="Campaign Name"/>
+          <Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Acme Q3 Launch"/>
+          <L c="Advertiser Name"/>
+          <Inp value={form.advertiser_name||''} onChange={e=>setForm(f=>({...f,advertiser_name:e.target.value}))} placeholder="e.g. Acme Inc."/>
+          <L c="Ad Type"/>
+          <select value={form.ad_type} onChange={e=>setForm(f=>({...f,ad_type:e.target.value}))} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:12,background:'white'}}>
+            <option value="image">Image</option>
+            <option value="video">Video</option>
+          </select>
+          <L c={`Creative ${form.ad_type==='video'?'(video file, up to 50MB)':'(image file)'}`}/>
+          <input type="file" accept={form.ad_type==='video'?'video/*':'image/*'} onChange={e=>setFile(e.target.files[0]||null)} style={{marginBottom:8,fontSize:13}}/>
+          {editingId && form.creative_url && !file && (
+            <div style={{fontSize:11,color:'#8C7B6E',marginBottom:8}}>Current creative is already uploaded — choose a file above only to replace it.</div>
+          )}
+          <L c="...or paste an already-hosted creative URL"/>
+          <Inp value={form.creative_url||''} onChange={e=>setForm(f=>({...f,creative_url:e.target.value}))} placeholder="https://cdn.example.com/ad.mp4"/>
+          <L c="Click-Through URL"/>
+          <Inp value={form.click_url} onChange={e=>setForm(f=>({...f,click_url:e.target.value}))} placeholder="https://advertiser.com/landing-page"/>
+
+          <L c="Placements"/>
+          <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:12}}>
+            {Object.entries(AD_PLACEMENT_LABELS).map(([key,label]) => (
+              <label key={key} style={{display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+                <input type="checkbox" checked={form.placements.includes(key)} onChange={()=>togglePlacement(key)}/>{label}
+              </label>
+            ))}
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div><L c="Start Date (optional)"/><Inp type="date" value={form.start_date||''} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))}/></div>
+            <div><L c="End Date (optional)"/><Inp type="date" value={form.end_date||''} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))}/></div>
+          </div>
+          <L c="Sort Order (lower shows first when multiple ads are active)"/>
+          <Inp type="number" value={form.sort_order||0} onChange={e=>setForm(f=>({...f,sort_order:Number(e.target.value)}))}/>
+
+          <Btn onClick={save} disabled={saving} style={{width:'100%',padding:'11px',marginTop:6}}>{saving?'Saving…':editingId?'Save Changes':'Create Campaign'}</Btn>
+        </Modal>
+      )}
+
+      {analyticsFor && <AdAnalyticsModal campaign={analyticsFor} onClose={()=>setAnalyticsFor(null)}/>}
+    </div>
+  )
+}
+
+function AdAnalyticsModal({ campaign, onClose }) {
+  const [data, setData] = useState(null)
+  useEffect(() => { adminGetAdAnalytics(campaign.id).then(({data}) => setData(data)) }, [campaign.id])
+
+  return (
+    <Modal title={`Analytics — ${campaign.name}`} onClose={onClose}>
+      {!data ? <p style={{fontSize:13,color:'#8C7B6E'}}>Loading…</p> : (
+        Object.entries(AD_PLACEMENT_LABELS).map(([key,label]) => {
+          const stats = data[key] || { impressions:0, clicks:0 }
+          const ctr = stats.impressions ? ((stats.clicks/stats.impressions)*100).toFixed(1) : '0.0'
+          return (
+            <div key={key} style={{marginBottom:16,paddingBottom:16,borderBottom:'1px solid #F0EAE4'}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>{label}</div>
+              <div style={{display:'flex',gap:24}}>
+                <div><div style={{fontWeight:700,fontSize:18}}>{stats.impressions.toLocaleString()}</div><div style={{fontSize:11,color:'#8C7B6E'}}>Views</div></div>
+                <div><div style={{fontWeight:700,fontSize:18}}>{stats.clicks.toLocaleString()}</div><div style={{fontSize:11,color:'#8C7B6E'}}>Clicks</div></div>
+                <div><div style={{fontWeight:700,fontSize:18}}>{ctr}%</div><div style={{fontSize:11,color:'#8C7B6E'}}>CTR</div></div>
+              </div>
+            </div>
+          )
+        })
+      )}
+    </Modal>
+  )
+}
+
+function AdModuleToggleCard({ initial, onSaved }) {
+  const [enabled, setEnabled] = useState(initial !== false)
+  const [saving, setSaving] = useState(false)
+  const dirty = enabled !== (initial !== false)
+
+  const save = async () => {
+    setSaving(true)
+    const { error } = await adminUpdateMarketingSettings({ 'marketing.module_enabled': enabled })
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(`Module turned ${enabled ? 'ON' : 'OFF'}`)
+    onSaved()
+  }
+
+  return (
+    <Card style={{background: !enabled ? '#FFF5F5' : '#F0FFF6', border:`1px solid ${!enabled?'#FECACA':'#BBF7D0'}`}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>Marketing / Ads Module</div>
+          <p style={{fontSize:12,color:'#5C3D2E',margin:0}}>
+            Master switch. When off, no ads render anywhere across the app — Discover, Story Detail, My Feed, Jobs, Leaderboard, Community, Wallet.
+          </p>
+        </div>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:700,cursor:'pointer',flexShrink:0,marginLeft:16}}>
+          <input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/>
+          {enabled ? 'ON' : 'OFF'}
+        </label>
+      </div>
+      <Btn onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Btn>
+    </Card>
+  )
+}
+
+const AD_AUDIENCE_LABELS = { member: 'Paid Members', free: 'Non-Paid (Free) Users', contributor: 'Contributors', custom: 'Custom Users (hand-picked)' }
+
+function AdAudienceCard({ initial, initialCustomIds, onSaved }) {
+  const initialAudiences = Array.isArray(initial) ? initial : []
+  const initialCustom = Array.isArray(initialCustomIds) ? initialCustomIds : []
+  const initialIsEveryone = initialAudiences.length === 0 || initialAudiences.includes('everyone')
+  // `mode` is a UI-only toggle, separate from `audiences` — otherwise an
+  // empty audiences array (the state right after switching to "Restricted"
+  // but before checking any box) reads as "no restriction" again, and the
+  // checkboxes — which are disabled while in "Everyone" mode — could never
+  // be reached to actually pick an audience.
+  const [mode, setMode] = useState(initialIsEveryone ? 'everyone' : 'restricted')
+  const [audiences, setAudiences] = useState(initialAudiences.filter(a => a !== 'everyone'))
+  const [customIds, setCustomIds] = useState(initialCustom)
+  const [saving, setSaving] = useState(false)
+  const isEveryone = mode === 'everyone'
+  const dirty = mode !== (initialIsEveryone ? 'everyone' : 'restricted')
+    || JSON.stringify([...audiences].sort()) !== JSON.stringify([...initialAudiences].filter(a=>a!=='everyone').sort())
+    || JSON.stringify([...customIds].sort()) !== JSON.stringify([...initialCustom].sort())
+
+  const toggle = (key) => {
+    setAudiences(audiences.includes(key) ? audiences.filter(a => a !== key) : [...audiences, key])
+  }
+
+  const save = async () => {
+    if (!isEveryone && audiences.length === 0) return toast.error('Check at least one audience, or choose "Everyone"')
+    setSaving(true)
+    const { error } = await adminUpdateMarketingSettings({
+      'marketing.allowed_audiences': isEveryone ? ['everyone'] : audiences,
+      'marketing.custom_user_ids': customIds,
+    })
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success(isEveryone ? 'Ads now shown to everyone' : `Ads restricted to: ${audiences.map(a=>AD_AUDIENCE_LABELS[a]||a).join(', ')}`)
+    onSaved()
+  }
+
+  return (
+    <Card>
+      <SH c="Show Ads To"/>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:14}}>
+        Choose "Everyone" for no restriction, or check specific audiences below — ads are hidden from
+        anyone outside the checked groups. Click Save below to apply.
+      </p>
+      <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:14}}>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+          <input type="radio" checked={isEveryone} onChange={()=>setMode('everyone')}/> Everyone (no restriction)
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+          <input type="radio" checked={!isEveryone} onChange={()=>setMode('restricted')}/> Restricted to specific audiences
+        </label>
+        {Object.keys(AD_AUDIENCE_LABELS).map(key => (
+          <div key={key}>
+            <label style={{display:'flex',alignItems:'center',gap:8,fontSize:13,fontWeight:600,cursor:'pointer',marginLeft:20}}>
+              <input type="checkbox" disabled={isEveryone} checked={!isEveryone && audiences.includes(key)} onChange={()=>toggle(key)}/>
+              {AD_AUDIENCE_LABELS[key]}
+            </label>
+            {key==='custom' && !isEveryone && audiences.includes('custom') && (
+              <CustomUserPicker selectedIds={customIds} onChange={setCustomIds}/>
+            )}
+          </div>
+        ))}
+      </div>
+      <Btn onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Btn>
+    </Card>
+  )
+}
+
+function MarketingSettingsTab() {
+  const [settings, setSettings] = useState(null)
+  const load = useCallback(() => { adminGetMarketingSettings().then(({data}) => setSettings(data||{})) }, [])
+  useEffect(() => { load() }, [load])
+
+  if (!settings) return <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>Loading…</p></Card>
+
+  return (
+    <div>
+      <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700}}>Marketing Settings</h3>
+      <AdModuleToggleCard key={`module-${settings['marketing.module_enabled']}`} initial={settings['marketing.module_enabled']} onSaved={load}/>
+      <AdAudienceCard
+        key={`audience-${JSON.stringify(settings['marketing.allowed_audiences'])}-${JSON.stringify(settings['marketing.custom_user_ids'])}`}
+        initial={settings['marketing.allowed_audiences']} initialCustomIds={settings['marketing.custom_user_ids']} onSaved={load}
+      />
+    </div>
+  )
+}
+
+const MARKETING_SUB_TABS = [['campaigns','Campaigns'],['settings','Settings']]
+
+function MarketingTab() {
+  const [sub, setSub] = useState('campaigns')
+  return (
+    <div>
+      <div style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
+        {MARKETING_SUB_TABS.map(([k,l]) => (
+          <button key={k} onClick={()=>setSub(k)} style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${sub===k?'#FF6B2B':'#DDD3CA'}`,background:sub===k?'#FF6B2B':'white',color:sub===k?'white':'#5C3D2E',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{l}</button>
+        ))}
+      </div>
+      {sub==='campaigns' && <AdCampaignsTab/>}
+      {sub==='settings'  && <MarketingSettingsTab/>}
     </div>
   )
 }

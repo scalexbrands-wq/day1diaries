@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getLeaderboard } from '../lib/api'
 import { getInitials, getAvatarColor } from '../components/Sidebar'
+import AdSlot from '../components/AdSlot'
 
 const LEVELS = { Beginner:'🥉', Explorer:'🥈', Achiever:'🥇', Hero:'🏆', 'Super Hero':'🔥', Legend:'👑' }
 const BADGES = [
@@ -63,6 +64,8 @@ export default function Leaderboard() {
         </div>
 
         <div className="lb-sidebar">
+          <AdSlot placement="leaderboard" variant="banner" />
+
           <h3 style={{ marginBottom:16 }}>Levels</h3>
           <div className="card" style={{ marginBottom:16 }}>
             <div className="card-body" style={{ padding:'12px 16px' }}>

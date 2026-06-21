@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -8,8 +8,12 @@ import {
   getStoriesByCategories, getCareersByDepartments
 } from '../lib/api'
 import StoryCard from '../components/StoryCard'
+import AdSlot from '../components/AdSlot'
+import AdCarousel from '../components/AdCarousel'
 import FollowButton from '../components/FollowButton'
 import { getAvatarColor, getInitials } from '../components/Sidebar'
+
+const AD_EVERY_N_STORIES = 5
 
 const LEVELS = { Beginner:'🥉', Explorer:'🥈', Achiever:'🥇', Hero:'🏆', 'Super Hero':'🔥', Legend:'👑', 'Habit Master':'🔥', 'Community Champion':'🌟' }
 
@@ -173,7 +177,9 @@ export default function Feed() {
   const [unlockedIds, setUnlockedIds] = useState(new Set())
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+  const sentinelRef = useRef(null)
   const LIMIT = 8
 
   // Categories / Companies follow state
@@ -187,17 +193,30 @@ export default function Feed() {
   const [followingLoading, setFollowingLoading] = useState(false)
 
   const loadStories = useCallback(async (reset = false) => {
-    setLoading(true)
     const p = reset ? 0 : page
+    if (reset) setLoading(true)
+    else setLoadingMore(true)
     const result = await getFeedStories([], p, LIMIT)
     const newStories = result.data || []
     setStories(prev => reset ? newStories : [...prev, ...newStories])
     setHasMore(newStories.length === LIMIT)
-    if (!reset) setPage(p + 1)
+    setPage(p + 1)
     setLoading(false)
+    setLoadingMore(false)
   }, [page])
 
   useEffect(() => { setPage(0); loadStories(true) }, [user.id])
+
+  // Lazy-load the next page once the sentinel scrolls into view — no
+  // "Load More" click needed.
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMore || loading || loadingMore || activeTab !== 'forYou') return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) loadStories()
+    }, { rootMargin: '300px' })
+    observer.observe(sentinelRef.current)
+    return () => observer.disconnect()
+  }, [hasMore, loading, loadingMore, activeTab, loadStories])
 
   useEffect(() => {
     getTrendingStories(5).then(({ data }) => setTrending(data || []))
@@ -263,12 +282,16 @@ export default function Feed() {
     return true
   }
 
-  // Inject People to Follow card after 3rd story
+  // Inject People to Follow card after 3rd story, and a sponsored ad slot
+  // every Nth story (consistent with Discover's ad cadence).
   const feedItems = []
   stories.forEach((s, i) => {
     feedItems.push({ type:'story', data:s, key:s.id })
     if (i === 2 && suggestedUsers.filter(u => !followedUsers.has(u.id)).length > 0) {
       feedItems.push({ type:'people', key:'people-to-follow' })
+    }
+    if ((i + 1) % AD_EVERY_N_STORIES === 0) {
+      feedItems.push({ type:'ad', key:`ad-${i}` })
     }
   })
 
@@ -336,11 +359,11 @@ export default function Feed() {
           {/* Feed items */}
           {activeTab === 'forYou' ? (
             <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-              {feedItems.map(item =>
-                item.type === 'story'
-                  ? <StoryCard key={item.key} story={item.data} isLocked={isStoryLocked(item.data)} onUnlock={handleUnlock}/>
-                  : <PeopleToFollowCard key={item.key} users={suggestedUsers.filter(u=>!followedUsers.has(u.id))} onFollow={handleFollow}/>
-              )}
+              {feedItems.map(item => {
+                if (item.type === 'story') return <StoryCard key={item.key} story={item.data} isLocked={isStoryLocked(item.data)} onUnlock={handleUnlock}/>
+                if (item.type === 'ad') return <AdSlot key={item.key} placement="feed" variant="card"/>
+                return <PeopleToFollowCard key={item.key} users={suggestedUsers.filter(u=>!followedUsers.has(u.id))} onFollow={handleFollow}/>
+              })}
               {loading && <div className="loading-center"><div className="spinner"/></div>}
               {!loading && stories.length === 0 && (
                 <div className="empty-state">
@@ -350,8 +373,11 @@ export default function Feed() {
                   <button className="btn btn-primary" onClick={() => navigate('/write')}>Share Your Story</button>
                 </div>
               )}
-              {!loading && hasMore && stories.length > 0 && (
-                <button className="btn btn-secondary" style={{ alignSelf:'center' }} onClick={() => loadStories()}>Load More</button>
+              {/* Sentinel — scrolling this into view triggers the next page */}
+              {!loading && hasMore && stories.length > 0 && <div ref={sentinelRef} style={{ height:1 }}/>}
+              {loadingMore && <div className="loading-center" style={{ padding:'12px 0' }}><div className="spinner"/></div>}
+              {!loading && !hasMore && stories.length > 0 && (
+                <p style={{ textAlign:'center', fontSize:12, color:'#B0A89F', padding:'8px 0' }}>You've reached the end ✨</p>
               )}
             </div>
           ) : (
@@ -365,7 +391,12 @@ export default function Feed() {
                 </div>
               )}
               {!followingLoading && followingJobs.map(job => <JobFollowCard key={job.id} job={job} navigate={navigate}/>)}
-              {!followingLoading && followingStories.map(s => <StoryCard key={s.id} story={s} isLocked={isStoryLocked(s)} onUnlock={handleUnlock}/>)}
+              {!followingLoading && followingStories.map((s, i) => (
+                <React.Fragment key={s.id}>
+                  <StoryCard story={s} isLocked={isStoryLocked(s)} onUnlock={handleUnlock}/>
+                  {(i + 1) % AD_EVERY_N_STORIES === 0 && <AdSlot key={`ad-${i}`} placement="feed" variant="card"/>}
+                </React.Fragment>
+              ))}
               {!followingLoading && (followedCategories.size || followedDepartments.size) && !followingJobs.length && !followingStories.length && (
                 <div className="empty-state">
                   <div className="empty-state-icon">📭</div>
@@ -379,6 +410,9 @@ export default function Feed() {
 
         {/* ── RIGHT SIDEBAR ── */}
         <div className="feed-sidebar">
+          {/* Sponsored slideshow — sits above People to Follow */}
+          <AdCarousel placement="feed" />
+
           {/* Suggested People */}
           {suggestedUsers.filter(u=>!followedUsers.has(u.id)).length > 0 && (
             <div style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, overflow:'hidden' }}>

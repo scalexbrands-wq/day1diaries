@@ -7,6 +7,7 @@ import { toast } from '../components/Toast'
 import ShareButton, { storyShareText, storyShareUrl } from '../components/ShareButton'
 import SurpriseAFriendButton from '../components/SurpriseAFriendButton'
 import Seo from '../components/Seo'
+import AdSlot from '../components/AdSlot'
 import { formatDistanceToNow } from 'date-fns'
 
 export default function StoryDetail() {
@@ -389,8 +390,14 @@ export default function StoryDetail() {
       </div>{/* end main column */}
 
       {/* ── Right sidebar ── */}
-      {recentStories.length > 0 && (
+      {(!isLocked || recentStories.length > 0) && (
         <div className="sd-sidebar">
+          {!isLocked && (
+            <div className="sd-sidebar-sticky" style={{ marginBottom: 16 }}>
+              <AdSlot placement="story_detail" storyId={id} variant="banner" />
+            </div>
+          )}
+          {recentStories.length > 0 && (
           <div className="sd-card sd-sidebar-sticky" style={{ animationDelay: '.15s' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #F0EAE4' }}>
               <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1A0800' }}>
@@ -425,6 +432,7 @@ export default function StoryDetail() {
               })}
             </div>
           </div>
+          )}
         </div>
       )}
 

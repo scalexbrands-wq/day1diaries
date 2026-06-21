@@ -636,6 +636,65 @@ export const getAuthConfig = async () => {
 // SITE VISIT COUNTER
 // ============================================================
 
+// ============================================================
+// MARKETING — ad campaigns (image/video) shown on Discover + Story Detail
+// ============================================================
+
+export const getActiveAds = async (placement) => {
+  const result = await apiFetch(`/ads/active?placement=${placement}`)
+  return { data: result.data?.ads, error: result.error }
+}
+export const logAdImpression = (adId, placement, storyId) =>
+  apiFetch(`/ads/${adId}/impression`, { method: 'POST', body: JSON.stringify({ placement, storyId }) })
+export const logAdClick = async (adId, placement, storyId) => {
+  const result = await apiFetch(`/ads/${adId}/click`, { method: 'POST', body: JSON.stringify({ placement, storyId }) })
+  return { data: result.data?.click_url, error: result.error }
+}
+
+export const adminListAdCampaigns = async () => {
+  const result = await apiFetch('/admin/ads')
+  return { data: result.data?.campaigns, error: result.error }
+}
+export const adminGetAdAnalytics = async (id) => {
+  const result = await apiFetch(`/admin/ads/${id}/analytics`)
+  return { data: result.data?.byPlacement, error: result.error }
+}
+// `fields` is a plain object; `file` (optional) is the image/video File —
+// uses FormData directly since apiFetch forces a JSON Content-Type.
+async function submitAdCampaign(path, method, fields, file) {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined || v === null) continue
+    form.append(k, Array.isArray(v) ? JSON.stringify(v) : v)
+  }
+  if (file) form.append('creative', file)
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.campaign, error: null }
+}
+export const adminCreateAdCampaign = (fields, file) => submitAdCampaign('/admin/ads', 'POST', fields, file)
+export const adminUpdateAdCampaign = (id, fields, file) => submitAdCampaign(`/admin/ads/${id}`, 'PUT', fields, file)
+export const adminSetAdCampaignStatus = async (id, status) => {
+  const result = await apiFetch(`/admin/ads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  return { data: result.data?.campaign, error: result.error }
+}
+export const adminDeleteAdCampaign = (id) => apiFetch(`/admin/ads/${id}`, { method: 'DELETE' })
+
+export const adminGetMarketingSettings = async () => {
+  const result = await apiFetch('/admin/ads/settings')
+  return { data: result.data?.settings, error: result.error }
+}
+export const adminUpdateMarketingSettings = async (settings) => {
+  const result = await apiFetch('/admin/ads/settings', { method: 'PATCH', body: JSON.stringify(settings) })
+  return { data: result.data?.settings, error: result.error }
+}
+
 export const getVisitCount = async () => {
   const result = await apiFetch('/stats/visit')
   return { data: result.data?.count, error: result.error }

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { getCareersJobs, getMyApplications, applyToJob, updateMyApplication } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from '../components/Toast'
+import AdSlot from '../components/AdSlot'
 
 /* ── helpers ──────────────────────────────────────────────── */
 const PIPELINE = [
@@ -551,6 +552,8 @@ export default function Jobs() {
           </div>
         )}
       </section>
+
+      <AdSlot placement="jobs" variant="banner" />
 
       {/* ── In Progress ── */}
       {inProgressApps.length > 0 && (

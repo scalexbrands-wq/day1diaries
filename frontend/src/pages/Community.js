@@ -8,6 +8,7 @@ import {
   adminUpsertCommunityUpdate, adminUpsertChallenge
 } from '../lib/api'
 import ProBadge from '../components/ProBadge'
+import AdSlot from '../components/AdSlot'
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
 import { format, isFuture, isPast, formatDistanceToNow, differenceInDays } from 'date-fns'
@@ -356,6 +357,8 @@ export default function Community() {
         ) : (
           /* Default right sidebar */
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <AdSlot placement="community" variant="banner" />
+
             {/* Active challenges */}
             {activeChallenges.length > 0 && (
               <div style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, overflow:'hidden' }}>
