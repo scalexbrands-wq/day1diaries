@@ -78,6 +78,9 @@ function GroupCard({ group, navigate }) {
           <div style={{ fontSize: 14, fontWeight: 700, color: '#1A0800', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.name}</div>
           {group.topic_category && <div style={{ fontSize: 11, color: '#FF6B2B' }}>{group.topic_category}</div>}
         </div>
+        <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 100, background: group.visibility === 'private' ? 'rgba(124,58,237,.1)' : 'rgba(5,150,105,.1)', color: group.visibility === 'private' ? '#7C3AED' : '#059669' }}>
+          {group.visibility === 'private' ? '🔒 Restricted' : '🌍 Everyone'}
+        </span>
       </div>
       {group.description && (
         <p style={{ fontSize: 12.5, color: '#4A2800', lineHeight: 1.5, margin: '0 0 10px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

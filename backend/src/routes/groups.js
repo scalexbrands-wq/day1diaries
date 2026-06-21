@@ -68,15 +68,20 @@ async function getMembership(groupId, userId) {
   return rows[0]?.role || null
 }
 
-// ── GET /groups — list public groups, paginate, filter by topic_category ──
-router.get('/', async (req, res) => {
+// ── GET /groups — browsable groups: anything open to 'everyone', plus
+// (if signed in) the caller's own restricted groups too, so a group you
+// created with a restricted audience doesn't just vanish from view —
+// it still shows up to you, badged as restricted, just not to outsiders. ──
+router.get('/', optionalAuth, async (req, res) => {
   const page = parseInt(req.query.page) || 0
   const limit = parseInt(req.query.limit) || 20
   const { topic_category, search } = req.query
 
-  const conditions = [`visibility = 'public'`]
-  const params = []
-  let i = 1
+  const conditions = req.cognitoSub
+    ? [`(visibility = 'public' OR id IN (SELECT group_id FROM group_members WHERE user_id = $1))`]
+    : [`visibility = 'public'`]
+  const params = req.cognitoSub ? [req.cognitoSub] : []
+  let i = params.length + 1
   if (topic_category) { conditions.push(`topic_category = $${i++}`); params.push(topic_category) }
   if (search) { conditions.push(`name ILIKE $${i++}`); params.push(`%${search}%`) }
   params.push(limit, page * limit)
