@@ -61,6 +61,7 @@ const TEMPLATE_OPTIONS = [
   { key:'editorial', label:'Editorial',        desc:'Magazine-style minimalism — single-column reading flow, serif type, restrained color.' },
   { key:'bento',     label:'Bento / Vibrant',  desc:'Bold bento-grid layout — saturated gradients, glassmorphism cards, playful and maximalist.' },
   { key:'kinetic',   label:'Kinetic',          desc:'Motion-first design — custom cursor, parallax hero, magnetic buttons, tilt cards, sticky scroll-storytelling, scroll-snap carousels.' },
+  { key:'slideshow', label:'Slideshow',        desc:'Presentation-deck style — full-viewport slides with dot navigation, arrow-key control, and a slide counter. Browse it like a pitch deck.' },
 ]
 function TemplateEditor() {
   const [active, setActive] = useState(null)

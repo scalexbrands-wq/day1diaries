@@ -16,6 +16,7 @@ const Landing = lazy(() => import('./pages/Landing'))
 const LandingEditorial = lazy(() => import('./pages/LandingEditorial'))
 const LandingBento = lazy(() => import('./pages/LandingBento'))
 const LandingKinetic = lazy(() => import('./pages/LandingKinetic'))
+const LandingSlideshow = lazy(() => import('./pages/LandingSlideshow'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const Feed = lazy(() => import('./pages/Feed'))
@@ -92,7 +93,7 @@ const PublicHeader = () => (
 )
 // Picks which of the 3 landing page designs renders on "/", based on
 // the admin's choice in Admin > Landing Content > Template.
-const LANDING_TEMPLATES = { classic: Landing, editorial: LandingEditorial, bento: LandingBento, kinetic: LandingKinetic }
+const LANDING_TEMPLATES = { classic: Landing, editorial: LandingEditorial, bento: LandingBento, kinetic: LandingKinetic, slideshow: LandingSlideshow }
 const LandingRouter = () => {
   const [template, setTemplate] = useState(null)
   useEffect(() => { getLandingTemplate().then(({ data }) => setTemplate(data || 'classic')) }, [])

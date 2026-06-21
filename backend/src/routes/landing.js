@@ -55,7 +55,7 @@ router.get('/data', async (req, res) => {
   })
 })
 
-const LANDING_TEMPLATES = ['classic', 'editorial', 'bento', 'kinetic']
+const LANDING_TEMPLATES = ['classic', 'editorial', 'bento', 'kinetic', 'slideshow']
 
 // GET /landing/template — which design template is live right now.
 // Public (no auth) since it's read on every visit to "/" before login.
