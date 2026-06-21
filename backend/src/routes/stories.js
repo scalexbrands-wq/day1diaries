@@ -113,6 +113,7 @@ router.get('/by-categories', async (req, res) => {
 
 // ── GET /stories/categories — returns active categories from DB ──
 router.get('/categories', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300') // rarely changes — admin-managed list
   const { rows } = await pool.query(
     'SELECT id, name, icon, sort_order FROM story_categories WHERE is_active = true ORDER BY sort_order, name'
   )

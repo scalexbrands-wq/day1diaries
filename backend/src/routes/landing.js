@@ -29,6 +29,9 @@ function localize(row, lang) {
 // ?lang=hi|ta|te|ml|kn — applies admin-entered translations where they
 // exist; any field without a translation falls back to the English column.
 router.get('/data', async (req, res) => {
+  // Public, non-personalized — safe for the browser to reuse for a
+  // minute instead of re-fetching on every homepage visit/navigation.
+  res.set('Cache-Control', 'public, max-age=60')
   const lang = SUPPORTED_LANGS.includes(req.query.lang) ? req.query.lang : 'en'
   const [hero, bottomSection, categories, testimonials, habits, leaderboard, featured, stats, levels] = await Promise.all([
     pool.query('SELECT * FROM landing_hero WHERE id = 1'),
@@ -73,6 +76,7 @@ const LANDING_TEMPLATES = ['classic', 'editorial', 'bento', 'kinetic', 'slidesho
 // GET /landing/template — which design template is live right now.
 // Public (no auth) since it's read on every visit to "/" before login.
 router.get('/template', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300')
   const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = 'landing.active_template'`)
   const template = rows[0]?.value
   res.json({ template: LANDING_TEMPLATES.includes(template) ? template : 'classic' })

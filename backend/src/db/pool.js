@@ -973,6 +973,14 @@ async function initDB() {
       )
     `)
 
+    // Indexes for the hottest story query paths (feed/discover/profile)
+    // — these tables have grown large enough this session that unindexed
+    // scans on category/user_id/status/created_at are now the slowest
+    // part of those endpoints.
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_stories_category ON stories(category)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_stories_status_created ON stories(status, created_at DESC)`)
+
     console.log('DB schema init OK')
   } catch (err) {
     console.error('DB init error (non-fatal):', err.message)

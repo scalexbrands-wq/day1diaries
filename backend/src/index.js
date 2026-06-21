@@ -13,6 +13,7 @@ require('express-async-errors')
 const cors = require('cors')
 const helmet = require('helmet')
 const morgan = require('morgan')
+const compression = require('compression')
 
 // AUTH_PROVIDER=local swaps in self-signed JWTs + a local password
 // table instead of Cognito — see backend/src/routes/auth.local.js
@@ -89,6 +90,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow cross-origin API calls
   contentSecurityPolicy: false, // disable CSP — this is an API, not a browser page
 }))
+app.use(compression()) // gzip JSON responses — landing/feed payloads can be 50-100KB uncompressed
 // `verify` stashes the exact raw bytes on req.rawBody — needed by the
 // Razorpay webhook route to validate its signature, which is computed
 // over the raw payload, not the re-serialized parsed object.
