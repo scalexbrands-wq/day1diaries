@@ -731,20 +731,6 @@ resource "aws_iam_role_policy" "ecs_task_transcribe" {
   })
 }
 
-# Allow task to live-translate story title/content (backend/src/utils/translate.js)
-resource "aws_iam_role_policy" "ecs_task_translate" {
-  name = "translate-access"
-  role = aws_iam_role.ecs_task.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["translate:TranslateText"]
-      Resource = ["*"] # Translate doesn't support resource-level restriction on this action
-    }]
-  })
-}
-
 # ============================================================
 # APPLICATION LOAD BALANCER
 # ============================================================
