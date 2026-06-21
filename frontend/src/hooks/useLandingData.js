@@ -1,21 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getLandingData, getSeoDefaults } from '../lib/api'
 
 // Shared data-fetching for every landing page template — same API calls
 // Landing.js (the "classic" template) already makes, so template2/3
 // stay visually distinct but never drift on data shape or content source.
+// Re-fetches whenever the active language changes, so admin-entered
+// translations (hero/categories/testimonials) switch along with the UI.
 export default function useLandingData() {
+  const { i18n } = useTranslation()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [seo, setSeo] = useState(null)
 
   useEffect(() => {
-    getLandingData().then(({ data: d, error }) => {
+    setLoading(true)
+    getLandingData(i18n.language).then(({ data: d, error }) => {
       if (!error && d) setData(d)
       setLoading(false)
     })
     getSeoDefaults().then(({ data: d }) => { if (d) setSeo(d) })
-  }, [])
+  }, [i18n.language])
 
   return { data, loading, seo }
 }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
-import { getStory, getComments, addComment, toggleLike, toggleSave, deleteStory, unlockStory, getMyCoins, recordStoryView, getStories, getTranscriptStatus } from '../lib/api'
+import { getStory, getComments, addComment, toggleLike, toggleSave, deleteStory, unlockStory, getMyCoins, recordStoryView, getStories, getTranscriptStatus, getStoryTranslation } from '../lib/api'
 import { getInitials, getAvatarColor } from '../components/Sidebar'
 import { toast } from '../components/Toast'
 import ShareButton, { storyShareText, storyShareUrl } from '../components/ShareButton'
@@ -13,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns'
 export default function StoryDetail() {
   const { id } = useParams()
   const { user, profile } = useAuth()
+  const { i18n } = useTranslation()
   const navigate = useNavigate()
   const [story, setStory] = useState(null)
   const [comments, setComments] = useState([])
@@ -25,6 +27,18 @@ export default function StoryDetail() {
   const [coins, setCoins] = useState(null)
   const [recentStories, setRecentStories] = useState([])
   const [showTranscript, setShowTranscript] = useState(false)
+  const [translated, setTranslated] = useState(null)
+
+  // Live AWS Translate of the story body, swapped in whenever the user
+  // switches language — original text is never edited, just displayed.
+  useEffect(() => {
+    if (i18n.language === 'en' || !id) { setTranslated(null); return }
+    let active = true
+    getStoryTranslation(id, i18n.language).then(({ data }) => {
+      if (active && data) setTranslated(data)
+    })
+    return () => { active = false }
+  }, [i18n.language, id])
 
   useEffect(() => {
     getStory(id).then(({ data }) => {
@@ -124,6 +138,9 @@ export default function StoryDetail() {
     ? formatDistanceToNow(new Date(story.created_at), { addSuffix: true })
     : ''
 
+  const displayTitle = translated?.title || story.title
+  const displayContent = translated?.content || story.content
+
   return (
     <div style={{ padding: '16px', maxWidth: 1080, margin: '0 auto', fontFamily: "'DM Sans',sans-serif" }}>
       {!isLocked && (
@@ -191,7 +208,7 @@ export default function StoryDetail() {
           </div>
 
           {/* Title */}
-          <h1 className="sd-title">{story.title}</h1>
+          <h1 className="sd-title">{displayTitle}</h1>
 
           {/* Author row */}
           <div style={{
@@ -291,7 +308,7 @@ export default function StoryDetail() {
               {/* Story content — voice stories hide the transcript by default
                   behind the toggle above; pending ones have no content yet. */}
               {(!story.audio_url || (story.transcript_status === 'ready' && showTranscript) || story.transcript_status === 'failed') && (
-                <div className="sd-content">{story.content}</div>
+                <div className="sd-content">{displayContent}</div>
               )}
 
               {/* Action bar */}

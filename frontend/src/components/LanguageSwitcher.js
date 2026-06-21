@@ -18,11 +18,11 @@ export default function LanguageSwitcher({ dark = false }) {
         onClick={() => setOpen(v => !v)}
         title={t('common.language')}
         style={{
-          display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
           background: dark ? 'rgba(255,255,255,.08)' : 'rgba(26,8,0,.05)',
           color: dark ? 'white' : '#1A0800',
           border: dark ? '1px solid rgba(255,255,255,.15)' : '1px solid rgba(26,8,0,.1)',
-          borderRadius: 100, padding: '6px 12px',
+          borderRadius: 100, padding: '5px 10px', flexShrink: 0,
         }}
       >
         🌐 {current.label}

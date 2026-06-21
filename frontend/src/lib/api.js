@@ -503,8 +503,8 @@ export const adminGetUserStories = async (userId) => {
 // LANDING PAGE
 // ============================================================
 
-export const getLandingData = async () => {
-  const result = await apiFetch('/landing/data')
+export const getLandingData = async (lang) => {
+  const result = await apiFetch(`/landing/data${lang ? `?lang=${lang}` : ''}`)
   return { data: result.data, error: result.error }
 }
 
@@ -902,6 +902,14 @@ export const getTranscriptStatus = async (storyId) => {
   const result = await apiFetch(`/stories/${storyId}/transcript-status`)
   return { data: result.data, error: result.error } // { transcript_status, transcript, content }
 }
+
+// Live AWS Translate of a story's title/content — cached server-side per
+// story+lang, so this is cheap to call repeatedly (re-renders, navigating
+// back to the same story). Only call for non-English languages.
+export const getStoryTranslation = (storyId, lang) => cachedFetch(`story-translate-${storyId}-${lang}`, 600000, async () => {
+  const result = await apiFetch(`/stories/${storyId}/translate/${lang}`)
+  return { data: result.data, error: result.error } // { title, content }
+})
 
 // ── Groups ──────────────────────────────────────────────────────
 export const getGroups = async ({ page = 0, limit = 20, topic_category, search } = {}) => {

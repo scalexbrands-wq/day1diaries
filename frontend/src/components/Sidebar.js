@@ -64,12 +64,15 @@ export default function Sidebar() {
 
   const content = (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      {/* Logo */}
-      <div style={{ padding:'20px 18px 16px', borderBottom:'1px solid #F0EAE4' }}>
-        <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', fontWeight:900, color:'#FF6B2B' }}>
-          Day<span style={{ color:'#1A0800' }}>1</span> Diaries
+      {/* Logo + language switcher, both at the very top */}
+      <div style={{ padding:'18px 18px 14px', borderBottom:'1px solid #F0EAE4' }}>
+        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8, marginBottom:6 }}>
+          <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'17px', fontWeight:900, color:'#FF6B2B', lineHeight:1.2 }}>
+            Day<span style={{ color:'#1A0800' }}>1</span> Diaries
+          </div>
+          <LanguageSwitcher />
         </div>
-        <div style={{ fontSize:'11px', color:'#8C7B6E', marginTop:2 }}>Learn. Share. Grow.</div>
+        <div style={{ fontSize:'11px', color:'#8C7B6E' }}>Learn. Share. Grow.</div>
       </div>
 
       {/* Nav */}
@@ -77,7 +80,7 @@ export default function Sidebar() {
         <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'0 18px 8px' }}>{t('nav.menu')}</div>
         {NAV.map(({ to, icon, labelKey }) => (
           <NavLink key={to} to={to} onClick={() => setMobileOpen(false)} style={({ isActive }) => navStyle(isActive)}>
-            <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>{icon}</span>{t(labelKey)}
+            <span className="sidebar-nav-icon">{icon}</span>{t(labelKey)}
           </NavLink>
         ))}
 
@@ -85,16 +88,15 @@ export default function Sidebar() {
           <>
             <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'12px 18px 8px' }}>{t('nav.admin')}</div>
             <NavLink to="/admin" onClick={() => setMobileOpen(false)} style={({ isActive }) => navStyle(isActive)}>
-              <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>⊞</span>{t('nav.dashboard')}
+              <span className="sidebar-nav-icon">⊞</span>{t('nav.dashboard')}
             </NavLink>
           </>
         )}
 
         <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'12px 18px 8px' }}>{t('nav.account')}</div>
         <NavLink to={`/profile/${profile?.username || 'me'}`} onClick={() => setMobileOpen(false)} style={({ isActive }) => navStyle(isActive)}>
-          <span style={{ fontSize:'16px', width:20, textAlign:'center' }}>◯</span>{t('nav.myProfile')}
+          <span className="sidebar-nav-icon">◯</span>{t('nav.myProfile')}
         </NavLink>
-        <div style={{ padding:'14px 18px 4px' }}><LanguageSwitcher /></div>
       </nav>
 
       {/* User footer */}
@@ -142,6 +144,7 @@ export default function Sidebar() {
       )}
 
       <style>{`
+        .sidebar-nav-icon { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; font-size:15px; line-height:1; flex-shrink:0; }
         @media (max-width: 768px) {
           .sidebar-desktop { display: none !important; }
           .sidebar-mobile-btn { display: block !important; }

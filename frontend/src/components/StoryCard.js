@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
-import { toggleLike, toggleSave, shareStory, unlockStory } from '../lib/api'
+import { toggleLike, toggleSave, shareStory, unlockStory, getStoryTranslation } from '../lib/api'
 import { getInitials, getAvatarColor } from './Sidebar'
 import { toast } from './Toast'
 import { formatDistanceToNow } from 'date-fns'
@@ -9,6 +10,7 @@ import SurpriseAFriendButton from './SurpriseAFriendButton'
 
 export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp, onUnlock }) {
   const { user } = useAuth()
+  const { i18n } = useTranslation()
   const navigate = useNavigate()
   const [liked, setLiked] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -16,6 +18,21 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
   const [shares, setShares] = useState(story.shares_count || 0)
   const [unlocking, setUnlocking] = useState(false)
   const [unlocked, setUnlocked] = useState(false)
+  const [translated, setTranslated] = useState(null)
+
+  // Live AWS Translate of the story body, swapped in whenever the user
+  // switches language — original text is never edited, just displayed.
+  useEffect(() => {
+    if (i18n.language === 'en') { setTranslated(null); return }
+    let active = true
+    getStoryTranslation(story.id, i18n.language).then(({ data }) => {
+      if (active && data) setTranslated(data)
+    })
+    return () => { active = false }
+  }, [i18n.language, story.id])
+
+  const displayTitle = translated?.title || story.title
+  const displayContent = translated?.content || story.content
 
   const author = story.profiles || {}
   const timeAgo = story.created_at
@@ -146,7 +163,7 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
       </div>
 
       {/* Title — visible when locked to tease the reader */}
-      <div className="story-card-title" title={story.title}>{story.title}</div>
+      <div className="story-card-title" title={displayTitle}>{displayTitle}</div>
 
       {/* Voice story — audio player + pending-transcription placeholder */}
       {story.audio_url && !isLocked && (
@@ -160,7 +177,7 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
 
       {/* Body — blurred when locked */}
       <div className={`story-card-text${isLocked ? ' story-locked-blur' : ''}`}>
-        {story.audio_url && story.transcript_status === 'pending' ? '' : story.content}
+        {story.audio_url && story.transcript_status === 'pending' ? '' : displayContent}
       </div>
 
       {story.cover_image_url && (

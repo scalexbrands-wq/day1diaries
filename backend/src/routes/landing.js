@@ -15,8 +15,21 @@ const upload = multer({
   },
 })
 
+const SUPPORTED_LANGS = ['en', 'hi', 'ta', 'te', 'ml', 'kn']
+
+// Merges row.translations[lang] over the row's base (English) columns —
+// only overriding fields the admin has actually translated, so an
+// incomplete translation never blanks out untranslated fields.
+function localize(row, lang) {
+  if (!row || lang === 'en' || !row.translations?.[lang]) return row
+  return { ...row, ...row.translations[lang] }
+}
+
 // ── GET /landing/data — single call for the whole landing page ──
+// ?lang=hi|ta|te|ml|kn — applies admin-entered translations where they
+// exist; any field without a translation falls back to the English column.
 router.get('/data', async (req, res) => {
+  const lang = SUPPORTED_LANGS.includes(req.query.lang) ? req.query.lang : 'en'
   const [hero, bottomSection, categories, testimonials, habits, leaderboard, featured, stats, levels] = await Promise.all([
     pool.query('SELECT * FROM landing_hero WHERE id = 1'),
     pool.query('SELECT * FROM landing_bottom_section WHERE id = 1'),
@@ -42,10 +55,10 @@ router.get('/data', async (req, res) => {
   ).catch(() => ({ rows: [] }))
 
   res.json({
-    hero: hero.rows[0],
-    bottomSection: bottomSection.rows[0],
-    categories: categories.rows,
-    testimonials: testimonials.rows,
+    hero: localize(hero.rows[0], lang),
+    bottomSection: localize(bottomSection.rows[0], lang),
+    categories: categories.rows.map(c => localize(c, lang)),
+    testimonials: testimonials.rows.map(t => localize(t, lang)),
     habits: habits.rows,
     leaderboard: leaderboard.rows,
     featuredStories: featured.rows,
@@ -96,12 +109,13 @@ router.patch('/admin/hero', requireAuth, requirePermission('manage_landing_conte
     'cta_primary_text','cta_secondary_text','diary_date','diary_title',
     'diary_content','diary_author_name','diary_author_role',
     'diary_likes','diary_comments','badge_1_text','badge_2_text',
-    'ticker_items','is_active','hero_image_url','hero_image_urls'
+    'ticker_items','is_active','hero_image_url','hero_image_urls','translations'
   ]
   const updates = {}
   for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields' })
   if (updates.hero_image_urls !== undefined) updates.hero_image_urls = JSON.stringify(updates.hero_image_urls)
+  if (updates.translations !== undefined) updates.translations = JSON.stringify(updates.translations)
 
   const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 1}`).join(', ')
   const { rows } = await pool.query(
@@ -164,11 +178,12 @@ router.get('/admin/bottom-section', requireAuth, requirePermission('manage_landi
 })
 
 router.patch('/admin/bottom-section', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
-  const allowed = ['heading', 'subheadline', 'body_text', 'cta_text', 'cta_link', 'is_active', 'image_urls']
+  const allowed = ['heading', 'subheadline', 'body_text', 'cta_text', 'cta_link', 'is_active', 'image_urls', 'translations']
   const updates = {}
   for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields' })
   if (updates.image_urls !== undefined) updates.image_urls = JSON.stringify(updates.image_urls)
+  if (updates.translations !== undefined) updates.translations = JSON.stringify(updates.translations)
 
   const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 1}`).join(', ')
   const { rows } = await pool.query(
@@ -225,20 +240,24 @@ router.get('/admin/categories', requireAuth, requirePermission('manage_landing_c
 })
 
 // POST /landing/admin/categories — create or update (if id provided)
+// translations is left untouched (COALESCE) when the caller doesn't send
+// it, so the older Categories form (which has no translations field)
+// can't silently wipe out translations entered via the Translations modal.
 router.post('/admin/categories', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
-  const { id, icon, name, story_count_override, is_active, is_cta, sort_order } = req.body
+  const { id, icon, name, story_count_override, is_active, is_cta, sort_order, translations } = req.body
+  const translationsJson = translations !== undefined ? JSON.stringify(translations) : null
   if (id) {
     const { rows } = await pool.query(
-      `UPDATE landing_categories SET icon=$2, name=$3, story_count_override=$4, is_active=$5, is_cta=$6, sort_order=$7
+      `UPDATE landing_categories SET icon=$2, name=$3, story_count_override=$4, is_active=$5, is_cta=$6, sort_order=$7, translations=COALESCE($8::jsonb, translations)
        WHERE id=$1 RETURNING *`,
-      [id, icon, name, story_count_override || null, is_active !== false, !!is_cta, sort_order || 0]
+      [id, icon, name, story_count_override || null, is_active !== false, !!is_cta, sort_order || 0, translationsJson]
     )
     return res.json({ category: rows[0] })
   }
   const { rows } = await pool.query(
-    `INSERT INTO landing_categories (icon, name, story_count_override, is_active, is_cta, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [icon || '📝', name, story_count_override || null, is_active !== false, !!is_cta, sort_order || 0]
+    `INSERT INTO landing_categories (icon, name, story_count_override, is_active, is_cta, sort_order, translations)
+     VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7::jsonb,'{}'::jsonb)) RETURNING *`,
+    [icon || '📝', name, story_count_override || null, is_active !== false, !!is_cta, sort_order || 0, translationsJson]
   )
   res.status(201).json({ category: rows[0] })
 })
@@ -255,21 +274,23 @@ router.get('/admin/testimonials', requireAuth, requirePermission('manage_landing
   res.json({ testimonials: rows })
 })
 
-// POST /landing/admin/testimonials — create or update
+// POST /landing/admin/testimonials — create or update (translations
+// preserved via COALESCE when omitted — same reasoning as categories above)
 router.post('/admin/testimonials', requireAuth, requirePermission('manage_landing_content'), async (req, res) => {
-  const { id, quote, author_name, author_role, author_initials, avatar_gradient, rating, is_active, sort_order } = req.body
+  const { id, quote, author_name, author_role, author_initials, avatar_gradient, rating, is_active, sort_order, translations } = req.body
+  const translationsJson = translations !== undefined ? JSON.stringify(translations) : null
   if (id) {
     const { rows } = await pool.query(
       `UPDATE landing_testimonials SET quote=$2, author_name=$3, author_role=$4, author_initials=$5,
-        avatar_gradient=$6, rating=$7, is_active=$8, sort_order=$9 WHERE id=$1 RETURNING *`,
-      [id, quote, author_name, author_role, author_initials || 'XX', avatar_gradient || 'linear-gradient(135deg,#FF6B2B,#FFD166)', rating || 5, is_active !== false, sort_order || 0]
+        avatar_gradient=$6, rating=$7, is_active=$8, sort_order=$9, translations=COALESCE($10::jsonb, translations) WHERE id=$1 RETURNING *`,
+      [id, quote, author_name, author_role, author_initials || 'XX', avatar_gradient || 'linear-gradient(135deg,#FF6B2B,#FFD166)', rating || 5, is_active !== false, sort_order || 0, translationsJson]
     )
     return res.json({ testimonial: rows[0] })
   }
   const { rows } = await pool.query(
-    `INSERT INTO landing_testimonials (quote, author_name, author_role, author_initials, avatar_gradient, rating, is_active, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [quote, author_name, author_role, author_initials || 'XX', avatar_gradient || 'linear-gradient(135deg,#FF6B2B,#FFD166)', rating || 5, is_active !== false, sort_order || 0]
+    `INSERT INTO landing_testimonials (quote, author_name, author_role, author_initials, avatar_gradient, rating, is_active, sort_order, translations)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9::jsonb,'{}'::jsonb)) RETURNING *`,
+    [quote, author_name, author_role, author_initials || 'XX', avatar_gradient || 'linear-gradient(135deg,#FF6B2B,#FFD166)', rating || 5, is_active !== false, sort_order || 0, translationsJson]
   )
   res.status(201).json({ testimonial: rows[0] })
 })

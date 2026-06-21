@@ -24,6 +24,55 @@ const Btn = ({children, variant='primary', ...p}) => {
 const Card = ({children, ...p}) => <div style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, padding:20, marginBottom:16, ...p.style }}>{children}</div>
 const SectionHead = ({children}) => <div style={{ fontSize:14, fontWeight:700, color:'#1A0800', marginBottom:14, paddingBottom:10, borderBottom:'1px solid #F0EAE4' }}>{children}</div>
 
+/* ── Reusable translations editor — a modal with one tab per language,
+   used by Hero / Bottom Section / Categories / Testimonials so admins
+   can enter translated copy without a code deploy. ── */
+const TRANSLATION_LANGS = [
+  { code: 'hi', label: 'हिन्दी' },
+  { code: 'ta', label: 'தமிழ்' },
+  { code: 'te', label: 'తెలుగు' },
+  { code: 'ml', label: 'മലയാളം' },
+  { code: 'kn', label: 'ಕನ್ನಡ' },
+]
+function TranslationsModal({ title, fields, value, onClose, onSave }) {
+  const [translations, setTranslations] = useState(value || {})
+  const [lang, setLang] = useState('hi')
+  const [saving, setSaving] = useState(false)
+  const setField = (key) => (e) => setTranslations(t => ({ ...t, [lang]: { ...(t[lang] || {}), [key]: e.target.value } }))
+
+  const save = async () => {
+    setSaving(true)
+    await onSave(translations)
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(26,8,0,.5)', zIndex:1100, display:'flex', alignItems:'center', justifyContent:'center', padding:20, overflowY:'auto' }}>
+      <div style={{ background:'white', borderRadius:20, padding:24, width:'100%', maxWidth:520, boxShadow:'0 24px 60px rgba(26,8,0,.15)', margin:'auto' }}>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>🌐 Translations — {title}</div>
+        <p style={{ fontSize:11.5, color:'#8C7B6E', marginTop:0, marginBottom:16 }}>Leave a field blank to fall back to the English text above.</p>
+        <div style={{ display:'flex', gap:4, marginBottom:16, borderBottom:'1px solid #F0EAE4' }}>
+          {TRANSLATION_LANGS.map(l => (
+            <button key={l.code} onClick={() => setLang(l.code)} style={{ padding:'7px 14px', background:'none', border:'none', cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:"'DM Sans',sans-serif", color: lang===l.code?'#FF6B2B':'#8C7B6E', borderBottom: lang===l.code?'2px solid #FF6B2B':'2px solid transparent', marginBottom:-1 }}>{l.label}</button>
+          ))}
+        </div>
+        {fields.map(f => (
+          <div key={f.key}>
+            <Label>{f.label}</Label>
+            {f.type === 'textarea'
+              ? <TextArea value={translations[lang]?.[f.key] || ''} onChange={setField(f.key)} placeholder={f.placeholder} />
+              : <Input value={translations[lang]?.[f.key] || ''} onChange={setField(f.key)} placeholder={f.placeholder} />}
+          </div>
+        ))}
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:6 }}>
+          <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
+          <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Translations'}</Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const GRADIENT_OPTIONS = [
   'linear-gradient(135deg,#FF6B2B,#FFD166)',
   'linear-gradient(135deg,#7C3AED,#A78BFA)',
@@ -110,6 +159,7 @@ function HeroEditor() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [showTranslations, setShowTranslations] = useState(false)
   const set = k => e => setForm(f=>({...f,[k]:e.target.value}))
 
   useEffect(()=>{
@@ -156,8 +206,33 @@ function HeroEditor() {
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
         <div style={{ fontSize:15, fontWeight:700 }}>Hero Section</div>
-        <Btn onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Btn>
+        <div style={{ display:'flex', gap:8 }}>
+          <Btn variant="secondary" onClick={()=>setShowTranslations(true)}>🌐 Translations</Btn>
+          <Btn onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Btn>
+        </div>
       </div>
+      {showTranslations && (
+        <TranslationsModal
+          title="Hero Section"
+          value={form.translations}
+          fields={[
+            { key:'eyebrow', label:'Eyebrow Tag' },
+            { key:'headline', label:'Main Headline' },
+            { key:'headline_highlight', label:'Highlighted Word/Phrase' },
+            { key:'subheadline', label:'Sub-headline', type:'textarea' },
+            { key:'cta_primary_text', label:'Primary CTA Button' },
+            { key:'cta_secondary_text', label:'Secondary CTA Button' },
+          ]}
+          onClose={()=>setShowTranslations(false)}
+          onSave={async (translations) => {
+            const { error } = await adminUpsertLandingHero({ translations })
+            if (error) { toast.error(error.message); return }
+            setForm(f => ({ ...f, translations }))
+            toast.success('Translations saved! ✓')
+            setShowTranslations(false)
+          }}
+        />
+      )}
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
         <div>
@@ -251,6 +326,7 @@ function BottomSectionEditor() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [showTranslations, setShowTranslations] = useState(false)
   const set = k => e => setForm(f=>({...f,[k]:e.target.value}))
 
   useEffect(()=>{
@@ -297,11 +373,34 @@ function BottomSectionEditor() {
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
         <div style={{ fontSize:15, fontWeight:700 }}>Bottom Section</div>
-        <Btn onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Btn>
+        <div style={{ display:'flex', gap:8 }}>
+          <Btn variant="secondary" onClick={()=>setShowTranslations(true)}>🌐 Translations</Btn>
+          <Btn onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Btn>
+        </div>
       </div>
       <p style={{ fontSize:12, color:'#8C7B6E', marginTop:0, marginBottom:20 }}>
         A fully customizable section shown just before the footer — heading, copy, up to 3 images, and a call-to-action button.
       </p>
+      {showTranslations && (
+        <TranslationsModal
+          title="Bottom Section"
+          value={form.translations}
+          fields={[
+            { key:'subheadline', label:'Subheadline' },
+            { key:'heading', label:'Heading' },
+            { key:'body_text', label:'Body Text', type:'textarea' },
+            { key:'cta_text', label:'CTA Button Text' },
+          ]}
+          onClose={()=>setShowTranslations(false)}
+          onSave={async (translations) => {
+            const { error } = await adminUpsertLandingBottomSection({ translations })
+            if (error) { toast.error(error.message); return }
+            setForm(f => ({ ...f, translations }))
+            toast.success('Translations saved! ✓')
+            setShowTranslations(false)
+          }}
+        />
+      )}
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
         <Card>
@@ -349,6 +448,7 @@ function BottomSectionEditor() {
 function CategoriesEditor() {
   const [cats, setCats] = useState([])
   const [editing, setEditing] = useState(null)
+  const [translating, setTranslating] = useState(null)
   const [form, setForm] = useState({ icon:'📝', name:'', is_active:true, is_cta:false, story_count_override:'', sort_order:0 })
   const [loading, setLoading] = useState(true)
   const set = k => e => setForm(f=>({...f,[k]: e.target.type==='checkbox' ? e.target.checked : e.target.value}))
@@ -398,12 +498,29 @@ function CategoriesEditor() {
               </div>
             </div>
             <div style={{ display:'flex', gap:6 }}>
+              <Btn variant="secondary" onClick={()=>setTranslating(c)} style={{ padding:'5px 10px', fontSize:11 }}>🌐</Btn>
               <Btn variant="secondary" onClick={()=>startEdit(c)} style={{ padding:'5px 12px', fontSize:11 }}>Edit</Btn>
               <Btn variant="danger" onClick={()=>remove(c.id)} style={{ padding:'5px 12px', fontSize:11 }}>Del</Btn>
             </div>
           </div>
         ))}
       </div>
+
+      {translating && (
+        <TranslationsModal
+          title={translating.name}
+          value={translating.translations}
+          fields={[{ key:'name', label:'Category Name' }]}
+          onClose={()=>setTranslating(null)}
+          onSave={async (translations) => {
+            const { error } = await adminUpsertCategory({ id: translating.id, icon: translating.icon, name: translating.name, story_count_override: translating.story_count_override, is_active: translating.is_active, is_cta: translating.is_cta, sort_order: translating.sort_order, translations })
+            if (error) { toast.error(error.message); return }
+            toast.success('Translations saved! ✓')
+            setTranslating(null)
+            load()
+          }}
+        />
+      )}
 
       {/* Edit modal */}
       {editing && (
@@ -441,6 +558,7 @@ function CategoriesEditor() {
 function TestimonialsEditor() {
   const [items, setItems] = useState([])
   const [editing, setEditing] = useState(null)
+  const [translating, setTranslating] = useState(null)
   const [form, setForm] = useState({ quote:'', author_name:'', author_role:'', author_initials:'', avatar_gradient:'linear-gradient(135deg,#FF6B2B,#FFD166)', rating:5, is_active:true, sort_order:0 })
   const [loading, setLoading] = useState(true)
   const set = k => e => setForm(f=>({...f,[k]: e.target.type==='checkbox'?e.target.checked:e.target.value}))
@@ -488,12 +606,33 @@ const {error} = await adminDeleteTestimonial(id)
               <div style={{ fontSize:11, color:'#8C7B6E', marginTop:2 }}>{'★'.repeat(t.rating||5)} · Order: {t.sort_order} {!t.is_active && '· Hidden'}</div>
             </div>
             <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+              <Btn variant="secondary" onClick={()=>setTranslating(t)} style={{ padding:'5px 10px', fontSize:11 }}>🌐</Btn>
               <Btn variant="secondary" onClick={()=>startEdit(t)} style={{ padding:'5px 12px', fontSize:11 }}>Edit</Btn>
               <Btn variant="danger" onClick={()=>remove(t.id)} style={{ padding:'5px 12px', fontSize:11 }}>Del</Btn>
             </div>
           </div>
         ))}
       </div>
+
+      {translating && (
+        <TranslationsModal
+          title={translating.author_name}
+          value={translating.translations}
+          fields={[
+            { key:'quote', label:'Quote', type:'textarea' },
+            { key:'author_name', label:'Author Name' },
+            { key:'author_role', label:'Author Role / Location' },
+          ]}
+          onClose={()=>setTranslating(null)}
+          onSave={async (translations) => {
+            const { error } = await adminUpsertTestimonial({ id: translating.id, quote: translating.quote, author_name: translating.author_name, author_role: translating.author_role, author_initials: translating.author_initials, avatar_gradient: translating.avatar_gradient, rating: translating.rating, is_active: translating.is_active, sort_order: translating.sort_order, translations })
+            if (error) { toast.error(error.message); return }
+            toast.success('Translations saved! ✓')
+            setTranslating(null)
+            load()
+          }}
+        />
+      )}
 
       {editing && (
         <div style={{ position:'fixed', inset:0, background:'rgba(26,8,0,.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, overflowY:'auto' }}>

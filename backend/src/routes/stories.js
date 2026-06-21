@@ -6,6 +6,9 @@ const { scanBadWords } = require('../utils/badWords')
 const { requireFeatureAccess } = require('../services/accessControl')
 const s3 = require('../utils/s3')
 const { transcribeStoryAudio } = require('../services/transcription')
+const { translateText } = require('../utils/translate')
+
+const TRANSLATABLE_LANGS = ['hi', 'ta', 'te', 'ml', 'kn']
 
 const router = express.Router()
 
@@ -189,6 +192,46 @@ router.get('/:id/transcript-status', async (req, res) => {
   )
   if (!rows.length) return res.status(404).json({ error: 'Story not found' })
   res.json(rows[0])
+})
+
+// GET /stories/:id/translate/:lang — live machine translation of a
+// story's title+content via AWS Translate, cached in story_translations
+// so the same story+language is only ever translated once. Must be
+// before /:id. lang must be one of TRANSLATABLE_LANGS — English has
+// nothing to translate, so it's intentionally not accepted here.
+router.get('/:id/translate/:lang', async (req, res) => {
+  const { id, lang } = req.params
+  if (!TRANSLATABLE_LANGS.includes(lang)) {
+    return res.status(400).json({ error: `lang must be one of: ${TRANSLATABLE_LANGS.join(', ')}` })
+  }
+
+  const { rows: cached } = await pool.query(
+    'SELECT title, content FROM story_translations WHERE story_id = $1 AND lang = $2',
+    [id, lang]
+  )
+  if (cached.length) return res.json(cached[0])
+
+  const { rows: storyRows } = await pool.query('SELECT title, content FROM stories WHERE id = $1', [id])
+  if (!storyRows.length) return res.status(404).json({ error: 'Story not found' })
+  const story = storyRows[0]
+
+  let title, content
+  try {
+    [title, content] = await Promise.all([
+      translateText(story.title, lang),
+      translateText(story.content, lang),
+    ])
+  } catch (err) {
+    console.error('Story translation failed (non-fatal):', err.message)
+    return res.status(503).json({ error: 'Translation is unavailable right now' })
+  }
+
+  await pool.query(
+    `INSERT INTO story_translations (story_id, lang, title, content) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (story_id, lang) DO UPDATE SET title = $3, content = $4`,
+    [id, lang, title, content]
+  )
+  res.json({ title, content })
 })
 
 // ── GET /stories/:id ───────────────────────────────────────────

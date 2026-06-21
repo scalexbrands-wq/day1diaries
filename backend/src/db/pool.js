@@ -67,6 +67,30 @@ async function initDB() {
     await pool.query(`ALTER TABLE landing_hero ADD COLUMN IF NOT EXISTS hero_image_url TEXT`)
     await pool.query(`ALTER TABLE landing_hero ADD COLUMN IF NOT EXISTS hero_image_urls JSONB DEFAULT '[]'`)
 
+    // Multi-language overrides for admin-managed landing content — shape:
+    // { "<lang>": { "<field>": "<translated value>", ... }, ... }
+    // GET /landing/data merges translations[lang] over the base row when
+    // a non-English lang is requested; missing fields/langs fall back to
+    // the base (English) column value, never break or go blank.
+    await pool.query(`ALTER TABLE landing_hero ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb`)
+    await pool.query(`ALTER TABLE landing_bottom_section ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb`)
+    await pool.query(`ALTER TABLE landing_categories ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb`)
+    await pool.query(`ALTER TABLE landing_testimonials ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'::jsonb`)
+    // landing_category_counts explicitly lists columns, so the new
+    // translations column needs adding here too or it'd be silently
+    // dropped from every /landing/data response.
+    await pool.query(`
+      CREATE OR REPLACE VIEW landing_category_counts AS
+      SELECT
+        lc.id, lc.icon, lc.name, lc.is_active, lc.is_cta, lc.sort_order,
+        COALESCE(lc.story_count_override, count(s.id))::integer AS story_count,
+        lc.translations
+      FROM landing_categories lc
+      LEFT JOIN stories s ON s.category = lc.name AND s.status = 'published'
+      GROUP BY lc.id, lc.icon, lc.name, lc.is_active, lc.is_cta, lc.sort_order, lc.story_count_override, lc.translations
+      ORDER BY lc.sort_order
+    `)
+
     // landing_bottom_section — fully admin-customizable section just before the footer
     await pool.query(`
       CREATE TABLE IF NOT EXISTS landing_bottom_section (
@@ -931,6 +955,22 @@ async function initDB() {
     await pool.query(`
       ALTER TABLE stories ADD CONSTRAINT stories_transcript_status_check
         CHECK (transcript_status IS NULL OR transcript_status IN ('pending','ready','failed'))
+    `)
+
+    // Cache of AWS Translate output per story+language — user-generated
+    // story text can't be pre-translated like UI strings, so this is
+    // translated on demand and cached here, both to avoid re-paying for
+    // the same story+language on every view and so repeat viewers get an
+    // instant response instead of waiting on Translate every time.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS story_translations (
+        story_id   UUID NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+        lang       TEXT NOT NULL,
+        title      TEXT NOT NULL,
+        content    TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        PRIMARY KEY (story_id, lang)
+      )
     `)
 
     console.log('DB schema init OK')
