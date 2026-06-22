@@ -21,11 +21,11 @@ const STORY_SELECT = `
 `
 
 // ── GET /stories ─────────────────────────────────────────────
-// query: page, limit, category, userId, search
+// query: page, limit, category, userId, search, sort ('newest' default | 'oldest')
 router.get('/', async (req, res) => {
   const page = parseInt(req.query.page) || 0
   const limit = parseInt(req.query.limit) || 10
-  const { category, userId, search } = req.query
+  const { category, userId, search, sort } = req.query
 
   const conditions = [`s.status = 'published'`, `s.visibility = 'public'`]
   const params = []
@@ -41,7 +41,7 @@ router.get('/', async (req, res) => {
     `SELECT ${STORY_SELECT} FROM stories s
      JOIN profiles p ON p.id = s.user_id
      WHERE ${conditions.join(' AND ')}
-     ORDER BY s.created_at DESC
+     ORDER BY s.created_at ${sort === 'oldest' ? 'ASC' : 'DESC'}
      LIMIT $${i++} OFFSET $${i++}`,
     params
   )

@@ -200,11 +200,12 @@ export const adminSetRolePermissions = async (role, permissions) => {
 // STORIES
 // ============================================================
 
-export const getStories = async ({ page = 0, limit = 10, category, userId, search } = {}) => {
+export const getStories = async ({ page = 0, limit = 10, category, userId, search, sort } = {}) => {
   const params = new URLSearchParams({ page, limit })
   if (category) params.set('category', category)
   if (userId) params.set('userId', userId)
   if (search) params.set('search', search)
+  if (sort) params.set('sort', sort)
   const result = await apiFetch(`/stories?${params}`)
   return { data: result.data?.stories, error: result.error }
 }

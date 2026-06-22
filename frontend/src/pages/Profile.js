@@ -11,6 +11,7 @@ import { toast } from '../components/Toast'
 import { formatDistanceToNow } from 'date-fns'
 import ShareButton, { profileShareText, profileShareUrl } from '../components/ShareButton'
 import ProfileQRCard from '../components/ProfileQRCard'
+import ProfileFirstStoryShareCard from '../components/ProfileFirstStoryShareCard'
 import Seo from '../components/Seo'
 import SurpriseAFriendButton from '../components/SurpriseAFriendButton'
 
@@ -312,6 +313,7 @@ export default function Profile() {
                   size="sm"
                 />
                 <ProfileQRCard profile={profile} />
+                <ProfileFirstStoryShareCard profile={profile} />
               </>
             ) : (
               <>
@@ -330,6 +332,7 @@ export default function Profile() {
                   size="sm"
                 />
                 <ProfileQRCard profile={profile} />
+                <ProfileFirstStoryShareCard profile={profile} />
                 {isAdmin && (
                   <button className="btn btn-secondary btn-sm" onClick={async () => {
                     const newRole = profile.role === 'contributor' ? 'user' : 'contributor'

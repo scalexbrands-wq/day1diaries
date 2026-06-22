@@ -125,10 +125,25 @@ router.get('/share/profile/:username', async (req, res) => {
   const redirectUrl = `${SITE_URL}/profile/${req.params.username}`
   if (!profile) return res.redirect(302, redirectUrl)
 
+  // The card should read as "this person + their Day 1 story", not just a
+  // bare avatar — pull their earliest published story to weave into the
+  // description (og:image stays the profile photo; crawlers only render one).
+  const { rows: firstStoryRows } = await pool.query(
+    `SELECT title FROM stories WHERE user_id = $1 AND status = 'published' AND visibility = 'public'
+     ORDER BY created_at ASC LIMIT 1`,
+    [profile.id]
+  )
+  const firstStory = firstStoryRows[0]
+
   const defaults = await getSeoDefaults()
+  const bioLine = profile.bio ? `${profile.bio} ` : ''
+  const description = firstStory
+    ? `${bioLine}Read ${profile.full_name || profile.username}'s first Day 1 story: "${firstStory.title}".`
+    : (profile.bio || defaults.description)
+
   res.set('Content-Type', 'text/html').send(sharePage({
     title: `${profile.full_name || profile.username} on Day1 Diaries`,
-    description: profile.bio || defaults.description,
+    description,
     image: profile.avatar_url || defaults.image,
     canonicalUrl: redirectUrl,
     redirectUrl,
