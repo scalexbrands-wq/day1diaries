@@ -600,10 +600,10 @@ function EventsTab() {
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.type==='checkbox'?e.target.checked:e.target.value}))
   const load=useCallback(()=>getCommunityUpdates().then(({data})=>setItems(data||[])),[])
   useEffect(()=>{load()},[load])
-  const startEdit=(item=null)=>{setEditing(item?.id||'new');setForm(item?{...item}:{title:'',description:'',event_type:'community_news',event_date:'',duration_mins:60,seats_available:'',speaker_name:'',speaker_bio:'',agenda:'',zoom_link:'',is_published:true,cover_image_url:''})}
+  const startEdit=(item=null)=>{setEditing(item?.id||'new');setForm(item?{...item}:{title:'',description:'',event_type:'community_news',event_date:'',duration_mins:60,seats_available:'',speaker_name:'',speaker_bio:'',agenda:'',zoom_link:'',is_published:true,cover_image_url:'',price:0})}
   const save=async()=>{
     if(!form.title?.trim()){toast.error('Title required');return}
-    const p={...form,duration_mins:Number(form.duration_mins)||60,seats_available:form.seats_available?Number(form.seats_available):null,event_date:form.event_date||null}
+    const p={...form,duration_mins:Number(form.duration_mins)||60,seats_available:form.seats_available?Number(form.seats_available):null,event_date:form.event_date||null,price:Number(form.price)||0}
     if(editing!=='new')p.id=editing;else delete p.id
     const{error}=await adminUpsertCommunityUpdate(p)
     if(error){toast.error(error.message);return}
@@ -632,6 +632,7 @@ function EventsTab() {
                   {item.duration_mins&&<span>⏱ {item.duration_mins}min</span>}
                   {item.seats_available&&<span>💺 {item.seats_available-(item.seats_booked||0)}/{item.seats_available} left</span>}
                   {item.speaker_name&&<span>🎤 {item.speaker_name}</span>}
+                  {Number(item.price)>0?<span>💰 ₹{item.price}</span>:['webinar','workshop'].includes(item.event_type)&&<span>🆓 Free</span>}
                 </div>
               </div>
               <div style={{display:'flex',gap:6}}>
@@ -660,6 +661,7 @@ function EventsTab() {
             <div><L c="Date & Time"/><Inp type="datetime-local" value={form.event_date?.slice(0,16)||''} onChange={set('event_date')}/></div>
             <div><L c="Duration (min)"/><Inp type="number" value={form.duration_mins||60} onChange={set('duration_mins')}/></div>
             <div><L c="Seats (blank=∞)"/><Inp type="number" value={form.seats_available||''} onChange={set('seats_available')}/></div>
+            <div><L c="Price ₹ (0 = free)"/><Inp type="number" value={form.price||0} onChange={set('price')}/></div>
             <div><L c="Speaker Name"/><Inp value={form.speaker_name||''} onChange={set('speaker_name')}/></div>
             <div><L c="Zoom / Meet Link"/><Inp value={form.zoom_link||''} onChange={set('zoom_link')}/></div>
           </div>

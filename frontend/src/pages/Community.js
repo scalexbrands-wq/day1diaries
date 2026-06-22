@@ -72,6 +72,9 @@ function EventCard({ item, profile, onRegister, onCalendar, onOpen, registered, 
         <div style={{ position:'relative', padding:'28px 32px', width:'100%', color:'white' }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, flexWrap:'wrap' }}>
             <span style={{ fontSize:11, padding:'4px 12px', borderRadius:100, background:'rgba(255,255,255,.18)', backdropFilter:'blur(6px)', fontWeight:700, letterSpacing:.3 }}>{meta.label}</span>
+            {isEvent && (Number(item.price) > 0
+              ? <span style={{ fontSize:11, fontWeight:700, padding:'4px 12px', borderRadius:100, background:'rgba(124,58,237,.35)' }}>💰 ₹{item.price}</span>
+              : <span style={{ fontSize:11, fontWeight:700, padding:'4px 12px', borderRadius:100, background:'rgba(5,150,105,.35)' }}>🆓 Free</span>)}
             {isUpcoming && <span style={{ fontSize:11, fontWeight:700, color:'#A7F3D0' }}>🟢 Upcoming</span>}
             {locked && <span style={{ fontSize:11, padding:'4px 11px', borderRadius:100, background:'rgba(124,58,237,.35)', fontWeight:700 }}>👑 Pro Only</span>}
           </div>
@@ -102,6 +105,9 @@ function EventCard({ item, profile, onRegister, onCalendar, onOpen, registered, 
       <div style={{ padding:'20px 22px 22px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:12, flexWrap:'wrap' }}>
           <Badge color={meta.color} bg={meta.bg}>{meta.label}</Badge>
+          {isEvent && (Number(item.price) > 0
+            ? <Badge color="#7C3AED" bg="rgba(124,58,237,.1)">💰 ₹{item.price}</Badge>
+            : <Badge color="#059669" bg="rgba(5,150,105,.1)">🆓 Free</Badge>)}
           {locked && <Badge color="#7C3AED" bg="rgba(124,58,237,.1)">👑 Pro Only</Badge>}
           {isUpcoming && <span style={{ fontSize:11, color:'#059669', fontWeight:700 }}>🟢 Upcoming</span>}
           {item.is_paid && profile?.is_pro && <span style={{ fontSize:11, color:'#059669', fontWeight:700 }}>✓ Free for Pro</span>}

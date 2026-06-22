@@ -1099,6 +1099,10 @@ async function initDB() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_stories_user ON stories(user_id)`)
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_stories_status_created ON stories(status, created_at DESC)`)
 
+    // community_updates had no way to tell a paid webinar from a free one —
+    // event_type alone (webinar/workshop/etc) doesn't carry price. 0 means free.
+    await pool.query(`ALTER TABLE community_updates ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0`)
+
     console.log('DB schema init OK')
   } catch (err) {
     console.error('DB init error (non-fatal):', err.message)

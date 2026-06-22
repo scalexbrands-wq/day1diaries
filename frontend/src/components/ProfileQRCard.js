@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { QRCodeCanvas } from 'qrcode.react'
 import { getInitials, getAvatarColor } from './Sidebar'
 import { toast } from './Toast'
@@ -154,7 +155,12 @@ export default function ProfileQRCard({ profile }) {
         🔗 QR Code
       </button>
 
-      {open && (
+      {open && createPortal((
+        // Portaled onto document.body — Profile's banner wrapper has a
+        // persistent `transform: translateY(0)` (from its mount animation's
+        // fill-mode:both), which creates a new containing block for
+        // position:fixed descendants, so this would otherwise center inside
+        // the banner box instead of the viewport (see SurprisePopup.js).
         <div className="modal-overlay" onClick={() => setOpen(false)}>
           <div className="modal" style={{ maxWidth: 320 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
@@ -183,7 +189,7 @@ export default function ProfileQRCard({ profile }) {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </>
   )
 }

@@ -62,7 +62,7 @@ router.post('/admin', requireAuth, requirePermission('manage_community_events'),
   const {
     title, description, cover_image_url, event_type, event_date,
     duration_mins, seats_available, speaker_name, speaker_bio,
-    speaker_avatar, agenda, zoom_link, is_published
+    speaker_avatar, agenda, zoom_link, is_published, price
   } = req.body
   if (!title?.trim()) return res.status(400).json({ error: 'Title required' })
   if (!event_type) return res.status(400).json({ error: 'event_type required' })
@@ -70,12 +70,12 @@ router.post('/admin', requireAuth, requirePermission('manage_community_events'),
   const { rows } = await pool.query(
     `INSERT INTO community_updates
        (title, description, cover_image_url, event_type, event_date, duration_mins,
-        seats_available, speaker_name, speaker_bio, speaker_avatar, agenda, zoom_link, is_published, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+        seats_available, speaker_name, speaker_bio, speaker_avatar, agenda, zoom_link, is_published, price, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
     [title, description || null, cover_image_url || null, event_type, event_date || null,
      duration_mins || null, seats_available || null, speaker_name || null,
      speaker_bio || null, speaker_avatar || null, agenda || null, zoom_link || null,
-     is_published !== false, req.cognitoSub]
+     is_published !== false, price || 0, req.cognitoSub]
   )
   res.status(201).json({ update: rows[0] })
 })
@@ -90,7 +90,7 @@ router.patch('/admin/:id', requireAuth, requirePermission('manage_community_even
 
   const allowed = ['title','description','cover_image_url','event_type','event_date',
                    'duration_mins','seats_available','speaker_name','speaker_bio',
-                   'speaker_avatar','agenda','zoom_link','is_published']
+                   'speaker_avatar','agenda','zoom_link','is_published','price']
   const updates = {}
   for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields' })
