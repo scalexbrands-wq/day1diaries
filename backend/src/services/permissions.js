@@ -45,6 +45,7 @@ const PERMISSIONS = [
   { key: 'manage_gifting', label: 'Manage gift catalog & settings', category: 'Gifting' },
   { key: 'manage_gift_payments', label: 'Verify / refund gift payments & orders', category: 'Gifting' },
   { key: 'manage_wallet_claims', label: 'Approve / reject wallet claims', category: 'Gifting' },
+  { key: 'manage_shipments', label: 'Create/cancel shipments & update tracking', category: 'Gifting' },
 
   // Marketing
   { key: 'manage_marketing', label: 'Manage ad campaigns & settings', category: 'Marketing' },
@@ -70,7 +71,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
   moderator: ['view_users', 'manage_users', 'moderate_content', 'manage_announcements'],
   marketer: ['manage_marketing', 'view_analytics'],
   support: ['view_users', 'view_analytics'],
-  finance: ['manage_membership_payments', 'manage_gift_payments', 'manage_wallet_claims', 'view_analytics'],
+  finance: ['manage_membership_payments', 'manage_gift_payments', 'manage_wallet_claims', 'manage_shipments', 'view_analytics'],
   user: [],
 }
 

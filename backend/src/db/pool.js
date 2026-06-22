@@ -747,6 +747,12 @@ async function initDB() {
           wrap(`<p>Hi {{recipient_name}},</p><p>Your claim for <b>{{tier_label}}</b> ({{tier_cost}} coins) has been approved. {{notes}}</p>`)],
         ['Gift: Wallet Claim Rejected', 'Update on your coin claim',
           wrap(`<p>Hi {{recipient_name}},</p><p>We're unable to fulfill your claim for <b>{{tier_label}}</b> ({{tier_cost}} coins) right now. Your coins have not been deducted. {{notes}}</p>`)],
+        ['Gift: Shipped', 'Your gift is on its way 📦',
+          wrap(`<p>Hi {{recipient_name}},</p><p>The physical gift for <b>{{gift_recipient_name}}</b> has shipped. <a href="{{tracking_url}}">Track it here</a>.</p>`)],
+        ['Gift: Delivered', 'Your gift has been delivered 🎉',
+          wrap(`<p>Hi {{recipient_name}},</p><p>The gift for <b>{{gift_recipient_name}}</b> has been delivered.</p>`)],
+        ['Gift: Delivery Failed', 'There was an issue delivering your gift',
+          wrap(`<p>Hi {{recipient_name}},</p><p>The courier couldn't deliver the gift for <b>{{gift_recipient_name}}</b>. <a href="{{tracking_url}}">Check the latest status</a>.</p>`)],
       ]
       for (const [name, subject, html_body] of giftTemplates) {
         await pool.query(
@@ -790,6 +796,63 @@ async function initDB() {
     // holds the hand-picked profile ids allowed in that case.
     // (No table/column needed — stored as an app_settings row, same as
     // the rest of the gift.* settings.)
+
+    // ── Physical gifting + Shiprocket shipment tracking ──────────
+    await pool.query(`ALTER TABLE gift_types ADD COLUMN IF NOT EXISTS is_physical BOOLEAN DEFAULT false`)
+
+    // Shipping fields — only populated/required when gift_type.is_physical.
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS recipient_phone TEXT`)
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS shipping_address_line1 TEXT`)
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS shipping_address_line2 TEXT`)
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS shipping_city TEXT`)
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS shipping_state TEXT`)
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS shipping_pincode TEXT`)
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS shipping_country TEXT DEFAULT 'IN'`)
+
+    // Widen gift_orders.status for the physical-gift shipping lifecycle
+    // (same widening pattern as gift_templates.style_key above).
+    await pool.query(`ALTER TABLE gift_orders DROP CONSTRAINT IF EXISTS gift_orders_status_check`)
+    await pool.query(`
+      ALTER TABLE gift_orders ADD CONSTRAINT gift_orders_status_check CHECK (status IN (
+        'pending_payment','processing','ready','failed',
+        'shipped','in_transit','out_for_delivery','delivered','delivery_failed','returned','cancelled'))
+    `)
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shipments (
+        id                     UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        gift_order_id          UUID NOT NULL REFERENCES gift_orders(id) ON DELETE CASCADE,
+        courier                TEXT NOT NULL DEFAULT 'shiprocket',
+        shiprocket_order_id    TEXT,
+        shiprocket_shipment_id TEXT,
+        awb_code               TEXT,
+        courier_name           TEXT,
+        status                 TEXT NOT NULL DEFAULT 'created' CHECK (status IN (
+                                  'created','awb_assigned','pickup_scheduled','shipped','in_transit',
+                                  'out_for_delivery','delivered','delivery_failed','returned','cancelled')),
+        label_url              TEXT,
+        manifest_url           TEXT,
+        created_at             TIMESTAMPTZ DEFAULT now(),
+        updated_at             TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    // shipment_tracking_events — the single source of truth for the
+    // unified "where is my gift" timeline shown to sender, recipient,
+    // and admin alike (see services/shipmentService.js getUnifiedTimeline).
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shipment_tracking_events (
+        id            BIGSERIAL PRIMARY KEY,
+        shipment_id   UUID NOT NULL REFERENCES shipments(id) ON DELETE CASCADE,
+        status        TEXT NOT NULL,
+        status_detail TEXT,
+        location      TEXT,
+        occurred_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        raw_payload   JSONB,
+        created_at    TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(gift_order_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_shipment_tracking_shipment ON shipment_tracking_events(shipment_id, occurred_at)`)
 
     // ── Marketing module — admin-managed ad campaigns (image/video),
     // shown inline on Discover and as a banner below Story Detail content.

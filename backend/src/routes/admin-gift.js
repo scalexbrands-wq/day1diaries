@@ -3,6 +3,7 @@ const { pool } = require('../db/pool')
 const { requireAuth, requirePermission } = require('../middleware/auth')
 const razorpay = require('../utils/razorpay')
 const { renderGiftAssets } = require('../services/giftRenderService')
+const { cancelShipment } = require('../services/shipmentService')
 const { sendGiftEmail, TEMPLATE_NAMES } = require('../services/giftEmails')
 const { createNotification } = require('../services/notifications')
 const { findTier } = require('../utils/walletTiers')
@@ -14,6 +15,11 @@ const manageGifting = requirePermission('manage_gifting')
 // Money-related: also lets the Finance role in, without giving Finance
 // the catalog-management permission.
 const manageGiftPayments = requirePermission('manage_gifting', 'manage_gift_payments')
+// Browsing orders is needed by both the payments side AND a
+// shipments-only logistics role (it must find an order to ship it) —
+// kept separate from manageGiftPayments so refund/confirm-cod/manual
+// payment-status overrides stay restricted to the money permissions only.
+const viewGiftOrders = requirePermission('manage_gifting', 'manage_gift_payments', 'manage_shipments')
 const manageWalletClaims = requirePermission('manage_gifting', 'manage_wallet_claims')
 
 const STYLE_KEYS = ['luxury_gold', 'glassmorphism_orange', 'scrapbook_warm', 'executive_black_gold', 'magazine_cover']
@@ -81,23 +87,23 @@ router.get('/types', manageGifting, async (req, res) => {
 })
 
 router.post('/types', manageGifting, async (req, res) => {
-  const { label, description, base_price, currency, sort_order } = req.body
+  const { label, description, base_price, currency, sort_order, is_physical } = req.body
   if (!label) return res.status(400).json({ error: 'label is required' })
   const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order),-1)+1 AS next FROM gift_types')
   const { rows } = await pool.query(
-    `INSERT INTO gift_types (key, label, description, base_price, currency, sort_order) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [`${slugify(label)}_${Date.now().toString(36)}`, label, description || null, base_price || 0, currency || 'INR', sort_order ?? maxRows[0].next]
+    `INSERT INTO gift_types (key, label, description, base_price, currency, sort_order, is_physical) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [`${slugify(label)}_${Date.now().toString(36)}`, label, description || null, base_price || 0, currency || 'INR', sort_order ?? maxRows[0].next, Boolean(is_physical)]
   )
   res.status(201).json({ type: rows[0] })
 })
 
 router.put('/types/:id', manageGifting, async (req, res) => {
-  const { label, description, base_price, currency, sort_order, is_active } = req.body
+  const { label, description, base_price, currency, sort_order, is_active, is_physical } = req.body
   const { rows } = await pool.query(
     `UPDATE gift_types SET label=COALESCE($1,label), description=COALESCE($2,description),
        base_price=COALESCE($3,base_price), currency=COALESCE($4,currency),
-       sort_order=COALESCE($5,sort_order), is_active=COALESCE($6,is_active), updated_at=now() WHERE id=$7 RETURNING *`,
-    [label, description, base_price, currency, sort_order, is_active, req.params.id]
+       sort_order=COALESCE($5,sort_order), is_active=COALESCE($6,is_active), is_physical=COALESCE($7,is_physical), updated_at=now() WHERE id=$8 RETURNING *`,
+    [label, description, base_price, currency, sort_order, is_active, is_physical, req.params.id]
   )
   if (!rows.length) return res.status(404).json({ error: 'Gift type not found' })
   res.json({ type: rows[0] })
@@ -143,7 +149,7 @@ router.delete('/templates/:id', manageGifting, (req, res) => deleteOrExplain(res
 // ORDERS
 // ════════════════════════════════════════════════════════════
 
-router.get('/orders', manageGiftPayments, async (req, res) => {
+router.get('/orders', viewGiftOrders, async (req, res) => {
   const { status, q } = req.query
   const conditions = []
   const params = []
@@ -152,7 +158,7 @@ router.get('/orders', manageGiftPayments, async (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
   const { rows } = await pool.query(
-    `SELECT g.*, gc.label AS category_label, gt.label AS gift_type_label, tm.label AS template_label,
+    `SELECT g.*, gc.label AS category_label, gt.label AS gift_type_label, gt.is_physical, tm.label AS template_label,
             s.title AS story_title, sender.full_name AS sender_name, sender.email AS sender_email
      FROM gift_orders g
      JOIN gift_categories gc ON gc.id = g.category_id
@@ -167,9 +173,9 @@ router.get('/orders', manageGiftPayments, async (req, res) => {
   res.json({ orders: rows })
 })
 
-router.get('/orders/:id', manageGiftPayments, async (req, res) => {
+router.get('/orders/:id', viewGiftOrders, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT g.*, gc.label AS category_label, gt.label AS gift_type_label, tm.label AS template_label,
+    `SELECT g.*, gc.label AS category_label, gt.label AS gift_type_label, gt.is_physical, tm.label AS template_label,
             s.title AS story_title, sender.full_name AS sender_name, sender.email AS sender_email
      FROM gift_orders g
      JOIN gift_categories gc ON gc.id = g.category_id
@@ -182,7 +188,8 @@ router.get('/orders/:id', manageGiftPayments, async (req, res) => {
   )
   if (!rows.length) return res.status(404).json({ error: 'Order not found' })
   const { rows: payments } = await pool.query('SELECT * FROM gift_payments WHERE gift_order_id = $1 ORDER BY created_at DESC', [req.params.id])
-  res.json({ order: rows[0], payments })
+  const { rows: shipments } = await pool.query('SELECT * FROM shipments WHERE gift_order_id = $1 ORDER BY created_at DESC', [req.params.id])
+  res.json({ order: rows[0], payments, shipment: shipments[0] || null })
 })
 
 router.post('/orders/:id/refund', manageGiftPayments, async (req, res) => {
@@ -212,6 +219,11 @@ router.post('/orders/:id/refund', manageGiftPayments, async (req, res) => {
     [req.params.id]
   )
   res.json({ order: rows[0] })
+
+  // Best-effort — a courier-side cancellation failure shouldn't block the
+  // refund itself; money matters more than shipment state, and an admin
+  // can manually retry cancel-shipment afterward.
+  cancelShipment(req.params.id, 'Order refunded').catch(err => console.error('Shipment cancel on refund failed', err))
 })
 
 // POST /admin/gift/orders/:id/confirm-cod — admin confirms cash was

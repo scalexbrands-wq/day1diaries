@@ -1385,8 +1385,10 @@ export const getMyGiftPayments = async () => {
 export const getGiftDownloadUrl = (id, format = 'png') => `${API_BASE}/gift/${id}/download?format=${format}`
 export const getTribute = async (slug) => {
   const result = await apiFetch(`/gift/tribute/${slug}`)
-  return { data: result.data?.tribute, error: result.error }
+  const data = result.data?.tribute ? { ...result.data.tribute, timeline: result.data.timeline } : result.data?.tribute
+  return { data, error: result.error }
 }
+export const getGiftTracking = async (id) => apiFetch(`/gift/${id}/tracking`)
 export const shareTributeByEmail = async (tributeSlug, toEmail) => {
   return apiFetch('/gift/share/email', { method: 'POST', body: JSON.stringify({ tributeSlug, toEmail }) })
 }
@@ -1462,6 +1464,23 @@ export const adminConfirmGiftCod = async (id) => {
 }
 export const adminSetGiftPaymentStatus = async (id, payment_status, notes) => {
   const result = await apiFetch(`/admin/gift/orders/${id}/set-payment-status`, { method: 'POST', body: JSON.stringify({ payment_status, notes }) })
+  return { data: result.data?.order, error: result.error }
+}
+export const adminShipGiftOrder = async (id) => {
+  const result = await apiFetch(`/admin/gift/orders/${id}/ship`, { method: 'POST' })
+  return { data: result.data?.shipment, error: result.error }
+}
+export const adminCancelGiftShipment = async (id, reason) => {
+  const result = await apiFetch(`/admin/gift/orders/${id}/cancel-shipment`, { method: 'POST', body: JSON.stringify({ reason }) })
+  return { data: result.data?.shipment, error: result.error }
+}
+export const adminGetGiftTracking = async (id) => apiFetch(`/admin/gift/orders/${id}/tracking`)
+export const adminSetGiftOrderStatus = async (id, status) => {
+  const result = await apiFetch(`/admin/gift/orders/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) })
+  return { data: result.data?.order, error: result.error }
+}
+export const adminUpdateGiftShippingAddress = async (id, payload) => {
+  const result = await apiFetch(`/admin/gift/orders/${id}/shipping-address`, { method: 'PUT', body: JSON.stringify(payload) })
   return { data: result.data?.order, error: result.error }
 }
 export const adminGetGiftPayments = async () => {

@@ -37,6 +37,7 @@ import {
   adminGetGiftOrders, adminGetGiftOrder, adminRefundGiftOrder,
   adminGetGiftPayments, adminGetGiftAnalytics, adminGetGiftSettings, adminUpdateGiftSettings, adminConfirmGiftCod,
   adminSetGiftPaymentStatus, adminGetWalletClaims, adminApproveWalletClaim, adminRejectWalletClaim,
+  adminShipGiftOrder, adminCancelGiftShipment, adminGetGiftTracking, adminSetGiftOrderStatus, adminUpdateGiftShippingAddress,
   adminListAdCampaigns, adminGetAdAnalytics, adminCreateAdCampaign, adminUpdateAdCampaign,
   adminSetAdCampaignStatus, adminDeleteAdCampaign,
   adminGetMarketingSettings, adminUpdateMarketingSettings,
@@ -45,6 +46,7 @@ import {
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
 import CertificateGenerator from '../components/CertificateGenerator'
+import GiftTrackingTimeline from '../components/GiftTrackingTimeline'
 
 const L = ({c}) => <label style={{display:'block',fontSize:12,fontWeight:600,color:'#5C3D2E',marginBottom:5}}>{c}</label>
 const Inp = (p) => <input {...p} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',outline:'none',marginBottom:12,...p.style}} onFocus={e=>e.target.style.borderColor='#FF6B2B'} onBlur={e=>e.target.style.borderColor='#DDD3CA'}/>
@@ -80,7 +82,7 @@ const TABS = [
   ['events','📅 Events', ['manage_community_events']],
   ['email','✉️ Email Center', ['manage_email']],
   ['membership','🎫 Membership', ['manage_membership','review_membership_applications','manage_membership_payments']],
-  ['gifting','🎁 Gifting', ['manage_gifting','manage_gift_payments','manage_wallet_claims']],
+  ['gifting','🎁 Gifting', ['manage_gifting','manage_gift_payments','manage_wallet_claims','manage_shipments']],
   ['marketing','📣 Marketing', ['manage_marketing']],
   ['seo','🔎 SEO', ['manage_seo']],
   ['users','👥 Users', ['view_users','manage_users','delete_users','manage_roles']],
@@ -2029,7 +2031,7 @@ function GiftCategoriesTab() {
 function GiftTypesTab() {
   const [list, setList] = useState([])
   const [showNew, setShowNew] = useState(false)
-  const [newForm, setNewForm] = useState({ label: '', description: '', base_price: 0 })
+  const [newForm, setNewForm] = useState({ label: '', description: '', base_price: 0, is_physical: false })
   const [creating, setCreating] = useState(false)
   const load = useCallback(() => { adminGetGiftTypes().then(({data}) => setList(data||[])) }, [])
   useEffect(() => { load() }, [load])
@@ -2046,7 +2048,7 @@ function GiftTypesTab() {
     setCreating(false)
     if (error) return toast.error(error.message)
     toast.success('Gift type added')
-    setNewForm({ label: '', description: '', base_price: 0 }); setShowNew(false); load()
+    setNewForm({ label: '', description: '', base_price: 0, is_physical: false }); setShowNew(false); load()
   }
   const remove = async (t) => {
     if (!window.confirm(`Delete "${t.label}"?`)) return
@@ -2069,6 +2071,9 @@ function GiftTypesTab() {
             <span style={{fontSize:13,fontWeight:700}}>₹</span>
             <input type="number" value={newForm.base_price} onChange={e=>setNewForm(f=>({...f,base_price:Number(e.target.value)}))} style={{width:100,padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
           </div>
+          <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:700,cursor:'pointer',marginBottom:10}}>
+            <input type="checkbox" checked={newForm.is_physical} onChange={e=>setNewForm(f=>({...f,is_physical:e.target.checked}))}/> 📦 Physical (requires shipping via Shiprocket)
+          </label>
           <Btn onClick={create} disabled={creating}>{creating?'Adding…':'Add'}</Btn>
         </Card>
       )}
@@ -2083,6 +2088,9 @@ function GiftTypesTab() {
               <span style={{fontSize:13,fontWeight:700}}>₹</span>
               <input type="number" defaultValue={t.base_price} onBlur={e=>Number(e.target.value)!==Number(t.base_price) && update(t,'base_price',Number(e.target.value))} style={{width:80,padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:700}}/>
             </div>
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>
+              <input type="checkbox" checked={!!t.is_physical} onChange={e=>update(t,'is_physical',e.target.checked)}/> 📦 Physical
+            </label>
             <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}>
               <input type="checkbox" checked={t.is_active} onChange={e=>update(t,'is_active',e.target.checked)}/> Active
             </label>
@@ -2165,9 +2173,17 @@ function GiftTemplatesTab() {
   )
 }
 
-const GIFT_ORDER_STATUS_COLORS = { pending_payment:'#F59E0B', processing:'#2563EB', ready:'#059669', failed:'#DC2626' }
+const GIFT_ORDER_STATUS_COLORS = {
+  pending_payment:'#F59E0B', processing:'#2563EB', ready:'#059669', failed:'#DC2626',
+  shipped:'#2563EB', in_transit:'#2563EB', out_for_delivery:'#2563EB',
+  delivered:'#059669', delivery_failed:'#DC2626', returned:'#DC2626', cancelled:'#DC2626',
+}
 
 const GIFT_PAYMENT_STATUSES = ['pending', 'paid', 'free', 'refunded', 'failed']
+const GIFT_ORDER_STATUSES = [
+  'pending_payment', 'processing', 'ready', 'failed',
+  'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'delivery_failed', 'returned', 'cancelled',
+]
 
 function GiftOrdersTab() {
   const [list, setList] = useState([])
@@ -2176,6 +2192,11 @@ function GiftOrdersTab() {
   const [manualStatus, setManualStatus] = useState('')
   const [manualNotes, setManualNotes] = useState('')
   const [applying, setApplying] = useState(false)
+  const [manualOrderStatus, setManualOrderStatus] = useState('')
+  const [applyingOrderStatus, setApplyingOrderStatus] = useState(false)
+  const [shippingForm, setShippingForm] = useState(null)
+  const [busyShipment, setBusyShipment] = useState(false)
+  const [showTracking, setShowTracking] = useState(false)
 
   const load = useCallback(() => { adminGetGiftOrders(status ? {status} : {}).then(({data}) => setList(data||[])) }, [status])
   useEffect(() => { load() }, [load])
@@ -2185,6 +2206,14 @@ function GiftOrdersTab() {
     setSelected(data)
     setManualStatus(data?.order?.payment_status || '')
     setManualNotes('')
+    setManualOrderStatus(data?.order?.status || '')
+    setShippingForm(data?.order?.is_physical ? {
+      recipientPhone: data.order.recipient_phone || '', shippingAddressLine1: data.order.shipping_address_line1 || '',
+      shippingAddressLine2: data.order.shipping_address_line2 || '', shippingCity: data.order.shipping_city || '',
+      shippingState: data.order.shipping_state || '', shippingPincode: data.order.shipping_pincode || '',
+      shippingCountry: data.order.shipping_country || 'IN',
+    } : null)
+    setShowTracking(false)
   }
 
   const refund = async (id) => {
@@ -2221,6 +2250,44 @@ function GiftOrdersTab() {
     setSelected(null); load()
   }
 
+  const shipOrder = async (id) => {
+    if (!window.confirm('Create a Shiprocket shipment for this order?')) return
+    setBusyShipment(true)
+    const { error } = await adminShipGiftOrder(id)
+    setBusyShipment(false)
+    if (error) return toast.error(error.message)
+    toast.success('Shipment created')
+    openDetail(id); load()
+  }
+
+  const cancelShipmentForOrder = async (id) => {
+    const reason = window.prompt('Reason for cancelling this shipment?', 'Cancelled by admin')
+    if (reason === null) return
+    setBusyShipment(true)
+    const { error } = await adminCancelGiftShipment(id, reason)
+    setBusyShipment(false)
+    if (error) return toast.error(error.message)
+    toast.success('Shipment cancelled')
+    openDetail(id); load()
+  }
+
+  const applyManualOrderStatus = async () => {
+    if (manualOrderStatus === selected.order.status) return toast.error('Pick a different status to apply')
+    setApplyingOrderStatus(true)
+    const { error } = await adminSetGiftOrderStatus(selected.order.id, manualOrderStatus)
+    setApplyingOrderStatus(false)
+    if (error) return toast.error(error.message)
+    toast.success(`Order status set to "${manualOrderStatus}"`)
+    setSelected(null); load()
+  }
+
+  const saveShippingAddress = async () => {
+    const { error } = await adminUpdateGiftShippingAddress(selected.order.id, shippingForm)
+    if (error) return toast.error(error.message)
+    toast.success('Shipping address updated')
+    openDetail(selected.order.id)
+  }
+
   return (
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
@@ -2240,6 +2307,7 @@ function GiftOrdersTab() {
               <div style={{fontWeight:700,fontSize:13}}>
                 {o.category_label} — {o.recipient_name}
                 {o.payment_method === 'claim' && <span style={{marginLeft:8,fontSize:10,fontWeight:700,color:'#7C3AED',background:'rgba(124,58,237,.1)',padding:'2px 8px',borderRadius:100}}>🎁 WALLET CLAIM</span>}
+                {o.is_physical && <span style={{marginLeft:8,fontSize:10,fontWeight:700,color:'#D4AF37',background:'rgba(212,175,55,.12)',padding:'2px 8px',borderRadius:100}}>📦 PHYSICAL</span>}
               </div>
               <div style={{fontSize:11.5,color:'#8C7B6E',marginTop:2}}>{o.story_title} · {o.gift_type_label} · from {o.sender_name}</div>
             </div>
@@ -2264,6 +2332,51 @@ function GiftOrdersTab() {
             <div><b>Status:</b> {selected.order.status}</div>
             <div><b>Message:</b> "{selected.order.message}"</div>
           </div>
+
+          {selected.order.is_physical && (
+            <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid #F0EAE4'}}>
+              <div style={{fontSize:12,fontWeight:700,color:'#8C7B6E',marginBottom:8}}>SHIPPING ADDRESS</div>
+              {shippingForm && (
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  <input value={shippingForm.recipientPhone} onChange={e=>setShippingForm({...shippingForm,recipientPhone:e.target.value})} placeholder="Recipient phone" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12}}/>
+                  <input value={shippingForm.shippingAddressLine1} onChange={e=>setShippingForm({...shippingForm,shippingAddressLine1:e.target.value})} placeholder="Address line 1" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12}}/>
+                  <input value={shippingForm.shippingAddressLine2} onChange={e=>setShippingForm({...shippingForm,shippingAddressLine2:e.target.value})} placeholder="Address line 2 (optional)" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12}}/>
+                  <div style={{display:'flex',gap:6}}>
+                    <input value={shippingForm.shippingCity} onChange={e=>setShippingForm({...shippingForm,shippingCity:e.target.value})} placeholder="City" style={{flex:1,padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12}}/>
+                    <input value={shippingForm.shippingState} onChange={e=>setShippingForm({...shippingForm,shippingState:e.target.value})} placeholder="State" style={{flex:1,padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12}}/>
+                    <input value={shippingForm.shippingPincode} onChange={e=>setShippingForm({...shippingForm,shippingPincode:e.target.value})} placeholder="Pincode" style={{flex:1,padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12}}/>
+                  </div>
+                  <Btn onClick={saveShippingAddress} style={{alignSelf:'flex-start'}}>Save Address</Btn>
+                </div>
+              )}
+
+              <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
+                {!selected.shipment || selected.shipment.status === 'cancelled' ? (
+                  <Btn onClick={()=>shipOrder(selected.order.id)} disabled={busyShipment || !['paid','free'].includes(selected.order.payment_status)}>
+                    {busyShipment ? 'Creating…' : '📦 Create Shipment'}
+                  </Btn>
+                ) : (
+                  <>
+                    {!['delivered','cancelled'].includes(selected.shipment.status) && (
+                      <Btn v="danger" onClick={()=>cancelShipmentForOrder(selected.order.id)} disabled={busyShipment}>Cancel Shipment</Btn>
+                    )}
+                    <Btn onClick={()=>setShowTracking(s=>!s)}>{showTracking ? 'Hide Tracking' : 'View / Refresh Tracking'}</Btn>
+                  </>
+                )}
+              </div>
+              {selected.shipment && (
+                <div style={{fontSize:11.5,color:'#8C7B6E',marginTop:8}}>
+                  Shipment status: <b>{selected.shipment.status}</b>{selected.shipment.awb_code && ` · AWB ${selected.shipment.awb_code}`}
+                </div>
+              )}
+              {showTracking && (
+                <div style={{marginTop:10}}>
+                  <GiftTrackingTimeline orderId={selected.order.id} fetcher={adminGetGiftTracking} />
+                </div>
+              )}
+            </div>
+          )}
+
           {selected.order.payment_method === 'cod' && selected.order.payment_status === 'pending' && (
             <Btn onClick={()=>confirmCod(selected.order.id)} style={{marginTop:14}}>✓ Confirm Cash Collected</Btn>
           )}
@@ -2285,6 +2398,17 @@ function GiftOrdersTab() {
             <input value={manualNotes} onChange={e=>setManualNotes(e.target.value)} placeholder="Notes (optional, sent to the sender if refunded/failed)" style={{width:'100%',padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12,marginBottom:8}}/>
             <Btn onClick={applyManualStatus} disabled={applying}>{applying?'Applying…':'Apply Status'}</Btn>
           </div>
+
+          {selected.order.is_physical && (
+            <div style={{marginTop:18,paddingTop:14,borderTop:'1px solid #F0EAE4'}}>
+              <div style={{fontSize:12,fontWeight:700,color:'#8C7B6E',marginBottom:8}}>MANUALLY SET ORDER / SHIPPING STATUS</div>
+              <p style={{fontSize:11.5,color:'#8C7B6E',marginTop:0,marginBottom:8}}>Use this to correct the status if Shiprocket's tracking webhook is delayed or missing.</p>
+              <select value={manualOrderStatus} onChange={e=>setManualOrderStatus(e.target.value)} style={{width:'100%',padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',marginBottom:8}}>
+                {GIFT_ORDER_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <Btn onClick={applyManualOrderStatus} disabled={applyingOrderStatus}>{applyingOrderStatus?'Applying…':'Apply Status'}</Btn>
+            </div>
+          )}
         </Modal>
       )}
     </div>

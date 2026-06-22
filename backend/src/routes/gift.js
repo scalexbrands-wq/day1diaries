@@ -7,6 +7,7 @@ const { requireFeatureAccess, peekUsage, hasActiveMembership } = require('../ser
 const razorpay = require('../utils/razorpay')
 const { listTributeOptions, generateTribute } = require('../utils/giftInsights')
 const { renderGiftAssets, renderGiftPreview } = require('../services/giftRenderService')
+const shipmentService = require('../services/shipmentService')
 const { WALLET_TIERS, findTier } = require('../utils/walletTiers')
 const brevo = require('../utils/brevo')
 const imageStorage = require('../utils/imageStorage')
@@ -321,6 +322,7 @@ router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAcces
     recipientName, recipientEmail, message,
     voiceMessageUrl, videoMessageUrl, imageUrl: imageMessageUrl,
     aiTributeKind, paymentMethod,
+    recipientPhone, shippingAddressLine1, shippingAddressLine2, shippingCity, shippingState, shippingPincode, shippingCountry,
   } = req.body
 
   if (!storyId || !categoryKey || !giftTypeKey || !templateKey || !recipientName) {
@@ -349,6 +351,10 @@ router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAcces
   const { rows: tmplRows } = await pool.query('SELECT * FROM gift_templates WHERE key = $1 AND is_active = true', [templateKey])
   const template = tmplRows[0]
   if (!template) return res.status(404).json({ error: 'Design template not found' })
+
+  if (giftType.is_physical && (!recipientPhone || !shippingAddressLine1 || !shippingCity || !shippingState || !shippingPincode)) {
+    return res.status(400).json({ error: 'recipientPhone, shippingAddressLine1, shippingCity, shippingState, and shippingPincode are required for this gift type' })
+  }
 
   // If the recipient is a registered platform user, find them by email for
   // in-app notification + dashboard linkage.
@@ -391,8 +397,9 @@ router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAcces
        sender_user_id, recipient_name, recipient_email, recipient_user_id,
        story_id, category_id, gift_type_id, template_id,
        message, voice_message_url, video_message_url, image_message_url,
-       ai_tribute_text, ai_tribute_kind, amount, currency, payment_status, status, tribute_slug, payment_method
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       ai_tribute_text, ai_tribute_kind, amount, currency, payment_status, status, tribute_slug, payment_method,
+       recipient_phone, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_pincode, shipping_country
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
      RETURNING *`,
     [
       req.profile.id, recipientName, recipientEmail || null, recipientUserId,
@@ -400,6 +407,13 @@ router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAcces
       message || null, voiceMessageUrl || null, videoMessageUrl || null, imageMessageUrl || null,
       aiTributeText, aiTributeKind || null, amount, giftType.currency, paymentStatus, status, tributeSlug,
       wantsCoinRedemption ? 'coins' : wantsCod ? 'cod' : Number(giftType.base_price) <= 0 ? 'free' : 'razorpay',
+      giftType.is_physical ? recipientPhone : null,
+      giftType.is_physical ? shippingAddressLine1 : null,
+      giftType.is_physical ? (shippingAddressLine2 || null) : null,
+      giftType.is_physical ? shippingCity : null,
+      giftType.is_physical ? shippingState : null,
+      giftType.is_physical ? shippingPincode : null,
+      giftType.is_physical ? (shippingCountry || 'IN') : null,
     ]
   )
   const order = inserted[0]
@@ -516,7 +530,7 @@ router.post('/razorpay/webhook', async (req, res) => {
 
 router.get('/my-gifts', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, gt.label AS gift_type_label, s.title AS story_title
+    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, gt.label AS gift_type_label, gt.is_physical, s.title AS story_title
      FROM gift_orders g
      JOIN gift_categories gc ON gc.id = g.category_id
      JOIN gift_types gt ON gt.id = g.gift_type_id
@@ -530,7 +544,7 @@ router.get('/my-gifts', requireAuth, async (req, res) => {
 // ── GET /gift/received — gifts sent TO me, by registered recipients ──
 router.get('/received', requireAuth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, gt.label AS gift_type_label,
+    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, gt.label AS gift_type_label, gt.is_physical,
             s.title AS story_title, sender.full_name AS sender_name
      FROM gift_orders g
      JOIN gift_categories gc ON gc.id = g.category_id
@@ -562,6 +576,19 @@ router.get('/:id', requireAuth, async (req, res) => {
   res.json({ order: rows[0] })
 })
 
+// GET /gift/:id/tracking — the unified payment+shipping timeline, shared
+// verbatim with the admin and tribute views (see shipmentService.js).
+// Open to both the sender and a registered recipient of the order.
+router.get('/:id/tracking', requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT 1 FROM gift_orders WHERE id = $1 AND (sender_user_id = $2 OR recipient_user_id = $2)',
+    [req.params.id, req.profile.id]
+  )
+  if (!rows.length) return res.status(404).json({ error: 'Gift order not found' })
+  const result = await shipmentService.getUnifiedTimeline(req.params.id)
+  res.json(result)
+})
+
 router.get('/:id/download', async (req, res) => {
   const format = req.query.format === 'pdf' ? 'pdf' : 'png'
   const { rows } = await pool.query('SELECT * FROM gift_orders WHERE id = $1', [req.params.id])
@@ -575,9 +602,13 @@ router.get('/:id/download', async (req, res) => {
 // TRIBUTE — public JSON for the SPA tribute page
 // ════════════════════════════════════════════════════════════
 
+// Physical gifts become visible/trackable as soon as they ship — even if
+// there's no separate digital asset yet — not just once status='ready'.
+const TRIBUTE_VISIBLE_STATUSES = ['ready', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'delivery_failed', 'returned']
+
 router.get('/tribute/:slug', optionalAuth, async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, gt.label AS gift_type_label,
+    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, gt.label AS gift_type_label, gt.is_physical,
             tm.label AS template_label, s.title AS story_title, s.content AS story_content,
             s.cover_image_url AS story_cover_image_url, p.full_name AS author_name, p.avatar_url AS author_avatar_url,
             p.username AS author_username, sender.full_name AS sender_name
@@ -588,11 +619,13 @@ router.get('/tribute/:slug', optionalAuth, async (req, res) => {
      JOIN stories s ON s.id = g.story_id
      JOIN profiles p ON p.id = s.user_id
      JOIN profiles sender ON sender.id::text = g.sender_user_id
-     WHERE g.tribute_slug = $1 AND g.status = 'ready'`,
-    [req.params.slug]
+     WHERE g.tribute_slug = $1 AND g.status = ANY($2)`,
+    [req.params.slug, TRIBUTE_VISIBLE_STATUSES]
   )
   if (!rows.length) return res.status(404).json({ error: 'Tribute not found' })
-  res.json({ tribute: rows[0] })
+  const tribute = rows[0]
+  const timeline = tribute.is_physical ? (await shipmentService.getUnifiedTimeline(tribute.id))?.timeline : null
+  res.json({ tribute, timeline })
 })
 
 // POST /gift/share/email — the one real server-side share action; sends the

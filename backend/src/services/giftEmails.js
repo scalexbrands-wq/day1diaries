@@ -12,6 +12,9 @@ const TEMPLATE_NAMES = {
   PAYMENT_FAILED: 'Gift: Payment Failed',
   WALLET_CLAIM_APPROVED: 'Gift: Wallet Claim Approved',
   WALLET_CLAIM_REJECTED: 'Gift: Wallet Claim Rejected',
+  GIFT_SHIPPED: 'Gift: Shipped',
+  GIFT_DELIVERED: 'Gift: Delivered',
+  GIFT_DELIVERY_FAILED: 'Gift: Delivery Failed',
 }
 
 async function sendGiftEmail(templateName, toEmail, toName, variables = {}) {
