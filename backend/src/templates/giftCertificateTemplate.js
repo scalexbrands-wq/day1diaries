@@ -4,6 +4,8 @@
 // metrics (impact score, likes, comments, views, shares, bookmarks) —
 // this is about emotion and recognition, not engagement stats.
 
+const { render: fillTokens } = require('../utils/emailRender')
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -449,7 +451,34 @@ const RENDERERS = {
   magazine_cover: renderMagazineCover,
 }
 
-function renderGiftCertificateHtml(data, fontCss, styleKey) {
+// Variables an admin's custom HTML can reference as {{token}} — mirrors
+// the data available to the coded renderers above, minus QR/avatar markup
+// (those stay as plain URLs/data-URIs the admin embeds in their own <img>).
+function customHtmlVariables(data) {
+  return {
+    fullName: data.fullName || '', avatarUrl: data.avatarUrl || '', heroImageUrl: data.heroImageUrl || '',
+    storyTitle: data.storyTitle || '', storyExcerpt: data.storyExcerpt || '',
+    companyName: data.companyName || '', jobTitle: data.jobTitle || '',
+    joiningDate: formatMonthYear(data.joiningDate),
+    categoryLabel: data.categoryLabel || '', categoryEmoji: data.categoryEmoji || '',
+    friendMessage: data.friendMessage || '', senderName: data.senderName || '', senderAvatarUrl: data.senderAvatarUrl || '',
+    aiTributeText: data.aiTributeText || '', certificateNumber: data.certificateNumber || '',
+    issuedAt: formatDate(data.issuedAt), qrCodeDataUri: data.qrCodeDataUri || '', websiteUrl: data.websiteUrl || '',
+  }
+}
+
+// Admin pastes a full HTML document with {{tokens}} (same authoring model as
+// the Email Templates editor) — we fill the tokens and splice the embedded
+// font CSS into <head> so custom designs still get the branded typefaces.
+function renderCustomHtml(data, fontCss, customHtml) {
+  const filled = fillTokens(customHtml, customHtmlVariables(data))
+  return /<\/head>/i.test(filled)
+    ? filled.replace(/<\/head>/i, `<style>${fontCss}</style></head>`)
+    : `<style>${fontCss}</style>${filled}`
+}
+
+function renderGiftCertificateHtml(data, fontCss, styleKey, customHtml) {
+  if (customHtml && customHtml.trim()) return renderCustomHtml(data, fontCss, customHtml)
   const renderer = RENDERERS[styleKey] || renderLuxuryGold
   return renderer(data, fontCss)
 }

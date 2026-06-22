@@ -271,7 +271,7 @@ router.post('/preview', requireAuth, async (req, res) => {
   if (!storyId || !categoryKey || !templateKey) {
     return res.status(400).json({ error: 'storyId, categoryKey, and templateKey are required' })
   }
-  const { rows: tmplRows } = await pool.query('SELECT style_key FROM gift_templates WHERE key = $1', [templateKey])
+  const { rows: tmplRows } = await pool.query('SELECT style_key, custom_html FROM gift_templates WHERE key = $1', [templateKey])
   const template = tmplRows[0]
   if (!template) return res.status(404).json({ error: 'Design template not found' })
 
@@ -286,7 +286,7 @@ router.post('/preview', requireAuth, async (req, res) => {
 
   try {
     const pngBuffer = await renderGiftPreview({
-      storyId, categoryKey, templateStyleKey: template.style_key,
+      storyId, categoryKey, templateStyleKey: template.style_key, templateCustomHtml: template.custom_html,
       message, aiTributeText: tributeText, senderName: req.profile.full_name || req.profile.username,
       heroImageUrl: imageUrl || null,
     })

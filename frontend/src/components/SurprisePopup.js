@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { getActiveSurprise, claimSurprise } from '../lib/api'
 import { toast } from './Toast'
 
@@ -29,7 +30,12 @@ export default function SurprisePopup({ isOpen, onClose }) {
     toast.success('Coupon code copied!')
   }
 
-  return (
+  // Rendered via portal straight onto document.body — TopBar (the
+  // natural parent for this popup) has backdrop-filter on it, which
+  // creates a new CSS containing block, so a plain position:fixed
+  // child would center inside the 60px-tall topbar instead of the
+  // viewport. The portal escapes that regardless of where it's mounted.
+  return createPortal((
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
       background: 'rgba(26,8,0,.55)',
@@ -103,5 +109,5 @@ export default function SurprisePopup({ isOpen, onClose }) {
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }

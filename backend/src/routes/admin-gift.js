@@ -121,23 +121,24 @@ router.get('/templates', manageGifting, async (req, res) => {
 })
 
 router.post('/templates', manageGifting, async (req, res) => {
-  const { label, style_key, preview_image_url } = req.body
+  const { label, style_key, preview_image_url, custom_html } = req.body
   if (!label) return res.status(400).json({ error: 'label is required' })
   if (!STYLE_KEYS.includes(style_key)) return res.status(400).json({ error: `style_key must be one of: ${STYLE_KEYS.join(', ')}` })
   const { rows } = await pool.query(
-    `INSERT INTO gift_templates (key, label, style_key, preview_image_url) VALUES ($1,$2,$3,$4) RETURNING *`,
-    [`${slugify(label)}_${Date.now().toString(36)}`, label, style_key, preview_image_url || null]
+    `INSERT INTO gift_templates (key, label, style_key, preview_image_url, custom_html) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [`${slugify(label)}_${Date.now().toString(36)}`, label, style_key, preview_image_url || null, custom_html || null]
   )
   res.status(201).json({ template: rows[0] })
 })
 
 router.put('/templates/:id', manageGifting, async (req, res) => {
-  const { label, style_key, preview_image_url, is_active } = req.body
+  const { label, style_key, preview_image_url, is_active, custom_html } = req.body
   if (style_key && !STYLE_KEYS.includes(style_key)) return res.status(400).json({ error: `style_key must be one of: ${STYLE_KEYS.join(', ')}` })
   const { rows } = await pool.query(
     `UPDATE gift_templates SET label=COALESCE($1,label), style_key=COALESCE($2,style_key),
-       preview_image_url=COALESCE($3,preview_image_url), is_active=COALESCE($4,is_active), updated_at=now() WHERE id=$5 RETURNING *`,
-    [label, style_key, preview_image_url, is_active, req.params.id]
+       preview_image_url=COALESCE($3,preview_image_url), is_active=COALESCE($4,is_active),
+       custom_html=CASE WHEN $5::boolean THEN $6 ELSE custom_html END, updated_at=now() WHERE id=$7 RETURNING *`,
+    [label, style_key, preview_image_url, is_active, custom_html !== undefined, custom_html || null, req.params.id]
   )
   if (!rows.length) return res.status(404).json({ error: 'Template not found' })
   res.json({ template: rows[0] })

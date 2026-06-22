@@ -2324,12 +2324,21 @@ function GiftTypesTab() {
   )
 }
 
+const GIFT_HTML_VARIABLES = [
+  'fullName','avatarUrl','heroImageUrl','storyTitle','storyExcerpt','companyName','jobTitle','joiningDate',
+  'categoryLabel','categoryEmoji','friendMessage','senderName','senderAvatarUrl','aiTributeText',
+  'certificateNumber','issuedAt','qrCodeDataUri','websiteUrl',
+]
+
 function GiftTemplatesTab() {
   const [list, setList] = useState([])
   const [styleKeys, setStyleKeys] = useState([])
   const [showNew, setShowNew] = useState(false)
   const [newForm, setNewForm] = useState({ label: '', style_key: '' })
   const [creating, setCreating] = useState(false)
+  const [htmlEditorFor, setHtmlEditorFor] = useState(null) // template object being edited
+  const [htmlDraft, setHtmlDraft] = useState('')
+  const [savingHtml, setSavingHtml] = useState(false)
   const load = useCallback(() => { adminGetGiftTemplates().then(({data}) => { setList(data?.templates||[]); setStyleKeys(data?.styleKeys||[]) }) }, [])
   useEffect(() => { load() }, [load])
 
@@ -2355,6 +2364,16 @@ function GiftTemplatesTab() {
     toast.success('Deleted'); load()
   }
 
+  const openHtmlEditor = (t) => { setHtmlEditorFor(t); setHtmlDraft(t.custom_html || '') }
+  const saveHtml = async () => {
+    setSavingHtml(true)
+    const { error } = await adminUpdateGiftTemplate(htmlEditorFor.id, { custom_html: htmlDraft })
+    setSavingHtml(false)
+    if (error) return toast.error(error.message)
+    toast.success(htmlDraft.trim() ? 'Custom HTML saved' : 'Custom HTML cleared — back to coded style')
+    setHtmlEditorFor(null); load()
+  }
+
   return (
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
@@ -2362,8 +2381,9 @@ function GiftTemplatesTab() {
         <Btn onClick={()=>setShowNew(v=>!v)}>{showNew?'Cancel':'+ New Template'}</Btn>
       </div>
       <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:16}}>
-        Each template's visual design is one of {styleKeys.length} coded styles — admins catalogue entries
-        (label, pricing tier, preview) and pick which coded style renders it. A brand-new visual design needs a developer.
+        Each template's visual design is one of {styleKeys.length} coded styles by default. Need a one-off
+        design without a developer? Use "Custom HTML" on any template to paste your own HTML with {'{{variables}}'} —
+        it overrides the coded style for that template until cleared.
       </p>
       {showNew && (
         <Card>
@@ -2382,8 +2402,10 @@ function GiftTemplatesTab() {
             <select value={t.style_key} onChange={e=>update(t,'style_key',e.target.value)} style={{width:'100%',padding:'6px 10px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:12,fontFamily:'inherit'}}>
               {styleKeys.map(k => <option key={k} value={k}>{k.replace(/_/g,' ')}</option>)}
             </select>
+            {t.custom_html?.trim() && <div style={{fontSize:11,color:'#059669',fontWeight:700,marginTop:6}}>● Custom HTML active — overrides coded style above</div>}
           </div>
           <div style={{display:'flex',alignItems:'center',gap:14,flexShrink:0}}>
+            <Btn v='secondary' style={{fontSize:11,padding:'5px 12px'}} onClick={()=>openHtmlEditor(t)}>Custom HTML</Btn>
             <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
               <input type="checkbox" checked={t.is_active} onChange={e=>update(t,'is_active',e.target.checked)}/> {t.is_active?'Active':'Hidden'}
             </label>
@@ -2391,6 +2413,22 @@ function GiftTemplatesTab() {
           </div>
         </Card>
       ))}
+
+      {htmlEditorFor && (
+        <Modal title={`Custom HTML — ${htmlEditorFor.label}`} onClose={()=>setHtmlEditorFor(null)}>
+          <p style={{fontSize:12,color:'#8C7B6E',marginTop:0}}>
+            Paste a full HTML document. Leave empty to fall back to the coded style ({htmlEditorFor.style_key?.replace(/_/g,' ')}).
+          </p>
+          <L c="Custom HTML"/>
+          <TA value={htmlDraft} onChange={e=>setHtmlDraft(e.target.value)} placeholder="<!DOCTYPE html><html>...<h1>{{fullName}}</h1>..." style={{minHeight:220,fontFamily:'monospace',fontSize:12}}/>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',margin:'10px 0 12px'}}>
+            {GIFT_HTML_VARIABLES.map(v => <Badge key={v} color="#2563EB">{'{{'+v+'}}'}</Badge>)}
+          </div>
+          <L c="Live Preview"/>
+          <iframe title="preview" srcDoc={htmlDraft} style={{width:'100%',height:220,border:'1.5px solid #DDD3CA',borderRadius:8,marginBottom:14,background:'white'}}/>
+          <Btn onClick={saveHtml} disabled={savingHtml} style={{width:'100%',padding:'11px'}}>{savingHtml?'Saving…':'Save'}</Btn>
+        </Modal>
+      )}
     </div>
   )
 }

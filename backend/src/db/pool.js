@@ -588,6 +588,10 @@ async function initDB() {
       ALTER TABLE gift_templates ADD CONSTRAINT gift_templates_style_key_check CHECK (style_key IN (
         'luxury_gold','glassmorphism_orange','scrapbook_warm','executive_black_gold','magazine_cover'))
     `)
+    // Admin-authored raw HTML override — when set, this fully replaces the
+    // coded style_key renderer's output (style_key is still kept, just for
+    // orientation lookup in certificateRender.js's portrait/landscape branch).
+    await pool.query(`ALTER TABLE gift_templates ADD COLUMN IF NOT EXISTS custom_html TEXT`)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS gift_orders (
         id                  UUID DEFAULT uuid_generate_v4() PRIMARY KEY,

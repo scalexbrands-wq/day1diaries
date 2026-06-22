@@ -24,7 +24,7 @@ function generateGiftCertNumber() {
 
 async function renderGiftAssets(orderId) {
   const { rows } = await pool.query(
-    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, tm.style_key AS template_key,
+    `SELECT g.*, gc.label AS category_label, gc.emoji AS category_emoji, tm.style_key AS template_key, tm.custom_html AS template_custom_html,
             s.title AS story_title, s.content AS story_content, s.cover_image_url,
             p.full_name AS author_name, p.avatar_url AS author_avatar_url,
             sender.full_name AS sender_name, sender.avatar_url AS sender_avatar_url
@@ -77,7 +77,7 @@ async function renderGiftAssets(orderId) {
       websiteUrl: WEBSITE_URL,
     }
 
-    const html = renderGiftCertificateHtml(data, fontCss, order.template_key)
+    const html = renderGiftCertificateHtml(data, fontCss, order.template_key, order.template_custom_html)
     const { pngBuffer, pdfBuffer } = await renderCertificate(html, order.template_key)
 
     const [giftImageUrl, giftPdfUrl] = await Promise.all([
@@ -114,7 +114,7 @@ async function renderGiftAssets(orderId) {
 // upload, no QR (a real tribute URL doesn't exist yet). Returns a PNG
 // buffer the caller can hand back as a data URI. Used by the wizard's
 // "preview before you pay" step.
-async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, message, aiTributeText, senderName, senderAvatarUrl, heroImageUrl }) {
+async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, templateCustomHtml, message, aiTributeText, senderName, senderAvatarUrl, heroImageUrl }) {
   const { rows: storyRows } = await pool.query(
     `SELECT s.title, s.content, s.cover_image_url, p.full_name AS author_name, p.avatar_url AS author_avatar_url
      FROM stories s JOIN profiles p ON p.id = s.user_id WHERE s.id = $1`,
@@ -145,7 +145,7 @@ async function renderGiftPreview({ storyId, categoryKey, templateStyleKey, messa
     qrCodeDataUri: null,
     websiteUrl: WEBSITE_URL,
   }
-  const html = renderGiftCertificateHtml(data, fontCss, templateStyleKey)
+  const html = renderGiftCertificateHtml(data, fontCss, templateStyleKey, templateCustomHtml)
   const { pngBuffer } = await renderCertificate(html, templateStyleKey)
   return pngBuffer
 }
