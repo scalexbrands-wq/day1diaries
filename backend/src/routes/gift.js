@@ -8,6 +8,7 @@ const razorpay = require('../utils/razorpay')
 const { listTributeOptions, generateTribute } = require('../utils/giftInsights')
 const { renderGiftAssets, renderGiftPreview } = require('../services/giftRenderService')
 const shipmentService = require('../services/shipmentService')
+const couponService = require('../services/couponService')
 const { WALLET_TIERS, findTier } = require('../utils/walletTiers')
 const brevo = require('../utils/brevo')
 const imageStorage = require('../utils/imageStorage')
@@ -316,12 +317,24 @@ function requireGiftSendingAccess(req, res, next) {
   return requireFeatureAccess('gift_sending')(req, res, next)
 }
 
+// POST /gift/coupons/validate — preview-only discount check for the
+// checkout UI; does NOT increment the coupon's used_count (that only
+// happens once an order is actually created, in POST /create below).
+router.post('/coupons/validate', requireAuth, async (req, res) => {
+  const { code, giftTypeKey } = req.body
+  if (!code || !giftTypeKey) return res.status(400).json({ error: 'code and giftTypeKey are required' })
+  const { rows } = await pool.query('SELECT base_price FROM gift_types WHERE key = $1 AND is_active = true', [giftTypeKey])
+  if (!rows.length) return res.status(404).json({ error: 'Gift type not found' })
+  const { coupon, discountAmount, finalAmount } = await couponService.validateCoupon(code, rows[0].base_price)
+  res.json({ discountAmount, finalAmount, discountType: coupon.discount_type, discountValue: coupon.discount_value })
+})
+
 router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAccess, async (req, res) => {
   const {
     storyId, categoryKey, giftTypeKey, templateKey,
     recipientName, recipientEmail, message,
     voiceMessageUrl, videoMessageUrl, imageUrl: imageMessageUrl,
-    aiTributeKind, paymentMethod,
+    aiTributeKind, paymentMethod, couponCode,
     recipientPhone, shippingAddressLine1, shippingAddressLine2, shippingCity, shippingState, shippingPincode, shippingCountry,
   } = req.body
 
@@ -388,6 +401,15 @@ router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAcces
     amount = tier.kind === 'free_gift' ? 0 : Math.max(0, Number(amount) - tier.amount)
   }
 
+  let appliedCoupon = null
+  let discountAmount = 0
+  if (couponCode && Number(amount) > 0) {
+    const result = await couponService.validateCoupon(couponCode, amount)
+    appliedCoupon = result.coupon
+    discountAmount = result.discountAmount
+    amount = result.finalAmount
+  }
+
   let paymentStatus, status
   if (Number(amount) <= 0) { paymentStatus = wantsCoinRedemption ? 'paid' : 'free'; status = 'processing' }
   else { paymentStatus = 'pending'; status = 'pending_payment' }
@@ -398,8 +420,9 @@ router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAcces
        story_id, category_id, gift_type_id, template_id,
        message, voice_message_url, video_message_url, image_message_url,
        ai_tribute_text, ai_tribute_kind, amount, currency, payment_status, status, tribute_slug, payment_method,
-       recipient_phone, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_pincode, shipping_country
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+       recipient_phone, shipping_address_line1, shipping_address_line2, shipping_city, shipping_state, shipping_pincode, shipping_country,
+       coupon_code, discount_amount
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
      RETURNING *`,
     [
       req.profile.id, recipientName, recipientEmail || null, recipientUserId,
@@ -414,9 +437,13 @@ router.post('/create', requireAuth, requireGiftAudience, requireGiftSendingAcces
       giftType.is_physical ? shippingState : null,
       giftType.is_physical ? shippingPincode : null,
       giftType.is_physical ? (shippingCountry || 'IN') : null,
+      appliedCoupon ? appliedCoupon.code : null,
+      discountAmount,
     ]
   )
   const order = inserted[0]
+
+  if (appliedCoupon) await couponService.consumeCoupon(appliedCoupon.id)
 
   if (wantsCoinRedemption) {
     await pool.query('UPDATE profiles SET coins = coins - $1 WHERE id = $2', [coinsToSpend, req.profile.id])

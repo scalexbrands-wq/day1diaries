@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import NotificationBell from './NotificationBell'
 import VisitorCounter from './VisitorCounter'
+import SurprisePopup from './SurprisePopup'
 
 const TITLES = { '/community': 'Community',
   '/feed': 'My Feed', '/discover': 'Discover', '/habits': 'Habits',
@@ -14,6 +15,7 @@ export default function TopBar() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [search, setSearch] = useState('')
+  const [showSurprise, setShowSurprise] = useState(false)
 
   const title = TITLES[pathname] || (pathname.startsWith('/profile') ? 'Profile' : pathname.startsWith('/story') ? 'Story' : 'Day1 Diaries')
 
@@ -51,9 +53,13 @@ export default function TopBar() {
 
       <NotificationBell />
       <VisitorCounter/>
+      <button className="btn btn-secondary btn-sm" onClick={() => setShowSurprise(true)}>
+        🎁 Surprise
+      </button>
       <button className="btn btn-primary btn-sm topbar-write-btn" onClick={() => navigate('/write')}>
         + Share Story
       </button>
+      <SurprisePopup isOpen={showSurprise} onClose={() => setShowSurprise(false)} />
 
       <style>{`
         @media (max-width: 768px) {

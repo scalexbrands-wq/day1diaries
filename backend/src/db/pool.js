@@ -854,6 +854,57 @@ async function initDB() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_shipments_order ON shipments(gift_order_id)`)
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_shipment_tracking_shipment ON shipment_tracking_events(shipment_id, occurred_at)`)
 
+    // ── Coupons — shared discount-code table, used both standalone at
+    // gift checkout and as the "coupon" reward type for daily surprises.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS coupons (
+        id             UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        code           TEXT UNIQUE NOT NULL,
+        discount_type  TEXT NOT NULL CHECK (discount_type IN ('percent','fixed')),
+        discount_value NUMERIC(10,2) NOT NULL,
+        max_uses       INT,
+        used_count     INT NOT NULL DEFAULT 0,
+        is_active      BOOLEAN DEFAULT true,
+        expires_at     TIMESTAMPTZ,
+        created_by     UUID,
+        created_at     TIMESTAMPTZ DEFAULT now(),
+        updated_at     TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+
+    // ── Daily Surprise — single admin-managed promo row at a time
+    // (creating a new one deactivates the previous), claimable once per
+    // user via surprise_claims (same shape as announcement_reads).
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS daily_surprises (
+        id                UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        title             TEXT NOT NULL,
+        description       TEXT,
+        image_url         TEXT,
+        link_url          TEXT,
+        reward_type       TEXT NOT NULL CHECK (reward_type IN ('coins','coupon')),
+        reward_coins      INT,
+        reward_coupon_id  UUID REFERENCES coupons(id),
+        is_active         BOOLEAN DEFAULT true,
+        created_by        UUID,
+        created_at        TIMESTAMPTZ DEFAULT now(),
+        updated_at        TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS surprise_claims (
+        id           BIGSERIAL PRIMARY KEY,
+        user_id      TEXT NOT NULL,
+        surprise_id  UUID NOT NULL REFERENCES daily_surprises(id) ON DELETE CASCADE,
+        claimed_at   TIMESTAMPTZ DEFAULT now(),
+        UNIQUE(user_id, surprise_id)
+      )
+    `)
+
+    // Coupon redemption record on the gift order itself.
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS coupon_code TEXT`)
+    await pool.query(`ALTER TABLE gift_orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) DEFAULT 0`)
+
     // ── Marketing module — admin-managed ad campaigns (image/video),
     // shown inline on Discover and as a banner below Story Detail content.
     await pool.query(`

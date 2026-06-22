@@ -9,6 +9,7 @@ import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import Toast from './components/Toast'
 import AnnouncementPopup from './components/AnnouncementPopup'
+import WhatsAppBubble from './components/WhatsAppBubble'
 import LanguageSwitcher from './components/LanguageSwitcher'
 
 // Route-level code splitting — each page is its own chunk, fetched only
@@ -75,6 +76,7 @@ const AppLayout = ({ children }) => (
     </div>
     <Toast />
     <AnnouncementPopup />
+    <WhatsAppBubble />
   </div>
 )
 

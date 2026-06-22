@@ -50,6 +50,10 @@ const PERMISSIONS = [
   // Marketing
   { key: 'manage_marketing', label: 'Manage ad campaigns & settings', category: 'Marketing' },
 
+  // Promotions
+  { key: 'manage_surprises', label: 'Manage daily surprise popup', category: 'Promotions' },
+  { key: 'manage_coupons', label: 'Manage coupon codes', category: 'Promotions' },
+
   // Site & SEO
   { key: 'manage_seo', label: 'Manage SEO settings', category: 'Site & SEO' },
   { key: 'manage_landing_content', label: 'Manage landing page content', category: 'Site & SEO' },
@@ -69,7 +73,7 @@ const PERMISSION_KEYS = PERMISSIONS.map(p => p.key)
 const DEFAULT_ROLE_PERMISSIONS = {
   contributor: ['manage_habits', 'manage_challenges', 'manage_community_events', 'view_analytics'],
   moderator: ['view_users', 'manage_users', 'moderate_content', 'manage_announcements'],
-  marketer: ['manage_marketing', 'view_analytics'],
+  marketer: ['manage_marketing', 'manage_surprises', 'manage_coupons', 'view_analytics'],
   support: ['view_users', 'view_analytics'],
   finance: ['manage_membership_payments', 'manage_gift_payments', 'manage_wallet_claims', 'manage_shipments', 'view_analytics'],
   user: [],

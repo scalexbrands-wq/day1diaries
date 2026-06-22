@@ -5,6 +5,7 @@ import {
   getGiftCategories, getGiftTypes, getGiftTemplates, getGiftTributeOptions,
   searchGiftStories, createGiftOrder, createGiftRazorpayOrder, verifyGiftPayment, getMyFeatureUsage, getMyCoins,
   getGiftOrder, getGiftDownloadUrl, previewGiftCertificate, getGiftWallet, uploadGiftImage, redeemWalletClaim,
+  validateGiftCoupon,
 } from '../lib/api'
 import { toast } from './Toast'
 
@@ -69,6 +70,10 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
   const [previewLoading, setPreviewLoading] = useState(false)
   const [imageUrl, setImageUrl] = useState(null)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState(null)
+  const [couponError, setCouponError] = useState('')
+  const [validatingCoupon, setValidatingCoupon] = useState(false)
 
   useEffect(() => {
     getGiftCategories().then(({ data }) => setCategories(data || []))
@@ -165,6 +170,16 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
     setResult({ ...data, payment_method: 'claim' })
   }
 
+  const handleApplyCoupon = async () => {
+    if (!couponInput.trim()) return
+    setValidatingCoupon(true)
+    setCouponError('')
+    const { data, error } = await validateGiftCoupon(couponInput.trim(), giftTypeKey)
+    setValidatingCoupon(false)
+    if (error) { setCouponError(error.message); setAppliedCoupon(null); return }
+    setAppliedCoupon({ code: couponInput.trim().toUpperCase(), ...data })
+  }
+
   const handleCreate = async () => {
     if (message.length > 1000) return toast.error('Message must be 1000 characters or fewer')
     const effectiveMethod = selectedType?.base_price > 0 ? paymentMethod : 'razorpay'
@@ -174,6 +189,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
       recipientName, recipientEmail, message, aiTributeKind, imageUrl,
       paymentMethod: effectiveMethod,
       coinTierCost: effectiveMethod === 'coins' ? coinTierCost : undefined,
+      couponCode: appliedCoupon?.code,
     })
     setSubmitting(false)
     if (error) return toast.error(error.message)
@@ -411,7 +427,28 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
 
             {!claimMode && selectedType?.base_price > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#5C3D2E', marginBottom: 8 }}>Payment Method</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#5C3D2E', marginBottom: 8 }}>Have a coupon code?</div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                  <input
+                    value={couponInput}
+                    onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError('') }}
+                    placeholder="Enter code"
+                    disabled={!!appliedCoupon}
+                    style={{ flex: 1, padding: '9px 12px', border: '1.5px solid #DDD3CA', borderRadius: 8, fontSize: 13, fontWeight: 700, letterSpacing: .5 }}
+                  />
+                  {appliedCoupon
+                    ? <Btn variant="secondary" onClick={() => { setAppliedCoupon(null); setCouponInput(''); }}>Remove</Btn>
+                    : <Btn variant="secondary" onClick={handleApplyCoupon} disabled={validatingCoupon || !couponInput.trim()}>{validatingCoupon ? 'Checking…' : 'Apply'}</Btn>
+                  }
+                </div>
+                {couponError && <div style={{ fontSize: 11.5, color: '#DC2626', marginBottom: 8 }}>{couponError}</div>}
+                {appliedCoupon && (
+                  <div style={{ fontSize: 12.5, color: '#059669', fontWeight: 600, marginBottom: 8 }}>
+                    🎉 {appliedCoupon.code} applied — you pay ₹{Number(appliedCoupon.finalAmount).toFixed(0)} instead of ₹{Number(selectedType.base_price).toFixed(0)}
+                  </div>
+                )}
+
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#5C3D2E', marginBottom: 8, marginTop: 4 }}>Payment Method</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', border: `1.5px solid ${paymentMethod === 'razorpay' ? '#FF6B2B' : '#F0EAE4'}`, background: paymentMethod === 'razorpay' ? '#FFF1EA' : 'white' }}>
                     <input type="radio" checked={paymentMethod === 'razorpay'} onChange={() => setPaymentMethod('razorpay')} />
@@ -459,7 +496,7 @@ export default function SurpriseWizard({ initialStoryId, initialStoryTitle, init
                 : selectedType?.base_price > 0
                   ? (paymentMethod === 'coins'
                       ? (selectedTier?.kind === 'free_gift' ? 'Redeem & Send Gift' : `Redeem ${selectedTier ? '₹' + Number(Math.max(0, selectedType.base_price - selectedTier.amount)).toFixed(0) + ' Remaining & Send' : '& Send Gift'}`)
-                      : paymentMethod === 'cod' ? 'Place Order (Pay on Delivery)' : `Pay ₹${Number(selectedType.base_price).toFixed(0)} & Send Gift`)
+                      : paymentMethod === 'cod' ? 'Place Order (Pay on Delivery)' : `Pay ₹${Number(appliedCoupon ? appliedCoupon.finalAmount : selectedType.base_price).toFixed(0)} & Send Gift`)
                   : 'Send Gift'}
             </Btn>
           </div>

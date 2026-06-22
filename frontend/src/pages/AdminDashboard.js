@@ -38,6 +38,8 @@ import {
   adminGetGiftPayments, adminGetGiftAnalytics, adminGetGiftSettings, adminUpdateGiftSettings, adminConfirmGiftCod,
   adminSetGiftPaymentStatus, adminGetWalletClaims, adminApproveWalletClaim, adminRejectWalletClaim,
   adminShipGiftOrder, adminCancelGiftShipment, adminGetGiftTracking, adminSetGiftOrderStatus, adminUpdateGiftShippingAddress,
+  adminGetSurprises, adminUpsertSurprise, adminDeleteSurprise,
+  adminGetCoupons, adminUpsertCoupon, adminDeleteCoupon,
   adminListAdCampaigns, adminGetAdAnalytics, adminCreateAdCampaign, adminUpdateAdCampaign,
   adminSetAdCampaignStatus, adminDeleteAdCampaign,
   adminGetMarketingSettings, adminUpdateMarketingSettings,
@@ -84,6 +86,7 @@ const TABS = [
   ['membership','🎫 Membership', ['manage_membership','review_membership_applications','manage_membership_payments']],
   ['gifting','🎁 Gifting', ['manage_gifting','manage_gift_payments','manage_wallet_claims','manage_shipments']],
   ['marketing','📣 Marketing', ['manage_marketing']],
+  ['surprises','🎉 Surprise & Coupons', ['manage_surprises','manage_coupons']],
   ['seo','🔎 SEO', ['manage_seo']],
   ['users','👥 Users', ['view_users','manage_users','delete_users','manage_roles']],
   ['content','🛡️ Moderation', ['moderate_content']],
@@ -123,6 +126,7 @@ export default function AdminDashboard() {
       {activeTab==='membership' && <MembershipTab/>}
       {activeTab==='gifting' && <GiftingTab/>}
       {activeTab==='marketing' && <MarketingTab/>}
+      {activeTab==='surprises' && <SurprisePromoTab/>}
       {activeTab==='seo' && <SeoTab/>}
       {activeTab==='users'      && <UsersTab/>}
       {activeTab==='content'    && <ModerationTab/>}
@@ -1945,6 +1949,224 @@ function EmailLogsTab() {
 }
 
 /* ══ GIFTING (Surprise A Friend) ══════════════════════════════════ */
+/* ══ SURPRISE & COUPONS ════════════════════════════════════════ */
+const PROMO_SUB_TABS = [['surprise','Daily Surprise'],['coupons','Coupons']]
+
+function SurprisePromoTab() {
+  const [sub, setSub] = useState('surprise')
+  return (
+    <div>
+      <div style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
+        {PROMO_SUB_TABS.map(([k,l]) => (
+          <button key={k} onClick={()=>setSub(k)} style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${sub===k?'#FF6B2B':'#DDD3CA'}`,background:sub===k?'#FF6B2B':'white',color:sub===k?'white':'#5C3D2E',fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>{l}</button>
+        ))}
+      </div>
+      {sub==='surprise' && <DailySurpriseTab/>}
+      {sub==='coupons'  && <CouponsTab/>}
+    </div>
+  )
+}
+
+function DailySurpriseTab() {
+  const [list, setList] = useState([])
+  const [coupons, setCoupons] = useState([])
+  const [form, setForm] = useState({ title:'', description:'', image_url:'', link_url:'', reward_type:'coins', reward_coins:100, reward_coupon_id:'' })
+  const [saving, setSaving] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+
+  const load = useCallback(() => { adminGetSurprises().then(({ data }) => setList(data || [])) }, [])
+  useEffect(() => { load(); adminGetCoupons().then(({ data }) => setCoupons(data || [])) }, [load])
+
+  const openNew = () => {
+    setForm({ title:'', description:'', image_url:'', link_url:'', reward_type:'coins', reward_coins:100, reward_coupon_id:'' })
+    setShowModal(true)
+  }
+
+  const handleSave = async () => {
+    if (!form.title.trim()) return toast.error('Title is required')
+    if (form.reward_type === 'coupon' && !form.reward_coupon_id) return toast.error('Pick a coupon to link as the reward')
+    setSaving(true)
+    const { error } = await adminUpsertSurprise(form)
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success('Surprise published — it is now the active one')
+    setShowModal(false)
+    load()
+  }
+
+  const toggleActive = async (s) => {
+    await adminUpsertSurprise({ id:s.id, is_active: !s.is_active })
+    load()
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this surprise?')) return
+    await adminDeleteSurprise(id)
+    toast.success('Deleted')
+    load()
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Daily Surprise</h3>
+        <Btn onClick={openNew}>+ New Surprise</Btn>
+      </div>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:16}}>Publishing a new surprise automatically deactivates the previous one — only one is ever active.</p>
+
+      {list.length === 0 && (
+        <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No surprises yet. Create one to show it behind the toolbar's "🎁 Surprise" button.</p></Card>
+      )}
+
+      {list.map(s => (
+        <Card key={s.id} style={{display:'flex',gap:14,alignItems:'flex-start'}}>
+          {s.image_url
+            ? <img src={s.image_url} alt="" style={{width:44,height:44,borderRadius:12,objectFit:'cover',flexShrink:0}} loading="lazy"/>
+            : <div style={{width:44,height:44,borderRadius:12,background:'linear-gradient(135deg,#FF6B2B,#FF6B2B88)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>🎁</div>
+          }
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+              <span style={{fontWeight:700,fontSize:14}}>{s.title}</span>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:100,background:s.is_active?'rgba(5,150,105,.1)':'rgba(107,114,128,.1)',color:s.is_active?'#059669':'#6B7280',fontWeight:700}}>
+                {s.is_active?'ACTIVE':'INACTIVE'}
+              </span>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:100,background:'rgba(124,58,237,.1)',color:'#7C3AED',fontWeight:700}}>
+                {s.reward_type==='coins' ? `🪙 ${s.reward_coins} coins` : `🎟 ${s.coupon_code||'coupon'}`}
+              </span>
+            </div>
+            {s.description && <div style={{fontSize:12,color:'#8C7B6E',marginBottom:8}}>{s.description}</div>}
+            <div style={{display:'flex',gap:8}}>
+              <Btn v="secondary" onClick={()=>toggleActive(s)} style={{padding:'5px 12px',fontSize:11}}>{s.is_active?'Deactivate':'Make Active'}</Btn>
+              <Btn v="danger" onClick={()=>handleDelete(s.id)} style={{padding:'5px 12px',fontSize:11}}>Delete</Btn>
+            </div>
+          </div>
+        </Card>
+      ))}
+
+      {showModal && (
+        <Modal title="New Daily Surprise" onClose={()=>setShowModal(false)}>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Title" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Description" rows={3} style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',resize:'vertical'}}/>
+            <input value={form.image_url} onChange={e=>setForm(f=>({...f,image_url:e.target.value}))} placeholder="Image URL" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+            <input value={form.link_url} onChange={e=>setForm(f=>({...f,link_url:e.target.value}))} placeholder="Learn-more URL (optional)" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+            <div style={{display:'flex',gap:8}}>
+              <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer'}}>
+                <input type="radio" checked={form.reward_type==='coins'} onChange={()=>setForm(f=>({...f,reward_type:'coins'}))}/> Coins
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer'}}>
+                <input type="radio" checked={form.reward_type==='coupon'} onChange={()=>setForm(f=>({...f,reward_type:'coupon'}))}/> Coupon
+              </label>
+            </div>
+            {form.reward_type==='coins'
+              ? <input type="number" value={form.reward_coins} onChange={e=>setForm(f=>({...f,reward_coins:Number(e.target.value)}))} placeholder="Coins to award" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+              : <select value={form.reward_coupon_id} onChange={e=>setForm(f=>({...f,reward_coupon_id:e.target.value}))} style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}>
+                  <option value="">Select a coupon…</option>
+                  {coupons.map(c => <option key={c.id} value={c.id}>{c.code} ({c.discount_type==='percent'?`${c.discount_value}%`:`₹${c.discount_value}`} off)</option>)}
+                </select>
+            }
+            <Btn onClick={handleSave} disabled={saving}>{saving?'Publishing…':'Publish Surprise'}</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function CouponsTab() {
+  const [list, setList] = useState([])
+  const [form, setForm] = useState({ code:'', discount_type:'percent', discount_value:10, max_uses:'', expires_at:'' })
+  const [saving, setSaving] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+
+  const load = useCallback(() => { adminGetCoupons().then(({ data }) => setList(data || [])) }, [])
+  useEffect(() => { load() }, [load])
+
+  const openNew = () => {
+    setForm({ code:'', discount_type:'percent', discount_value:10, max_uses:'', expires_at:'' })
+    setShowModal(true)
+  }
+
+  const handleSave = async () => {
+    if (!form.code.trim()) return toast.error('Code is required')
+    if (!form.discount_value || Number(form.discount_value) <= 0) return toast.error('Discount value must be greater than 0')
+    setSaving(true)
+    const { error } = await adminUpsertCoupon({ ...form, max_uses: form.max_uses ? Number(form.max_uses) : null, expires_at: form.expires_at || null })
+    setSaving(false)
+    if (error) return toast.error(error.message)
+    toast.success('Coupon created')
+    setShowModal(false)
+    load()
+  }
+
+  const toggleActive = async (c) => {
+    await adminUpsertCoupon({ id:c.id, is_active: !c.is_active })
+    load()
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this coupon?')) return
+    await adminDeleteCoupon(id)
+    toast.success('Deleted')
+    load()
+  }
+
+  return (
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <h3 style={{margin:0,fontSize:15,fontWeight:700}}>Coupons</h3>
+        <Btn onClick={openNew}>+ New Coupon</Btn>
+      </div>
+
+      {list.length === 0 && (
+        <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0,textAlign:'center'}}>No coupons yet. Senders can apply a code at gift checkout for a discount.</p></Card>
+      )}
+
+      {list.map(c => (
+        <Card key={c.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:14}}>
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+              <span style={{fontWeight:800,fontSize:14,letterSpacing:.5}}>{c.code}</span>
+              <span style={{fontSize:10,padding:'2px 8px',borderRadius:100,background:c.is_active?'rgba(5,150,105,.1)':'rgba(107,114,128,.1)',color:c.is_active?'#059669':'#6B7280',fontWeight:700}}>
+                {c.is_active?'ACTIVE':'INACTIVE'}
+              </span>
+            </div>
+            <div style={{fontSize:12,color:'#8C7B6E'}}>
+              {c.discount_type==='percent' ? `${c.discount_value}% off` : `₹${c.discount_value} off`}
+              {' · '}{c.used_count||0}{c.max_uses?`/${c.max_uses}`:''} used
+              {c.expires_at && ` · expires ${new Date(c.expires_at).toLocaleDateString()}`}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:8,flexShrink:0}}>
+            <Btn v="secondary" onClick={()=>toggleActive(c)} style={{padding:'5px 12px',fontSize:11}}>{c.is_active?'Deactivate':'Activate'}</Btn>
+            <Btn v="danger" onClick={()=>handleDelete(c.id)} style={{padding:'5px 12px',fontSize:11}}>Delete</Btn>
+          </div>
+        </Card>
+      ))}
+
+      {showModal && (
+        <Modal title="New Coupon" onClose={()=>setShowModal(false)}>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <input value={form.code} onChange={e=>setForm(f=>({...f,code:e.target.value.toUpperCase()}))} placeholder="CODE (e.g. WELCOME10)" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontWeight:700,letterSpacing:.5}}/>
+            <div style={{display:'flex',gap:8}}>
+              <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer'}}>
+                <input type="radio" checked={form.discount_type==='percent'} onChange={()=>setForm(f=>({...f,discount_type:'percent'}))}/> % off
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer'}}>
+                <input type="radio" checked={form.discount_type==='fixed'} onChange={()=>setForm(f=>({...f,discount_type:'fixed'}))}/> ₹ off
+              </label>
+            </div>
+            <input type="number" value={form.discount_value} onChange={e=>setForm(f=>({...f,discount_value:Number(e.target.value)}))} placeholder="Discount value" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+            <input type="number" value={form.max_uses} onChange={e=>setForm(f=>({...f,max_uses:e.target.value}))} placeholder="Max uses (optional — blank = unlimited)" style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+            <input type="date" value={form.expires_at} onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))} style={{padding:'8px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13}}/>
+            <Btn onClick={handleSave} disabled={saving}>{saving?'Creating…':'Create Coupon'}</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 const GIFT_SUB_TABS = [['categories','Categories'],['types','Types & Pricing'],['templates','Templates'],['orders','Orders'],['claims','Claims'],['payments','Payments'],['analytics','Analytics'],['settings','Settings']]
 
 function GiftingTab() {

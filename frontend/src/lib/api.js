@@ -1017,6 +1017,46 @@ export const adminDeleteAnnouncement = async (id) => {
   return apiFetch(`/announcements/${id}`, { method: 'DELETE' })
 }
 
+// ── Daily Surprise ────────────────────────────────────────────
+export const getActiveSurprise = async () => {
+  const result = await apiFetch('/surprise/active')
+  return { data: result.data?.surprise ?? null, error: result.error }
+}
+export const claimSurprise = async (id) => {
+  return apiFetch(`/surprise/${id}/claim`, { method: 'POST' })
+}
+export const adminGetSurprises = async () => {
+  const result = await apiFetch('/surprise/admin/all')
+  return { data: result.data?.surprises || [], error: result.error }
+}
+export const adminUpsertSurprise = async (s) => {
+  const method = s.id ? 'PUT' : 'POST'
+  const path = s.id ? `/surprise/admin/${s.id}` : '/surprise/admin'
+  const result = await apiFetch(path, { method, body: JSON.stringify(s) })
+  return { data: result.data?.surprise, error: result.error }
+}
+export const adminDeleteSurprise = async (id) => {
+  return apiFetch(`/surprise/admin/${id}`, { method: 'DELETE' })
+}
+
+// ── Coupons ────────────────────────────────────────────────────
+export const validateGiftCoupon = async (code, giftTypeKey) => {
+  return apiFetch('/gift/coupons/validate', { method: 'POST', body: JSON.stringify({ code, giftTypeKey }) })
+}
+export const adminGetCoupons = async () => {
+  const result = await apiFetch('/admin/coupons')
+  return { data: result.data?.coupons || [], error: result.error }
+}
+export const adminUpsertCoupon = async (c) => {
+  const method = c.id ? 'PUT' : 'POST'
+  const path = c.id ? `/admin/coupons/${c.id}` : '/admin/coupons'
+  const result = await apiFetch(path, { method, body: JSON.stringify(c) })
+  return { data: result.data?.coupon, error: result.error }
+}
+export const adminDeleteCoupon = async (id) => {
+  return apiFetch(`/admin/coupons/${id}`, { method: 'DELETE' })
+}
+
 // ============================================================
 // EMAIL CENTER (Templates / Audiences / Workflows / Sends)
 // ============================================================
