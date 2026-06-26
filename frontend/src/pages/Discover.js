@@ -87,9 +87,10 @@ export default function Discover() {
     return () => observer.disconnect()
   }, [hasMore, loading, loadingMore, loadStories])
 
-  const handleUnlock = (storyId) => {
+  // Stable reference — passed to every (memo'd) StoryCard in the grid.
+  const handleUnlock = useCallback((storyId) => {
     setUnlockedIds(prev => new Set([...prev, storyId]))
-  }
+  }, [])
 
   const isStoryLocked = (story) => {
     if (!story.profiles?.is_private) return false

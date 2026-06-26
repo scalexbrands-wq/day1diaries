@@ -267,7 +267,10 @@ export default function LandingEditorial() {
       {/* JOBS */}
       <section id="jobs" style={{ maxWidth:1080, margin:'0 auto', padding:'80px 40px' }}>
         <Eyebrow>Trending Opportunities</Eyebrow>
-        <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3vw,2.6rem)', fontWeight:700, marginBottom:48 }}>Your Day 1 at a new job starts here.</h2>
+        <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', flexWrap:'wrap', gap:16, marginBottom:48 }}>
+          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.8rem,3vw,2.6rem)', fontWeight:700, margin:0 }}>Your Day 1 at a new job starts here.</h2>
+          <Link to="/companies" style={{ fontSize:13, fontWeight:700, color:'#FF6B2B', textDecoration:'none' }}>Browse Companies →</Link>
+        </div>
         {!loading && (
           <div className="ed-4col" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:18 }}>
             {(visibleJobs.length ? visibleJobs : [
@@ -277,7 +280,7 @@ export default function LandingEditorial() {
               <div key={job.id || i} className="ed-job" onClick={() => navigate('/careers')}>
                 <span style={{ fontSize:10, fontWeight:700, color: JOB_TYPE[job.job_type] || '#FF6B2B' }}>{job.job_type || 'Full-Time'}</span>
                 <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1rem', fontWeight:700, marginTop:10, marginBottom:4 }}>{job.title}</div>
-                <div style={{ fontSize:12, color:'#8C7B6E' }}>{job.department} {job.location ? `· ${job.location}` : ''}</div>
+                <div style={{ fontSize:12, color:'#8C7B6E' }}>{job.company_name || job.department} {job.location ? `· ${job.location}` : ''}</div>
               </div>
             ))}
           </div>
@@ -368,7 +371,7 @@ export default function LandingEditorial() {
           </div>
           {[
             ['Platform',[['Discover','/discover'],['Habits','/habits'],['Leaderboard','/leaderboard'],['Write','/write']]],
-            ['Company',[['About','/about'],['Blog','/blog'],['Careers','/careers'],['Contact','/contact']]],
+            ['Company',[['About','/about'],['Blog','/blog'],['Careers','/careers'],['Companies','/companies'],['Contact','/contact']]],
             ['Legal',[['Privacy','/privacy'],['Terms','/terms'],['Guidelines','/content-policy']]],
           ].map(([title, links]) => (
             <div key={title}>

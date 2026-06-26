@@ -40,6 +40,7 @@ const adminMembershipRoutes = require('./routes/admin-membership')
 const seoRoutes = require('./routes/seo')
 const adminSeoRoutes = require('./routes/admin-seo')
 const giftRoutes = require('./routes/gift')
+const referralRoutes = require('./routes/referral')
 const adminGiftRoutes = require('./routes/admin-gift')
 const adminShipmentRoutes = require('./routes/admin-shipments')
 const shiprocketWebhookRoutes = require('./routes/shiprocket-webhook')
@@ -51,6 +52,10 @@ const adminRbacRoutes = require('./routes/admin-rbac')
 const surpriseRoutes = require('./routes/surprise')
 const adminCouponRoutes = require('./routes/admin-coupons')
 const { publicRouter: groupsPublicRoutes, adminRouter: groupsAdminRoutes } = require('./routes/groups')
+const companiesRoutes = require('./routes/companies')
+const employerRoutes = require('./routes/employer')
+const adminCompaniesRoutes = require('./routes/admin-companies')
+const { publicRouter: navRulesPublicRoutes, adminRouter: navRulesAdminRoutes } = require('./routes/navRules')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -105,7 +110,13 @@ app.use(morgan('combined'))
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
 // ── Local image upload fallback (used when S3 isn't configured) ──
-app.use('/uploads', express.static(require('./utils/imageStorage').UPLOADS_DIR))
+// maxAge lets browsers/CDN skip the round-trip on repeat views; filenames
+// here are content-hashed/UUID-based (never reused for different content),
+// so a long, immutable cache is safe.
+app.use('/uploads', express.static(require('./utils/imageStorage').UPLOADS_DIR, {
+  maxAge: '30d',
+  immutable: true,
+}))
 
 // ── Routes ────────────────────────────────────────────────────
 app.use('/auth', authRoutes)
@@ -126,6 +137,7 @@ app.use('/admin/membership', adminMembershipRoutes)
 app.use('/', seoRoutes)
 app.use('/admin/seo', adminSeoRoutes)
 app.use('/gift', giftRoutes)
+app.use('/referral', referralRoutes)
 app.use('/admin/gift', adminGiftRoutes)
 app.use('/admin/gift', adminShipmentRoutes)
 app.use('/shiprocket', shiprocketWebhookRoutes)
@@ -138,6 +150,11 @@ app.use('/surprise', surpriseRoutes)
 app.use('/admin/coupons', adminCouponRoutes)
 app.use('/groups', groupsPublicRoutes)
 app.use('/admin/groups', groupsAdminRoutes)
+app.use('/companies', companiesRoutes)
+app.use('/employer', employerRoutes)
+app.use('/admin/companies', adminCompaniesRoutes)
+app.use('/', navRulesPublicRoutes)
+app.use('/admin', navRulesAdminRoutes)
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ error: 'Not found' }))

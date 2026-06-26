@@ -314,6 +314,9 @@ export default function Profile() {
                 />
                 <ProfileQRCard profile={profile} />
                 <ProfileFirstStoryShareCard profile={profile} />
+                <button className="btn btn-primary btn-sm" onClick={() => navigate('/refer')}>
+                  🎉 Refer a Friend
+                </button>
               </>
             ) : (
               <>

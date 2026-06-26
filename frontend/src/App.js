@@ -20,6 +20,7 @@ const LandingEditorial = lazy(() => import('./pages/LandingEditorial'))
 const LandingBento = lazy(() => import('./pages/LandingBento'))
 const LandingKinetic = lazy(() => import('./pages/LandingKinetic'))
 const LandingSlideshow = lazy(() => import('./pages/LandingSlideshow'))
+const LandingLinktree = lazy(() => import('./pages/LandingLinktree'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const Feed = lazy(() => import('./pages/Feed'))
@@ -49,8 +50,12 @@ const RefundPolicy = lazy(() => import('./pages/RefundPolicy'))
 const Tribute = lazy(() => import('./pages/Tribute'))
 const MyGifts = lazy(() => import('./pages/MyGifts'))
 const Wallet = lazy(() => import('./pages/Wallet'))
+const ReferEarn = lazy(() => import('./pages/ReferEarn'))
 const Groups = lazy(() => import('./pages/Groups'))
 const GroupDetail = lazy(() => import('./pages/GroupDetail'))
+const Companies = lazy(() => import('./pages/Companies'))
+const CompanyDetail = lazy(() => import('./pages/CompanyDetail'))
+const EmployerDashboard = lazy(() => import('./pages/EmployerDashboard'))
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth()
@@ -65,6 +70,13 @@ const AdminRoute = ({ children }) => {
   // AdminDashboard itself only renders the tabs each permission unlocks.
   const canAccessAdmin = profile?.role === 'admin' || permissions.length > 0
   if (!canAccessAdmin) return <Navigate to="/feed" replace />
+  return children
+}
+const EmployerRoute = ({ children }) => {
+  const { user, profile, loading } = useAuth()
+  if (loading) return <div className="loading-center"><div className="spinner"/></div>
+  if (!user) return <Navigate to="/login" replace />
+  if (profile?.role !== 'employer') return <Navigate to="/feed" replace />
   return children
 }
 const AppLayout = ({ children }) => (
@@ -101,7 +113,7 @@ const PublicHeader = () => {
 }
 // Picks which of the 3 landing page designs renders on "/", based on
 // the admin's choice in Admin > Landing Content > Template.
-const LANDING_TEMPLATES = { classic: Landing, editorial: LandingEditorial, bento: LandingBento, kinetic: LandingKinetic, slideshow: LandingSlideshow }
+const LANDING_TEMPLATES = { classic: Landing, editorial: LandingEditorial, bento: LandingBento, kinetic: LandingKinetic, slideshow: LandingSlideshow, linktree: LandingLinktree }
 const LandingRouter = () => {
   const [template, setTemplate] = useState(null)
   useEffect(() => { getLandingTemplate().then(({ data }) => setTemplate(data || 'classic')) }, [])
@@ -123,7 +135,31 @@ const ShareableLayout = ({ children }) => {
   )
 }
 
+// Once the initial route has painted and the browser is idle, warm the
+// chunk cache for the pages a logged-in user almost always visits next
+// (feed/discover/habits/community/profile) so clicking into them is an
+// instant chunk-cache hit instead of a fresh network fetch + parse.
+const PREFETCH_AFTER_LOAD = [
+  () => import('./pages/Feed'),
+  () => import('./pages/Discover'),
+  () => import('./pages/StoryDetail'),
+  () => import('./pages/Habits'),
+  () => import('./pages/Community'),
+]
+function usePrefetchRouteChunks() {
+  useEffect(() => {
+    const run = () => PREFETCH_AFTER_LOAD.forEach(load => load().catch(() => {}))
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(run, { timeout: 4000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const id = setTimeout(run, 2000)
+    return () => clearTimeout(id)
+  }, [])
+}
+
 export default function App() {
+  usePrefetchRouteChunks()
   return (
     <BrowserRouter>
       <AuthProvider>
@@ -141,6 +177,7 @@ export default function App() {
           <Route path="/tribute/:slug"       element={<ShareableLayout><Tribute/></ShareableLayout>} />
           <Route path="/gifts"               element={<PrivateRoute><AppLayout><MyGifts/></AppLayout></PrivateRoute>} />
           <Route path="/wallet"              element={<PrivateRoute><AppLayout><Wallet/></AppLayout></PrivateRoute>} />
+          <Route path="/refer"               element={<PrivateRoute><AppLayout><ReferEarn/></AppLayout></PrivateRoute>} />
           <Route path="/write"               element={<PrivateRoute><AppLayout><WriteStory/></AppLayout></PrivateRoute>} />
           <Route path="/edit/:id"            element={<PrivateRoute><AppLayout><WriteStory/></AppLayout></PrivateRoute>} />
           <Route path="/habits"              element={<PrivateRoute><AppLayout><Habits/></AppLayout></PrivateRoute>} />
@@ -151,6 +188,9 @@ export default function App() {
           <Route path="/membership"          element={<PrivateRoute><AppLayout><Membership/></AppLayout></PrivateRoute>} />
           <Route path="/saved"               element={<PrivateRoute><AppLayout><SavedStories/></AppLayout></PrivateRoute>} />
           <Route path="/admin"               element={<AdminRoute><AppLayout><AdminDashboard/></AppLayout></AdminRoute>} />
+          <Route path="/companies"           element={<Companies/>} />
+          <Route path="/companies/:slug"     element={<CompanyDetail/>} />
+          <Route path="/employer/dashboard"  element={<EmployerRoute><AppLayout><EmployerDashboard/></AppLayout></EmployerRoute>} />
           <Route path="/privacy"             element={<PrivacyPolicy/>} />
           <Route path="/terms"               element={<TermsOfService/>} />
           <Route path="/content-policy"      element={<ContentPolicy/>} />

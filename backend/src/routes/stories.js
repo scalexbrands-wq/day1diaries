@@ -17,7 +17,8 @@ const STORY_SELECT = `
   json_build_object(
     'id', p.id, 'username', p.username, 'full_name', p.full_name,
     'avatar_url', p.avatar_url, 'level', p.level, 'is_private', p.is_private
-  ) AS profiles
+  ) AS profiles,
+  CASE WHEN c.id IS NOT NULL THEN json_build_object('id', c.id, 'name', c.name, 'slug', c.slug, 'logo_url', c.logo_url) END AS company
 `
 
 // ── GET /stories ─────────────────────────────────────────────
@@ -39,7 +40,7 @@ router.get('/', async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT ${STORY_SELECT} FROM stories s
-     JOIN profiles p ON p.id = s.user_id
+     JOIN profiles p ON p.id = s.user_id LEFT JOIN companies c ON c.id = s.company_id
      WHERE ${conditions.join(' AND ')}
      ORDER BY s.created_at ${sort === 'oldest' ? 'ASC' : 'DESC'}
      LIMIT $${i++} OFFSET $${i++}`,
@@ -67,7 +68,7 @@ router.get('/feed', requireAuth, async (req, res) => {
     // No follows: show all public stories; private-account ones will be locked in the UI
     const { rows } = await pool.query(
       `SELECT ${STORY_SELECT}, false AS viewer_follows_author
-       FROM stories s JOIN profiles p ON p.id = s.user_id
+       FROM stories s JOIN profiles p ON p.id = s.user_id LEFT JOIN companies c ON c.id = s.company_id
        WHERE s.status = 'published' AND s.visibility = 'public'
        ORDER BY s.likes_count DESC, s.created_at DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
@@ -80,7 +81,7 @@ router.get('/feed', requireAuth, async (req, res) => {
     `SELECT ${STORY_SELECT},
        CASE WHEN s.user_id = ANY($1) THEN 0 ELSE 1 END AS feed_priority,
        CASE WHEN s.user_id = ANY($1) THEN true ELSE false END AS viewer_follows_author
-     FROM stories s JOIN profiles p ON p.id = s.user_id
+     FROM stories s JOIN profiles p ON p.id = s.user_id LEFT JOIN companies c ON c.id = s.company_id
      WHERE s.status = 'published'
        AND (
          (s.user_id = ANY($1) AND s.visibility IN ('public','followers_only'))
@@ -102,7 +103,7 @@ router.get('/by-categories', async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT ${STORY_SELECT} FROM stories s
-     JOIN profiles p ON p.id = s.user_id
+     JOIN profiles p ON p.id = s.user_id LEFT JOIN companies c ON c.id = s.company_id
      WHERE s.status = 'published' AND s.visibility = 'public' AND s.category = ANY($1)
      ORDER BY s.created_at DESC
      LIMIT $2 OFFSET $3`,
@@ -133,7 +134,7 @@ router.get('/categories', async (req, res) => {
 router.get('/trending', async (req, res) => {
   const limit = parseInt(req.query.limit) || 20
   const { rows } = await pool.query(
-    `SELECT ${STORY_SELECT} FROM stories s JOIN profiles p ON p.id = s.user_id
+    `SELECT ${STORY_SELECT} FROM stories s JOIN profiles p ON p.id = s.user_id LEFT JOIN companies c ON c.id = s.company_id
      WHERE s.status = 'published' ORDER BY s.likes_count DESC LIMIT $1`,
     [limit]
   )
@@ -244,8 +245,9 @@ router.get('/:id', optionalAuth, requireFeatureAccess('story_viewing'), async (r
         'id', p.id, 'username', p.username, 'full_name', p.full_name,
         'avatar_url', p.avatar_url, 'bio', p.bio, 'level', p.level,
         'followers_count', p.followers_count, 'is_private', p.is_private
-      ) AS profiles
-     FROM stories s JOIN profiles p ON p.id = s.user_id WHERE s.id = $1`,
+      ) AS profiles,
+      CASE WHEN c.id IS NOT NULL THEN json_build_object('id', c.id, 'name', c.name, 'slug', c.slug, 'logo_url', c.logo_url) END AS company
+     FROM stories s JOIN profiles p ON p.id = s.user_id LEFT JOIN companies c ON c.id = s.company_id WHERE s.id = $1`,
     [req.params.id]
   )
   if (!rows.length) return res.status(404).json({ error: 'Story not found' })
@@ -258,7 +260,7 @@ router.get('/:id', optionalAuth, requireFeatureAccess('story_viewing'), async (r
 // Voice stories (audio_url set) don't need content up front — it's filled
 // in once transcription completes; content is otherwise required.
 router.post('/', requireAuth, requireFeatureAccess('story_creation'), async (req, res) => {
-  const { title, content: body, category, tags, cover_image_url, status, visibility, group_id, audio_url, audio_duration_seconds } = req.body
+  const { title, content: body, category, tags, cover_image_url, status, visibility, group_id, audio_url, audio_duration_seconds, company_id } = req.body
   if (!title || !category) {
     return res.status(400).json({ error: 'title and category are required' })
   }
@@ -288,10 +290,10 @@ router.post('/', requireAuth, requireFeatureAccess('story_creation'), async (req
   const flagReason = isFlagged ? `Detected: ${badFound.join(', ')}` : null
 
   const { rows } = await pool.query(
-    `INSERT INTO stories (user_id, title, content, category, tags, cover_image_url, status, visibility, is_flagged, flag_reason, group_id, audio_url, audio_duration_seconds, transcript_status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+    `INSERT INTO stories (user_id, title, content, category, tags, cover_image_url, status, visibility, is_flagged, flag_reason, group_id, audio_url, audio_duration_seconds, transcript_status, company_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
     [req.cognitoSub, title, finalContent, category, tags || [], cover_image_url || null, finalStatus, vis, isFlagged, flagReason,
-     group_id || null, audio_url || null, audio_duration_seconds || null, audio_url ? 'pending' : null]
+     group_id || null, audio_url || null, audio_duration_seconds || null, audio_url ? 'pending' : null, company_id || null]
   )
 
   if (group_id) {
@@ -340,7 +342,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' })
   }
 
-  const allowed = ['title', 'content', 'category', 'tags', 'cover_image_url', 'status', 'visibility']
+  const allowed = ['title', 'content', 'category', 'tags', 'cover_image_url', 'status', 'visibility', 'company_id']
   const updates = {}
   for (const key of allowed) if (req.body[key] !== undefined) updates[key] = req.body[key]
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields' })

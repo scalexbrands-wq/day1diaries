@@ -258,7 +258,9 @@ router.post('/upload-image', requireAuth, upload.single('image'), async (req, re
   if (!req.file) return res.status(400).json({ error: 'No image uploaded' })
   const baseUrl = `${req.protocol}://${req.get('host')}`
   const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
-  const url = await imageStorage.saveImage(`gift-images/${req.profile.id}-${Date.now()}.${ext}`, req.file.buffer, req.file.mimetype, baseUrl)
+  // 1600px cap keeps it sharp once composited into the certificate render
+  // (PDF/PNG export) without storing/serving a full multi-MB camera photo.
+  const url = await imageStorage.saveImage(`gift-images/${req.profile.id}-${Date.now()}.${ext}`, req.file.buffer, req.file.mimetype, baseUrl, { maxWidth: 1600, maxHeight: 1600 })
   res.json({ imageUrl: url })
 })
 

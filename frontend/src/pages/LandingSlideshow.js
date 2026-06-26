@@ -286,12 +286,13 @@ export default function LandingSlideshow() {
             ]).map((job, i) => (
               <div key={job.id || i} style={{ background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', borderRadius:16, padding:18, cursor:'pointer' }} onClick={() => navigate('/careers')}>
                 <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:700, fontSize:14, marginBottom:6 }}>{job.title}</div>
-                <div style={{ fontSize:11.5, color:'rgba(255,255,255,.4)' }}>{job.department}</div>
+                <div style={{ fontSize:11.5, color:'rgba(255,255,255,.4)' }}>{job.company_name || job.department}</div>
               </div>
             ))}
           </div>
         )}
-        <div style={{ textAlign:'center', marginTop:28 }}>
+        <div style={{ textAlign:'center', marginTop:28, display:'flex', gap:16, justifyContent:'center' }}>
+          <Link to="/companies" style={{ fontSize:13, fontWeight:700, color:'rgba(255,255,255,.7)', textDecoration:'none' }}>Browse Companies →</Link>
           <Link to="/careers" style={{ fontSize:13, fontWeight:700, color:'#FFD166', textDecoration:'none' }}>View All Jobs →</Link>
         </div>
       </section>
@@ -358,6 +359,8 @@ export default function LandingSlideshow() {
           <Link to="/register" style={{ display:'inline-block', fontSize:15, fontWeight:700, color:'white', background:'linear-gradient(135deg,#FF6B2B,#8B5CF6)', padding:'16px 38px', borderRadius:100, textDecoration:'none', boxShadow:'0 14px 40px rgba(139,92,246,.4)', marginBottom:36 }}>Share My Day 1 Story ✍️</Link>
           <div style={{ display:'flex', justifyContent:'center', gap:24, fontSize:11, color:'rgba(255,255,255,.4)', flexWrap:'wrap' }}>
             <Link to="/about" style={{ color:'rgba(255,255,255,.4)', textDecoration:'none' }}>About</Link>
+            <Link to="/careers" style={{ color:'rgba(255,255,255,.4)', textDecoration:'none' }}>Careers</Link>
+            <Link to="/companies" style={{ color:'rgba(255,255,255,.4)', textDecoration:'none' }}>Companies</Link>
             <Link to="/privacy" style={{ color:'rgba(255,255,255,.4)', textDecoration:'none' }}>Privacy</Link>
             <Link to="/terms" style={{ color:'rgba(255,255,255,.4)', textDecoration:'none' }}>Terms</Link>
             <span>© 2026 Day1 Diaries</span>

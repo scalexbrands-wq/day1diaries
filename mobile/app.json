@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Day1 Diaries",
+    "slug": "day1diaries",
+    "scheme": "day1diaries",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FDF6EE",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.sathish2409.day1diaries"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

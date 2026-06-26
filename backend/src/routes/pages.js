@@ -156,8 +156,10 @@ router.get('/careers', async (req, res) => {
   const { rows } = await pool.query(
     `SELECT j.id, j.title, j.department, j.location, j.job_type, j.salary_min, j.salary_max, j.currency,
             j.description, j.requirements, j.created_at,
+            c.name AS company_name, c.slug AS company_slug, c.logo_url AS company_logo_url,
             (SELECT count(*) FROM job_applications a WHERE a.job_id = j.id) AS applications_count
-     FROM careers_jobs j WHERE ${where} ORDER BY j.sort_order, j.created_at DESC`,
+     FROM careers_jobs j LEFT JOIN companies c ON c.id = j.company_id
+     WHERE ${where} ORDER BY j.sort_order, j.created_at DESC`,
     params
   )
   res.json({ jobs: rows })
@@ -199,7 +201,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 router.get('/careers/:id', async (req, res) => {
   if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Job not found' })
   const { rows } = await pool.query(
-    'SELECT * FROM careers_jobs WHERE id = $1 AND is_active = true',
+    `SELECT j.*, c.name AS company_name, c.slug AS company_slug, c.logo_url AS company_logo_url
+     FROM careers_jobs j LEFT JOIN companies c ON c.id = j.company_id
+     WHERE j.id = $1 AND j.is_active = true`,
     [req.params.id]
   )
   if (!rows.length) return res.status(404).json({ error: 'Job not found' })
@@ -257,8 +261,10 @@ router.patch('/careers/applications/:id/my-update', requireAuth, async (req, res
 // ── GET /admin/pages/careers — admin, all jobs ────────────────────
 adminRouter.get('/careers', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT j.*, (SELECT count(*) FROM job_applications a WHERE a.job_id = j.id) AS applications_count
-     FROM careers_jobs j ORDER BY j.sort_order, j.created_at DESC`
+    `SELECT j.*, c.name AS company_name,
+       (SELECT count(*) FROM job_applications a WHERE a.job_id = j.id) AS applications_count
+     FROM careers_jobs j LEFT JOIN companies c ON c.id = j.company_id
+     ORDER BY j.sort_order, j.created_at DESC`
   )
   res.json({ jobs: rows })
 })
@@ -278,27 +284,27 @@ adminRouter.get('/careers/stats', requireAuth, requirePermission('manage_site_pa
 
 // ── POST /admin/pages/careers — create or update a job ─────────────
 adminRouter.post('/careers', requireAuth, requirePermission('manage_site_pages'), async (req, res) => {
-  const { id, title, department, location, job_type, salary_min, salary_max, currency, description, requirements, is_active, sort_order } = req.body
+  const { id, title, department, location, job_type, salary_min, salary_max, currency, description, requirements, is_active, sort_order, company_id } = req.body
   if (!title || !description) return res.status(400).json({ error: 'title and description are required' })
 
   if (id) {
     const { rows } = await pool.query(
       `UPDATE careers_jobs SET title=$1, department=$2, location=$3, job_type=$4,
          salary_min=$5, salary_max=$6, currency=$7, description=$8, requirements=$9,
-         is_active=$10, sort_order=$11 WHERE id=$12 RETURNING *`,
+         is_active=$10, sort_order=$11, company_id=$12 WHERE id=$13 RETURNING *`,
       [title, department || null, location || null, job_type || 'Full-time',
        salary_min || null, salary_max || null, currency || 'INR', description, requirements || null,
-       is_active !== false, sort_order || 0, id]
+       is_active !== false, sort_order || 0, company_id || null, id]
     )
     return res.json({ job: rows[0] })
   }
 
   const { rows } = await pool.query(
-    `INSERT INTO careers_jobs (title, department, location, job_type, salary_min, salary_max, currency, description, requirements, is_active, sort_order)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    `INSERT INTO careers_jobs (title, department, location, job_type, salary_min, salary_max, currency, description, requirements, is_active, sort_order, company_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
     [title, department || null, location || null, job_type || 'Full-time',
      salary_min || null, salary_max || null, currency || 'INR', description, requirements || null,
-     is_active !== false, sort_order || 0]
+     is_active !== false, sort_order || 0, company_id || null]
   )
   res.json({ job: rows[0] })
 })

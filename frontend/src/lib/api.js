@@ -56,16 +56,22 @@ async function apiFetch(path, options = {}) {
 export const signUp = async (email, password, metadata = {}) => {
   const result = await apiFetch('/auth/signup', {
     method: 'POST',
-    body: JSON.stringify({ email, password, username: metadata.username, fullName: metadata.full_name, phone: metadata.phone }),
+    body: JSON.stringify({
+      email, password,
+      username: metadata.username,
+      fullName: metadata.full_name,
+      phone: metadata.phone,
+      referralCode: metadata.referral_code,
+    }),
   })
   if (result.data?.tokens) storeTokens(result.data.tokens)
   return result
 }
 
-export const confirmSignUp = async (email, code, password, username, fullName, phone) => {
+export const confirmSignUp = async (email, code, password, username, fullName, phone, referralCode) => {
   const result = await apiFetch('/auth/confirm', {
     method: 'POST',
-    body: JSON.stringify({ email, code, password, username, fullName, phone }),
+    body: JSON.stringify({ email, code, password, username, fullName, phone, referralCode }),
   })
   if (result.data?.tokens) storeTokens(result.data.tokens)
   return result
@@ -750,6 +756,13 @@ export const adminSetVisitCount = async (count) => {
   return { data: result.data?.count, error: result.error }
 }
 
+// Live "vibing rn" presence heartbeat — separate from the lifetime
+// site_visit_counter above. Called every ~25s by VisitorCountContext.
+export const sendPresenceHeartbeat = async (sessionId) => {
+  const result = await apiFetch('/stats/presence', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) })
+  return { data: result.data?.count, error: result.error }
+}
+
 export const adminGetSettings = async () => {
   const result = await apiFetch('/admin/settings')
   return { data: result.data?.settings, error: result.error }
@@ -1357,6 +1370,8 @@ export const getGiftModuleStatus = () => cachedFetch('gift-module-status', 60000
   const result = await apiFetch('/gift/status')
   return { data: result.data, error: result.error }
 })
+export const getReferralInfo = async () => apiFetch('/referral/me')
+
 export const getGiftWallet = async () => apiFetch('/gift/wallet')
 export const getGiftCategories = async () => {
   const result = await apiFetch('/gift/categories')
@@ -1564,4 +1579,94 @@ export const adminApproveWalletClaim = async (id, notes) => {
 export const adminRejectWalletClaim = async (id, notes) => {
   const result = await apiFetch(`/admin/gift/claims/${id}/reject`, { method: 'POST', body: JSON.stringify({ notes }) })
   return { data: result.data?.claim, error: result.error }
+}
+
+// ============================================================
+// EMPLOYERS — companies & employer-managed job postings
+// ============================================================
+
+export const getCompanies = async (search) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  const result = await apiFetch(`/companies${qs}`)
+  return { data: result.data?.companies, error: result.error }
+}
+
+export const getCompany = async (slug) => {
+  const result = await apiFetch(`/companies/${slug}`)
+  return { data: result.data, error: result.error }
+}
+
+export const getMyCompany = async () => {
+  const result = await apiFetch('/employer/company')
+  return { data: result.data?.company, error: result.error }
+}
+
+// File upload — bypasses apiFetch since it forces a JSON Content-Type;
+// the browser must set its own multipart boundary for FormData.
+async function submitCompanyForm(path, method, fields) {
+  const tokens = getStoredTokens()
+  const form = new FormData()
+  Object.entries(fields).forEach(([k, v]) => { if (v !== undefined && v !== null) form.append(k, v) })
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { data: null, error: { message: data.error || res.statusText, status: res.status } }
+  return { data: data.company, error: null }
+}
+
+export const createCompany = (fields) => submitCompanyForm('/employer/company', 'POST', fields)
+export const updateCompany = (fields) => submitCompanyForm('/employer/company', 'PUT', fields)
+
+export const getMyCompanyJobs = async () => {
+  const result = await apiFetch('/employer/jobs')
+  return { data: result.data?.jobs, error: result.error }
+}
+
+export const createCompanyJob = async (payload) => {
+  const result = await apiFetch('/employer/jobs', { method: 'POST', body: JSON.stringify(payload) })
+  return { data: result.data?.job, error: result.error }
+}
+
+export const updateCompanyJob = async (id, payload) => {
+  const result = await apiFetch(`/employer/jobs/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+  return { data: result.data?.job, error: result.error }
+}
+
+export const deleteCompanyJob = (id) => apiFetch(`/employer/jobs/${id}`, { method: 'DELETE' })
+
+export const adminGetCompanies = async () => {
+  const result = await apiFetch('/admin/companies')
+  return { data: result.data?.companies, error: result.error }
+}
+
+export const adminSetCompanyStatus = async (id, is_active) => {
+  const result = await apiFetch(`/admin/companies/${id}/status`, { method: 'PATCH', body: JSON.stringify({ is_active }) })
+  return { data: result.data?.company, error: result.error }
+}
+
+export const adminDeleteCompany = (id) => apiFetch(`/admin/companies/${id}`, { method: 'DELETE' })
+
+export const adminCreateCompany = (fields) => submitCompanyForm('/admin/companies', 'POST', fields)
+export const adminUpdateCompany = (id, fields) => submitCompanyForm(`/admin/companies/${id}`, 'PUT', fields)
+
+// ============================================================
+// SIDEBAR NAV VISIBILITY — per-tab audience rules
+// ============================================================
+
+export const getNavRules = () => cachedFetch('nav-rules', 60000, async () => {
+  const result = await apiFetch('/nav-rules')
+  return { data: result.data || {}, error: result.error }
+})
+
+export const adminGetNavRules = async () => {
+  const result = await apiFetch('/admin/nav-rules')
+  return { data: result.data?.items, error: result.error }
+}
+
+export const adminUpdateNavRules = async (payload) => {
+  const result = await apiFetch('/admin/nav-rules', { method: 'PUT', body: JSON.stringify(payload) })
+  return { data: result.data?.items, error: result.error }
 }

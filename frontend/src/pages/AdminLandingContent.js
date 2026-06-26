@@ -8,21 +8,7 @@ import {
   getLandingTemplate, adminSetLandingTemplate,
 } from '../lib/api'
 import { toast } from '../components/Toast'
-
-/* ── tiny shared UI ── */
-const Label = ({children}) => <label style={{ display:'block', fontSize:12, fontWeight:600, color:'#5C3D2E', marginBottom:5 }}>{children}</label>
-const Input = ({...p}) => <input {...p} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #DDD3CA', borderRadius:8, fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', marginBottom:12, ...p.style }} onFocus={e=>e.target.style.borderColor='#FF6B2B'} onBlur={e=>e.target.style.borderColor='#DDD3CA'}/>
-const TextArea = ({...p}) => <textarea {...p} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #DDD3CA', borderRadius:8, fontSize:13, fontFamily:"'DM Sans',sans-serif", outline:'none', resize:'vertical', minHeight:72, marginBottom:12, ...p.style }} onFocus={e=>e.target.style.borderColor='#FF6B2B'} onBlur={e=>e.target.style.borderColor='#DDD3CA'}/>
-const Btn = ({children, variant='primary', ...p}) => {
-  const styles = {
-    primary: { background:'#FF6B2B', color:'white', border:'none' },
-    secondary: { background:'transparent', color:'#FF6B2B', border:'1.5px solid #FF6B2B' },
-    danger: { background:'transparent', color:'#DC2626', border:'1.5px solid #DC2626' },
-  }
-  return <button {...p} style={{ padding:'8px 18px', borderRadius:100, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all .2s', ...styles[variant], ...p.style }}>{children}</button>
-}
-const Card = ({children, ...p}) => <div style={{ background:'white', border:'1px solid #F0EAE4', borderRadius:16, padding:20, marginBottom:16, ...p.style }}>{children}</div>
-const SectionHead = ({children}) => <div style={{ fontSize:14, fontWeight:700, color:'#1A0800', marginBottom:14, paddingBottom:10, borderBottom:'1px solid #F0EAE4' }}>{children}</div>
+import { L as Label, Inp as Input, TA as TextArea, Btn, Card, SH as SectionHead } from '../components/admin/AdminUI'
 
 /* ── Reusable translations editor — a modal with one tab per language,
    used by Hero / Bottom Section / Categories / Testimonials so admins
@@ -111,6 +97,7 @@ const TEMPLATE_OPTIONS = [
   { key:'bento',     label:'Bento / Vibrant',  desc:'Bold bento-grid layout — saturated gradients, glassmorphism cards, playful and maximalist.' },
   { key:'kinetic',   label:'Kinetic',          desc:'Motion-first design — custom cursor, parallax hero, magnetic buttons, tilt cards, sticky scroll-storytelling, scroll-snap carousels.' },
   { key:'slideshow', label:'Slideshow',        desc:'Presentation-deck style — full-viewport slides with dot navigation, arrow-key control, and a slide counter. Browse it like a pitch deck.' },
+  { key:'linktree',  label:'Link-in-Bio',      desc:'Linktree-style minimalism — centered avatar, bio, and a single vertical stack of link buttons. No long scroll, just the essentials.' },
 ]
 function TemplateEditor() {
   const [active, setActive] = useState(null)

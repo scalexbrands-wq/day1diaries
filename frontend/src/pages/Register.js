@@ -13,7 +13,8 @@ export default function Register() {
   const { reloadSession } = useAuth()
   const [step, setStep] = useState(location.state?.step === 'confirm' ? 'confirm' : 'signup')
   const [form, setForm] = useState({
-    email: location.state?.email || '', password: '', full_name: '', username: '', phone: ''
+    email: location.state?.email || '', password: '', full_name: '', username: '', phone: '',
+    referral_code: new URLSearchParams(location.search).get('ref') || ''
   })
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,7 +31,7 @@ export default function Register() {
     if (form.password.length < 8) { toast.error('Password must be at least 8 characters, with upper/lowercase and a number'); return }
     setLoading(true)
     const username = form.username.toLowerCase().replace(/\s+/g, '-')
-    const { data, error } = await signUp(form.email, form.password, { full_name: form.full_name, username, phone: form.phone })
+    const { data, error } = await signUp(form.email, form.password, { full_name: form.full_name, username, phone: form.phone, referral_code: form.referral_code })
     if (error) { setLoading(false); toast.error(error.message); return }
 
     if (data?.autoConfirmed) {
@@ -51,7 +52,7 @@ export default function Register() {
     e.preventDefault()
     setLoading(true)
     const username = form.username.toLowerCase().replace(/\s+/g, '-')
-    const { error } = await confirmSignUp(form.email, code, form.password, username, form.full_name, form.phone)
+    const { error } = await confirmSignUp(form.email, code, form.password, username, form.full_name, form.phone, form.referral_code)
     if (error) { setLoading(false); toast.error(error.message); return }
     await reloadSession()
     setLoading(false)
@@ -129,6 +130,11 @@ export default function Register() {
             <label className="form-label">{t('auth.password')}</label>
             <input type="password" className="form-control" placeholder="At least 8 characters" value={form.password} onChange={set('password')} required />
             <div style={{ fontSize:'11px', color:'var(--gray-400)', marginTop:4 }}>Must include uppercase, lowercase, and a number.</div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Referral Code (optional)</label>
+            <input type="text" className="form-control" placeholder="e.g. PRIYA1A2B3C" value={form.referral_code} onChange={set('referral_code')} style={{ textTransform:'uppercase' }} />
+            <div style={{ fontSize:'11px', color:'var(--gray-400)', marginTop:4 }}>Have a friend's code? Get 1000 bonus coins instantly! 🪙</div>
           </div>
 
           <p style={{ fontSize:'11.5px', color:'var(--gray-400)', lineHeight:1.6, marginTop:4, marginBottom:6 }}>

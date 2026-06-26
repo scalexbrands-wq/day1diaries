@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { createStory, updateStory, getStory, getStoryCategories, getMyGroups, getAudioUploadUrl } from '../lib/api'
+import { createStory, updateStory, getStory, getStoryCategories, getMyGroups, getAudioUploadUrl, getCompanies } from '../lib/api'
 import { toast } from '../components/Toast'
 
 const DEFAULT_CATS = [
@@ -32,11 +32,13 @@ export default function WriteStory() {
   const [searchParams] = useSearchParams()
   const [cats, setCats] = useState(DEFAULT_CATS)
   const [groups, setGroups] = useState([])
+  const [companies, setCompanies] = useState([])
   const [mode, setMode] = useState('write') // 'write' | 'record'
   const [form, setForm] = useState({
     title:'', content:'', category:'First Day at Job',
     tags:'', cover_image_url:'', visibility:'public',
     group_id: searchParams.get('group') || '',
+    company_id: '',
   })
   const [loading, setLoading] = useState(false)
   const [loadingStory, setLoadingStory] = useState(!!id)
@@ -54,6 +56,7 @@ export default function WriteStory() {
   useEffect(() => {
     getStoryCategories().then(({ data }) => { if (data?.length) setCats(data) })
     getMyGroups().then(({ data }) => setGroups(data || []))
+    getCompanies().then(({ data }) => setCompanies(data || []))
   }, [])
 
   useEffect(() => {
@@ -67,6 +70,7 @@ export default function WriteStory() {
           cover_image_url: data.cover_image_url || '',
           visibility: data.visibility || 'public',
           group_id: data.group_id || '',
+          company_id: data.company_id || '',
         })
         setLoadingStory(false)
       })
@@ -156,6 +160,7 @@ export default function WriteStory() {
       cover_image_url: form.cover_image_url || null,
       visibility: form.visibility,
       group_id: form.group_id || null,
+      company_id: form.company_id || null,
       status,
       user_id: user.id,
       ...audioFields,
@@ -216,6 +221,17 @@ export default function WriteStory() {
           <select className="form-control" value={form.group_id} onChange={set('group_id')}>
             <option value="">No group — just my feed</option>
             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* Company */}
+      {companies.length > 0 && (
+        <div className="form-group">
+          <label className="form-label">Link a company (optional)</label>
+          <select className="form-control" value={form.company_id} onChange={set('company_id')}>
+            <option value="">No company</option>
+            {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
       )}

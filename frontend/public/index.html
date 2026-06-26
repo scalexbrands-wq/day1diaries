@@ -11,6 +11,14 @@
   <title>Day1 Diaries — Share Your First Day Story</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <!-- Moved out of index.css's @import (see comment there) so the browser
+       discovers and fetches it immediately, in parallel with the bundle,
+       instead of only after parsing the whole stylesheet. -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+  <!-- Production API origin (REACT_APP_API_BASE_URL) — preconnect so the
+       first API call after JS loads skips DNS/TLS/TCP setup. -->
+  <link rel="preconnect" href="https://d3jxtvhku6fksg.cloudfront.net"/>
+  <link rel="dns-prefetch" href="https://d3jxtvhku6fksg.cloudfront.net"/>
 </head>
 <body>
   <noscript>You need JavaScript enabled to run Day1 Diaries.</noscript>

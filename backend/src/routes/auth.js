@@ -11,6 +11,7 @@ const {
 const { pool } = require('../db/pool')
 const { requireAuth } = require('../middleware/auth')
 const whatsapp = require('../utils/whatsapp')
+const { applyReferralSignupBonus } = require('../utils/referral')
 
 const router = express.Router()
 const client = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION })
@@ -53,7 +54,7 @@ async function isEmailVerificationRequired() {
 // ── POST /auth/signup ───────────────────────────────────────
 // body: { email, password, username, fullName }
 router.post('/signup', async (req, res) => {
-  const { email, password, username, fullName, phone } = req.body
+  const { email, password, username, fullName, phone, referralCode } = req.body
   if (!email || !password || !username) {
     return res.status(400).json({ error: 'email, password, and username are required' })
   }
@@ -110,6 +111,7 @@ router.post('/signup', async (req, res) => {
         [sub]
       )
 
+      await applyReferralSignupBonus(sub, referralCode)
       await maybeSendWhatsAppWelcome(sub)
 
       return res.json({
@@ -141,7 +143,7 @@ router.post('/signup', async (req, res) => {
 // ── POST /auth/confirm ──────────────────────────────────────
 // body: { email, code, username, fullName }
 router.post('/confirm', async (req, res) => {
-  const { email, code, username, fullName, phone } = req.body
+  const { email, code, username, fullName, phone, referralCode } = req.body
   try {
     await client.send(new ConfirmSignUpCommand({
       ClientId: CLIENT_ID,
@@ -168,6 +170,7 @@ router.post('/confirm', async (req, res) => {
       [sub, username, fullName || username, email, phone || null]
     )
 
+    await applyReferralSignupBonus(sub, referralCode)
     await maybeSendWhatsAppWelcome(sub)
 
     res.json({

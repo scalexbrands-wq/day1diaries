@@ -53,8 +53,16 @@ router.get('/data', async (req, res) => {
 
   // Get open jobs for landing page
   const { rows: openJobs } = await pool.query(
-    `SELECT id, title, department, location, job_type, salary_min, salary_max, currency
-     FROM careers_jobs WHERE is_active = true ORDER BY sort_order, created_at DESC LIMIT 6`
+    `SELECT j.id, j.title, j.department, j.location, j.job_type, j.salary_min, j.salary_max, j.currency,
+            c.name AS company_name, c.slug AS company_slug, c.logo_url AS company_logo_url
+     FROM careers_jobs j LEFT JOIN companies c ON c.id = j.company_id
+     WHERE j.is_active = true ORDER BY j.sort_order, j.created_at DESC LIMIT 6`
+  ).catch(() => ({ rows: [] }))
+
+  // Featured employer companies — most recently active, for the landing page's "hiring now" strip
+  const { rows: featuredCompanies } = await pool.query(
+    `SELECT id, name, slug, industry, location, logo_url
+     FROM companies WHERE is_active = true ORDER BY created_at DESC LIMIT 12`
   ).catch(() => ({ rows: [] }))
 
   res.json({
@@ -68,10 +76,11 @@ router.get('/data', async (req, res) => {
     stats: stats.rows[0],
     levels: levels.rows,
     open_jobs: openJobs,
+    featured_companies: featuredCompanies,
   })
 })
 
-const LANDING_TEMPLATES = ['classic', 'editorial', 'bento', 'kinetic', 'slideshow']
+const LANDING_TEMPLATES = ['classic', 'editorial', 'bento', 'kinetic', 'slideshow', 'linktree']
 
 // GET /landing/template — which design template is live right now.
 // Public (no auth) since it's read on every visit to "/" before login.
@@ -144,7 +153,7 @@ router.post('/admin/hero/images', requireAuth, requirePermission('manage_landing
   const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
   const key = `landing/hero-${Date.now()}.${ext}`
   const baseUrl = `${req.protocol}://${req.get('host')}`
-  const url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl)
+  const url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl, { maxWidth: 1920, maxHeight: 1080 })
 
   const updated = [...current, url]
   const { rows } = await pool.query(
@@ -211,7 +220,7 @@ router.post('/admin/bottom-section/images', requireAuth, requirePermission('mana
   const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
   const key = `landing/bottom-${Date.now()}.${ext}`
   const baseUrl = `${req.protocol}://${req.get('host')}`
-  const url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl)
+  const url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl, { maxWidth: 1600, maxHeight: 1200 })
 
   const updated = [...current, url]
   const { rows } = await pool.query(

@@ -61,7 +61,22 @@ async function initDB() {
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent_at TIMESTAMPTZ`)
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS banner_url TEXT`)
     await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS gift_unlimited_sending BOOLEAN DEFAULT false`)
+    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS referral_code TEXT`)
+    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS referred_by TEXT`)
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS profiles_referral_code_idx ON profiles (referral_code) WHERE referral_code IS NOT NULL`)
+    // referrals — one row per successful referral, recording the coin payout to each side
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id              BIGSERIAL PRIMARY KEY,
+        referrer_id     TEXT NOT NULL,
+        referred_id     TEXT NOT NULL UNIQUE,
+        referrer_coins  INT NOT NULL DEFAULT 500,
+        referred_coins  INT NOT NULL DEFAULT 1000,
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `)
     await pool.query(`ALTER TABLE pending_signups ADD COLUMN IF NOT EXISTS phone TEXT`).catch(() => {})
+    await pool.query(`ALTER TABLE pending_signups ADD COLUMN IF NOT EXISTS referral_code TEXT`).catch(() => {})
     await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS flag_reason TEXT`)
     // landing_hero — admin-uploaded hero image(s) — slideshow of up to 3
     await pool.query(`ALTER TABLE landing_hero ADD COLUMN IF NOT EXISTS hero_image_url TEXT`)
@@ -967,7 +982,7 @@ async function initDB() {
     await pool.query(`ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_role_check`)
     await pool.query(`
       ALTER TABLE profiles ADD CONSTRAINT profiles_role_check
-        CHECK (role = ANY (ARRAY['user','contributor','admin','moderator','marketer','support','finance']))
+        CHECK (role = ANY (ARRAY['user','contributor','admin','moderator','marketer','support','finance','employer']))
     `)
 
     // ── RBAC — role_permissions ──────────────────────────────────
@@ -1102,6 +1117,66 @@ async function initDB() {
     // community_updates had no way to tell a paid webinar from a free one —
     // event_type alone (webinar/workshop/etc) doesn't carry price. 0 means free.
     await pool.query(`ALTER TABLE community_updates ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0`)
+
+    // Additional indexes for hot read paths that were missing a covering
+    // index — found by walking the WHERE/ORDER BY clauses actually issued
+    // by routes/*.js against tables whose only indexes came from the
+    // original schema.sql UNIQUE constraints (which cover the (a,b) lookup
+    // shape but not single-column or ORDER BY-only access patterns).
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_saves_story ON saves(story_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_comments_story_created ON comments(story_id, created_at)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_community_updates_published_created ON community_updates(is_published, created_at DESC)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_habits_user_habit ON user_habits(user_id, habit_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_challenge_participations_user ON challenge_participations(user_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_habit_challenges_start ON habit_challenges(start_date)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_careers_jobs_active ON careers_jobs(is_active, department)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_job_applications_user ON job_applications(user_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_story_views_user_created ON story_views(user_id, viewed_at DESC)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_topic_follows_user ON topic_follows(user_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_stories_visibility_status_likes ON stories(status, visibility, likes_count DESC)`)
+
+    // ── Employer module — companies own job postings (careers_jobs)
+    // and can be optionally tagged on a story. One employer profile
+    // manages exactly one company (profiles.company_id), matching the
+    // simple 'employer' role rather than a many-to-many accounts table.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS companies (
+        id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name        TEXT NOT NULL,
+        slug        TEXT UNIQUE NOT NULL,
+        description TEXT,
+        industry    TEXT,
+        location    TEXT,
+        website     TEXT,
+        logo_url    TEXT,
+        is_active   BOOLEAN DEFAULT true,
+        created_by  UUID REFERENCES profiles(id),
+        created_at  TIMESTAMPTZ DEFAULT now(),
+        updated_at  TIMESTAMPTZ DEFAULT now()
+      )
+    `)
+    await pool.query(`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE SET NULL`)
+    await pool.query(`ALTER TABLE careers_jobs ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE`)
+    await pool.query(`ALTER TABLE stories ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE SET NULL`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_companies_active ON companies(is_active)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_careers_jobs_company ON careers_jobs(company_id)`)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_stories_company ON stories(company_id)`)
+
+    // Live presence — backs the "🔥 N vibing rn" pill in TopBar. Each open
+    // tab sends a heartbeat every ~25s with a persistent client-side
+    // session id (localStorage, so multiple tabs in one browser count
+    // once); "online now" = distinct sessions seen in the last 90s. Stale
+    // sessions fall off automatically as heartbeats stop — no explicit
+    // disconnect/logout event needed. This is separate from
+    // site_visit_counter (the admin-editable lifetime total in Settings).
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS live_presence (
+        session_id   TEXT PRIMARY KEY,
+        user_id      UUID REFERENCES profiles(id) ON DELETE SET NULL,
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `)
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_live_presence_last_seen ON live_presence(last_seen_at)`)
 
     console.log('DB schema init OK')
   } catch (err) {

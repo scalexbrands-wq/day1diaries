@@ -16,6 +16,7 @@ const ROLES = [
   { key: 'marketer', label: 'Marketer', description: 'Manages the Marketing/Ads module only.' },
   { key: 'support', label: 'Support', description: 'Read access to users and orders to help resolve issues.' },
   { key: 'finance', label: 'Finance', description: 'Verifies/refunds payments and wallet claims across Membership and Gifting.' },
+  { key: 'employer', label: 'Employer', description: 'Manages their own company profile and its job postings.' },
   { key: 'admin', label: 'Admin', description: 'Superuser — full access to everything, not editable below.' },
 ]
 const ROLE_KEYS = ROLES.map(r => r.key)
@@ -61,6 +62,9 @@ const PERMISSIONS = [
 
   // Email
   { key: 'manage_email', label: 'Manage email templates & campaigns', category: 'Email' },
+
+  // Employers
+  { key: 'manage_companies', label: 'Manage employer companies & job postings', category: 'Employers' },
 
   // Settings
   { key: 'manage_settings', label: 'Manage global app settings', category: 'Settings' },

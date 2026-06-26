@@ -140,6 +140,7 @@ export default function Landing() {
   const habits      = data?.habits        || []
   const leaderboard = data?.leaderboard   || []
   const openJobs    = data?.open_jobs     || []
+  const featuredCompanies = data?.featured_companies || []
   const headline    = hero.headline || 'Your first day at work is a story only you lived.'
   const highlight   = hero.headline_highlight || 'only you'
   const parts       = headline.split(highlight)
@@ -598,10 +599,29 @@ export default function Landing() {
             <h2 className="lp-reveal" style={{ ...S.h2('white'), marginBottom:10 }}>Your Day 1 at a new job<br/>starts here.</h2>
             <p className="lp-reveal" style={{ fontSize:'1rem', color:'rgba(255,255,255,.4)', lineHeight:1.75, fontWeight:300, maxWidth:420 }}>Real openings from companies that believe every first day matters.</p>
           </div>
-          <Link to="/careers" className="lp-reveal" style={S.btn('transparent','#FFD166',{ border:'1.5px solid rgba(255,209,102,.4)', padding:'10px 24px', fontSize:13.5 })}>
-            View All Jobs →
-          </Link>
+          <div className="lp-reveal" style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+            <Link to="/companies" style={S.btn('transparent','rgba(255,255,255,.7)',{ border:'1.5px solid rgba(255,255,255,.18)', padding:'10px 24px', fontSize:13.5 })}>
+              Browse Companies →
+            </Link>
+            <Link to="/careers" style={S.btn('transparent','#FFD166',{ border:'1.5px solid rgba(255,209,102,.4)', padding:'10px 24px', fontSize:13.5 })}>
+              View All Jobs →
+            </Link>
+          </div>
         </div>
+
+        {featuredCompanies.length > 0 && (
+          <div className="lp-reveal" style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap', marginBottom:36, paddingBottom:28, borderBottom:'1px solid rgba(255,255,255,.06)' }}>
+            <span style={{ fontSize:12, color:'rgba(255,255,255,.4)', fontWeight:600, flexShrink:0 }}>Hiring now:</span>
+            {featuredCompanies.slice(0, 8).map(c => (
+              <Link key={c.id} to={`/companies/${c.slug}`} style={{ display:'flex', alignItems:'center', gap:6, textDecoration:'none', color:'rgba(255,255,255,.75)', fontSize:12.5, fontWeight:600 }}>
+                {c.logo_url
+                  ? <img src={c.logo_url} alt="" style={{ width:18, height:18, borderRadius:4, objectFit:'cover' }} />
+                  : <span style={{ width:18, height:18, borderRadius:4, background:'linear-gradient(135deg,#FF6B2B,#FFD166)', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700, color:'#1A0800' }}>{c.name[0]}</span>}
+                {c.name}
+              </Link>
+            ))}
+          </div>
+        )}
 
         {loading ? <Spinner/> : openJobs.length === 0 ? (
           /* Fallback placeholder cards when no jobs are seeded */
@@ -631,7 +651,7 @@ export default function Landing() {
 
         <div style={{ textAlign:'center', marginTop:40, paddingTop:40, borderTop:'1px solid rgba(255,255,255,.06)' }}>
           <p style={{ color:'rgba(255,255,255,.4)', fontSize:13, marginBottom:16 }}>Building something? Post your openings and reach 10,000+ freshers.</p>
-          <Link to="/contact" style={S.btn('#FF6B2B','white',{ boxShadow:'0 6px 20px rgba(255,107,43,.4)' })}>Post a Job →</Link>
+          <Link to="/employer/dashboard" style={S.btn('#FF6B2B','white',{ boxShadow:'0 6px 20px rgba(255,107,43,.4)' })}>Post a Job →</Link>
         </div>
       </section>
 
@@ -800,7 +820,7 @@ export default function Landing() {
           </div>
           {[
             ['Platform',[['Discover Stories','/discover'],['Habit Library','/habits'],['Leaderboard','/leaderboard'],['Share a Story','/write']]],
-            ['Company',[['About Us','/about'],['Blog','/blog'],['Careers','/careers'],['Contact','/contact']]],
+            ['Company',[['About Us','/about'],['Blog','/blog'],['Careers','/careers'],['Companies','/companies'],['Contact','/contact']]],
             ['Legal',[['Privacy Policy','/privacy'],['Terms of Service','/terms'],['Community Guidelines','/content-policy'],['Membership & Refund Policy','/refund-policy']]],
           ].map(([title,links])=>(
             <div key={title}>
@@ -842,7 +862,7 @@ function JobCard({ job, navigate, S }) {
       {/* Title & dept */}
       <div>
         <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1rem', fontWeight:700, color:'#1A0800', marginBottom:4, lineHeight:1.3, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{job.title}</div>
-        <div style={{ fontSize:12, color:'#8C7B6E', fontWeight:500 }}>{job.department}</div>
+        <div style={{ fontSize:12, color:'#8C7B6E', fontWeight:500 }}>{job.company_name ? `${job.company_name} · ${job.department || ''}` : job.department}</div>
       </div>
 
       {/* Meta: location + salary */}

@@ -272,7 +272,11 @@ export default function Feed() {
     setSuggestedUsers(prev => prev.filter(u => u.id !== userId))
   }
 
-  const handleUnlock = (storyId) => setUnlockedIds(prev => new Set([...prev, storyId]))
+  // useCallback so this stays referentially stable across renders — it's
+  // passed to every StoryCard (now React.memo'd); a fresh function here
+  // every render would defeat that memo and re-render the whole feed list
+  // on any unrelated state change (toasts, pagination appends, etc.)
+  const handleUnlock = useCallback((storyId) => setUnlockedIds(prev => new Set([...prev, storyId])), [])
 
   const isStoryLocked = (story) => {
     if (!story.profiles?.is_private) return false
@@ -310,6 +314,8 @@ export default function Feed() {
         @media(max-width:400px){
           .feed-stats { grid-template-columns:1fr 1fr !important; }
         }
+        .feed-refer-mobile { display:none; }
+        @media(max-width:900px){ .feed-refer-mobile { display:block; } }
       `}</style>
 
       <div className="feed-layout">
@@ -328,6 +334,15 @@ export default function Feed() {
                 <div style={{ fontSize:10, color:'#8C7B6E', marginTop:2 }}>{l}</div>
               </div>
             ))}
+          </div>
+
+          {/* Refer a Friend — sidebar version is desktop-only, so mirror it here for mobile */}
+          <div className="feed-refer-mobile" onClick={() => navigate('/refer')} style={{ background:'linear-gradient(135deg,#FF6B2B,#FFB088)', borderRadius:16, padding:16, color:'white', cursor:'pointer', marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>🎉 Refer a Friend</div>
+            <div style={{ fontSize:11.5, opacity:.9, marginBottom:10 }}>You get 500 coins, they get 1000 coins — instantly.</div>
+            <div style={{ display:'inline-flex', padding:'6px 14px', background:'rgba(255,255,255,.25)', borderRadius:100, fontSize:11.5, fontWeight:700 }}>
+              Invite now →
+            </div>
           </div>
 
           {/* Habit Progress */}
@@ -412,6 +427,15 @@ export default function Feed() {
         <div className="feed-sidebar">
           {/* Sponsored slideshow — sits above People to Follow */}
           <AdCarousel placement="feed" />
+
+          {/* Refer a Friend */}
+          <div onClick={() => navigate('/refer')} style={{ background:'linear-gradient(135deg,#FF6B2B,#FFB088)', borderRadius:16, padding:16, color:'white', cursor:'pointer' }}>
+            <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>🎉 Refer a Friend</div>
+            <div style={{ fontSize:11.5, opacity:.9, marginBottom:10 }}>You get 500 coins, they get 1000 coins — instantly.</div>
+            <div style={{ display:'inline-flex', padding:'6px 14px', background:'rgba(255,255,255,.25)', borderRadius:100, fontSize:11.5, fontWeight:700 }}>
+              Invite now →
+            </div>
+          </div>
 
           {/* Suggested People */}
           {suggestedUsers.filter(u=>!followedUsers.has(u.id)).length > 0 && (

@@ -249,6 +249,7 @@ export default function LandingBento() {
         <div style={{ textAlign:'center', marginBottom:40 }}>
           <span className="bn-pill">Trending Opportunities</span>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(1.9rem,3.5vw,2.8rem)', fontWeight:900, marginTop:14 }}>Your Day 1 at a new job starts here.</h2>
+          <Link to="/companies" style={{ display:'inline-block', marginTop:14, fontSize:13, fontWeight:700, color:'#FF6B2B', textDecoration:'none' }}>Browse Companies →</Link>
         </div>
         {!loading && (
           <div className="bn-bento bn-4" style={{ gridTemplateColumns:'repeat(4,1fr)', maxWidth:1080, margin:'0 auto' }}>
@@ -261,7 +262,7 @@ export default function LandingBento() {
                 <div key={job.id || i} className="bn-card" style={{ ...glass, borderRadius:20, padding:20, cursor:'pointer' }} onClick={() => navigate('/careers')}>
                   <span style={{ fontSize:10, fontWeight:700, padding:'4px 10px', borderRadius:100, background:ts.bg, color:ts.c }}>{job.job_type || 'Full-Time'}</span>
                   <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:700, marginTop:12, marginBottom:4 }}>{job.title}</div>
-                  <div style={{ fontSize:12, color:'#8C7B6E' }}>{job.department} {job.location ? `· ${job.location}` : ''}</div>
+                  <div style={{ fontSize:12, color:'#8C7B6E' }}>{job.company_name || job.department} {job.location ? `· ${job.location}` : ''}</div>
                 </div>
               )
             })}
@@ -361,7 +362,7 @@ export default function LandingBento() {
           </div>
           {[
             ['Platform',[['Discover','/discover'],['Habits','/habits'],['Leaderboard','/leaderboard']]],
-            ['Company',[['About','/about'],['Blog','/blog'],['Careers','/careers']]],
+            ['Company',[['About','/about'],['Blog','/blog'],['Careers','/careers'],['Companies','/companies']]],
             ['Legal',[['Privacy','/privacy'],['Terms','/terms']]],
           ].map(([title, links]) => (
             <div key={title}>

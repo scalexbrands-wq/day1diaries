@@ -8,7 +8,12 @@ import { toast } from './Toast'
 import { formatDistanceToNow } from 'date-fns'
 import SurpriseAFriendButton from './SurpriseAFriendButton'
 
-export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp, onUnlock }) {
+// memo'd — Feed/Discover render dozens of these per page, and most stay
+// unchanged across re-renders triggered by unrelated state (toasts,
+// sidebar widgets, pagination appends); skipping their re-render when
+// `story`/callback props are referentially stable is the difference
+// between a scroll-triggered append touching 1 card or all of them.
+function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp, onUnlock }) {
   const { user } = useAuth()
   const { i18n } = useTranslation()
   const navigate = useNavigate()
@@ -162,6 +167,20 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
         <div className="story-card-cat" title={story.category}>{story.category}</div>
       </div>
 
+      {story.company && (
+        <div
+          className="story-company-badge"
+          title={story.company.name}
+          onClick={(e) => { e.stopPropagation(); navigate(`/companies/${story.company.slug}`) }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8, cursor: 'pointer', fontSize: 12, color: '#FF6B2B', fontWeight: 600 }}
+        >
+          {story.company.logo_url
+            ? <img src={story.company.logo_url} alt="" style={{ width: 16, height: 16, borderRadius: 4, objectFit: 'cover' }} />
+            : <span>🏢</span>}
+          {story.company.name}
+        </div>
+      )}
+
       {/* Title — visible when locked to tease the reader */}
       <div className="story-card-title" title={displayTitle}>{displayTitle}</div>
 
@@ -223,3 +242,5 @@ export default function StoryCard({ story, onLikeUpdate, isLocked: isLockedProp,
     </div>
   )
 }
+
+export default React.memo(StoryCard)

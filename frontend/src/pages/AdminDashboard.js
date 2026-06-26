@@ -44,97 +44,128 @@ import {
   adminSetAdCampaignStatus, adminDeleteAdCampaign,
   adminGetMarketingSettings, adminUpdateMarketingSettings,
   adminGetRbacMatrix, adminSetRolePermissions,
+  adminGetCompanies, adminSetCompanyStatus, adminDeleteCompany, adminCreateCompany, adminUpdateCompany,
+  adminGetNavRules, adminUpdateNavRules,
 } from '../lib/api'
 import AdminLandingContent from './AdminLandingContent'
 import { toast } from '../components/Toast'
 import CertificateGenerator from '../components/CertificateGenerator'
 import GiftTrackingTimeline from '../components/GiftTrackingTimeline'
-
-const L = ({c}) => <label style={{display:'block',fontSize:12,fontWeight:600,color:'#5C3D2E',marginBottom:5}}>{c}</label>
-const Inp = (p) => <input {...p} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',outline:'none',marginBottom:12,...p.style}} onFocus={e=>e.target.style.borderColor='#FF6B2B'} onBlur={e=>e.target.style.borderColor='#DDD3CA'}/>
-const TA  = (p) => <textarea {...p} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',outline:'none',resize:'vertical',minHeight:72,marginBottom:12,...p.style}} onFocus={e=>e.target.style.borderColor='#FF6B2B'} onBlur={e=>e.target.style.borderColor='#DDD3CA'}/>
-const Btn = ({children,v='primary',...p}) => {
-  const m={primary:{bg:'#FF6B2B',co:'white',bd:'#FF6B2B'},secondary:{bg:'transparent',co:'#FF6B2B',bd:'#FF6B2B'},danger:{bg:'transparent',co:'#DC2626',bd:'#DC2626'},green:{bg:'#059669',co:'white',bd:'#059669'}}[v]
-  return <button {...p} style={{padding:'8px 18px',borderRadius:100,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'inherit',transition:'all .2s',background:m.bg,color:m.co,border:`1.5px solid ${m.bd}`,...p.style}}>{children}</button>
-}
-const Card = ({children,style,...rest}) => <div {...rest} style={{background:'white',border:'1px solid #F0EAE4',borderRadius:16,padding:20,marginBottom:16,...style}}>{children}</div>
-const SH = ({c}) => <div style={{fontSize:14,fontWeight:700,color:'#1A0800',marginBottom:14,paddingBottom:10,borderBottom:'1px solid #F0EAE4'}}>{c}</div>
-const Modal = ({title,onClose,children}) => (
-  <div style={{position:'fixed',inset:0,background:'rgba(26,8,0,.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20,overflowY:'auto'}}>
-    <div style={{background:'white',borderRadius:20,padding:28,width:'100%',maxWidth:540,margin:'auto',maxHeight:'90vh',overflowY:'auto'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
-        <div style={{fontSize:15,fontWeight:700}}>{title}</div>
-        <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',fontSize:20,color:'#8C7B6E',lineHeight:1}}>×</button>
-      </div>
-      {children}
-    </div>
-  </div>
-)
+import GroupAudiencePicker from '../components/GroupAudiencePicker'
+import { L, Inp, TA, Btn, Card, SH, Modal, KpiCard, AdminSidebar } from '../components/admin/AdminUI'
 
 // Each tab lists the permission key(s) that unlock it — a tab shows if
 // the signed-in role has ANY of them (or is the 'admin' superuser).
 // 'rbac' has none listed here; it's gated separately to the true admin
 // role only (see AdminDashboard below) so no role can grant itself more
 // access by editing the matrix.
+// [key, icon, label, permission keys] — a tab shows if the signed-in
+// role has ANY of its permission keys (or is the 'admin' superuser).
 const TABS = [
-  ['overview','📊 Overview', ['view_analytics']],
-  ['announcements','📢 Announcements', ['manage_announcements']],
-  ['habits','💪 Habits', ['manage_habits']],
-  ['challenges','🏆 Challenges', ['manage_challenges']],
-  ['events','📅 Events', ['manage_community_events']],
-  ['email','✉️ Email Center', ['manage_email']],
-  ['membership','🎫 Membership', ['manage_membership','review_membership_applications','manage_membership_payments']],
-  ['gifting','🎁 Gifting', ['manage_gifting','manage_gift_payments','manage_wallet_claims','manage_shipments']],
-  ['marketing','📣 Marketing', ['manage_marketing']],
-  ['surprises','🎉 Surprise & Coupons', ['manage_surprises','manage_coupons']],
-  ['seo','🔎 SEO', ['manage_seo']],
-  ['users','👥 Users', ['view_users','manage_users','delete_users','manage_roles']],
-  ['content','🛡️ Moderation', ['moderate_content']],
-  ['landing','🎯 Landing', ['manage_landing_content']],
-  ['sitepages','🌐 Site Pages', ['manage_site_pages']],
-  ['categories','📂 Categories', ['manage_categories']],
-  ['settings','⚙️ Settings', ['manage_settings']],
+  ['overview','📊','Overview', ['view_analytics']],
+  ['announcements','📢','Announcements', ['manage_announcements']],
+  ['habits','💪','Habits', ['manage_habits']],
+  ['challenges','🏆','Challenges', ['manage_challenges']],
+  ['events','📅','Events', ['manage_community_events']],
+  ['categories','📂','Categories', ['manage_categories']],
+  ['content','🛡️','Moderation', ['moderate_content']],
+  ['membership','🎫','Membership', ['manage_membership','review_membership_applications','manage_membership_payments']],
+  ['gifting','🎁','Gifting', ['manage_gifting','manage_gift_payments','manage_wallet_claims','manage_shipments']],
+  ['marketing','📣','Marketing', ['manage_marketing']],
+  ['surprises','🎉','Surprise & Coupons', ['manage_surprises','manage_coupons']],
+  ['companies','🏢','Companies', ['manage_companies']],
+  ['landing','🎯','Landing', ['manage_landing_content']],
+  ['sitepages','🌐','Site Pages', ['manage_site_pages']],
+  ['seo','🔎','SEO', ['manage_seo']],
+  ['users','👥','Users', ['view_users','manage_users','delete_users','manage_roles']],
+  ['email','✉️','Email Center', ['manage_email']],
+  ['settings','⚙️','Settings', ['manage_settings']],
+]
+
+// Groups the TABS above into the sidebar's sections — purely a rendering
+// grouping, doesn't affect the permission gating above. A group header
+// only shows if at least one of its tabs is actually visible to this role.
+const TAB_GROUPS = [
+  { key:'top',      label:null,                tabs:['overview'] },
+  { key:'content',  label:'Content & Community', tabs:['announcements','habits','challenges','events','categories','content'] },
+  { key:'commerce', label:'Commerce',          tabs:['membership','gifting','marketing','surprises'] },
+  { key:'employer', label:'Employer',          tabs:['companies'] },
+  { key:'site',     label:'Site & Marketing',  tabs:['landing','sitepages','seo'] },
+  { key:'comms',    label:'Communications',    tabs:['email'] },
+  { key:'people',   label:'People',            tabs:['users'] },
+  { key:'settings', label:'Settings',          tabs:['settings'] },
 ]
 
 export default function AdminDashboard() {
   const { profile, permissions, hasPermission } = useAuth()
   const isSuperAdmin = profile?.role === 'admin'
-  const visibleTabs = TABS.filter(([,,perms]) => isSuperAdmin || hasPermission(...perms))
+  const visibleTabs = TABS.filter(([,,,perms]) => isSuperAdmin || hasPermission(...perms))
+  const visibleKeys = new Set(visibleTabs.map(([k]) => k))
   const [tab, setTab] = useState(null)
-  const activeTab = tab && (isSuperAdmin || visibleTabs.some(([k])=>k===tab) || tab==='rbac') ? tab : (visibleTabs[0]?.[0] || null)
+  const activeTab = tab && (isSuperAdmin || visibleKeys.has(tab) || tab==='rbac') ? tab : (visibleTabs[0]?.[0] || null)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   if (!permissions) return <Card>Loading…</Card>
 
+  const tabsByKey = Object.fromEntries(TABS.map(t => [t[0], t]))
+  const select = (k) => { setTab(k); setMobileNavOpen(false) }
+
+  const groups = TAB_GROUPS
+    .map(g => ({
+      key: g.key,
+      label: g.label,
+      items: g.tabs.filter(k => visibleKeys.has(k)).map(k => {
+        const [key, icon, label] = tabsByKey[k]
+        return { key, icon, label, active: activeTab === key, onClick: () => select(key) }
+      }),
+    }))
+    .filter(g => g.items.length > 0)
+
+  if (isSuperAdmin) {
+    groups.push({ key:'rbac', label:'Security', items:[
+      { key:'rbac', icon:'🔐', label:'Roles & Permissions', active: activeTab==='rbac', onClick: () => select('rbac') },
+    ]})
+  }
+
   return (
-    <div className="admin-dash" style={{padding:'24px 32px',maxWidth:1100}}>
-      <style>{`@media (max-width: 600px) { .admin-dash { padding: 16px !important; } }`}</style>
-      <div style={{display:'flex',gap:0,borderBottom:'2px solid #F0EAE4',marginBottom:24,flexWrap:'wrap'}}>
-        {visibleTabs.map(([k,l]) => (
-          <button key={k} onClick={()=>setTab(k)} style={{padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',color:activeTab===k?'#FF6B2B':'#8C7B6E',borderBottom:activeTab===k?'2px solid #FF6B2B':'2px solid transparent',marginBottom:'-2px',whiteSpace:'nowrap'}}>{l}</button>
-        ))}
-        {isSuperAdmin && (
-          <button onClick={()=>setTab('rbac')} style={{padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:'inherit',color:activeTab==='rbac'?'#FF6B2B':'#8C7B6E',borderBottom:activeTab==='rbac'?'2px solid #FF6B2B':'2px solid transparent',marginBottom:'-2px',whiteSpace:'nowrap'}}>🔐 Roles &amp; Permissions</button>
-        )}
+    <div className="admin-dash">
+      <style>{`
+        .admin-dash { padding:24px 32px; max-width:1320px; display:flex; gap:24px; align-items:flex-start; }
+        .admin-dash-main { flex:1; min-width:0; }
+        .admin-mobile-bar { display:none; }
+        @media (max-width: 768px) {
+          .admin-dash { padding:16px !important; gap:0; }
+          .admin-sidebar-desktop { display:none !important; }
+          .admin-mobile-bar { display:flex !important; }
+        }
+      `}</style>
+      <div className="admin-mobile-bar" style={{ alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+        <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:800, fontSize:16, color:'#1A0800' }}>Admin</div>
+        <button onClick={()=>setMobileNavOpen(true)} style={{ background:'#fff', border:'1.5px solid #F0EAE4', borderRadius:10, padding:'7px 12px', fontSize:18, cursor:'pointer' }}>☰</button>
       </div>
-      {!activeTab && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>No admin permissions are assigned to your role yet.</p></Card>}
-      {activeTab==='overview'       && <OverviewTab/>}
-      {activeTab==='announcements'  && <AnnouncementsTab/>}
-      {activeTab==='habits'         && <HabitsTab/>}
-      {activeTab==='challenges' && <ChallengesTab/>}
-      {activeTab==='events'     && <EventsTab/>}
-      {activeTab==='email'      && <EmailCenterTab/>}
-      {activeTab==='membership' && <MembershipTab/>}
-      {activeTab==='gifting' && <GiftingTab/>}
-      {activeTab==='marketing' && <MarketingTab/>}
-      {activeTab==='surprises' && <SurprisePromoTab/>}
-      {activeTab==='seo' && <SeoTab/>}
-      {activeTab==='users'      && <UsersTab/>}
-      {activeTab==='content'    && <ModerationTab/>}
-      {activeTab==='landing'    && <AdminLandingContent/>}
-      {activeTab==='sitepages'  && <SitePagesTab/>}
-      {activeTab==='categories' && <CategoriesTab/>}
-      {activeTab==='settings'   && <SettingsTab/>}
-      {activeTab==='rbac'       && isSuperAdmin && <RolesPermissionsTab/>}
+      <AdminSidebar groups={groups} mobileOpen={mobileNavOpen} onCloseMobile={()=>setMobileNavOpen(false)}/>
+      <div className="admin-dash-main">
+        {!activeTab && <Card><p style={{color:'#8C7B6E',fontSize:13,margin:0}}>No admin permissions are assigned to your role yet.</p></Card>}
+        {activeTab==='overview'       && <OverviewTab/>}
+        {activeTab==='announcements'  && <AnnouncementsTab/>}
+        {activeTab==='habits'         && <HabitsTab/>}
+        {activeTab==='challenges' && <ChallengesTab/>}
+        {activeTab==='events'     && <EventsTab/>}
+        {activeTab==='email'      && <EmailCenterTab/>}
+        {activeTab==='membership' && <MembershipTab/>}
+        {activeTab==='gifting' && <GiftingTab/>}
+        {activeTab==='marketing' && <MarketingTab/>}
+        {activeTab==='surprises' && <SurprisePromoTab/>}
+        {activeTab==='seo' && <SeoTab/>}
+        {activeTab==='users'      && <UsersTab/>}
+        {activeTab==='content'    && <ModerationTab/>}
+        {activeTab==='landing'    && <AdminLandingContent/>}
+        {activeTab==='sitepages'  && <SitePagesTab/>}
+        {activeTab==='companies' && <CompaniesTab/>}
+        {activeTab==='categories' && <CategoriesTab/>}
+        {activeTab==='settings'   && <SettingsTab/>}
+        {activeTab==='rbac'       && isSuperAdmin && <RolesPermissionsTab/>}
+      </div>
     </div>
   )
 }
@@ -333,8 +364,69 @@ function SettingsTab() {
         {required ? '✓ Verification required' : '✓ Verification not required — instant sign-up'}
       </div>
     </Card>
+    <SidebarNavSettings/>
     <VisitorCounterSettings/>
     </>
+  )
+}
+
+// Per-tab sidebar visibility by audience — Membership/Gifts/Wallet keep
+// their own separate module toggle (see Sidebar.js); this covers the
+// other 9 nav items (Feed, Discover, Jobs, etc.), reusing the same
+// audience-targeting model + picker UI Groups already ships.
+function SidebarNavSettings() {
+  const [items, setItems] = useState(null)
+  const [form, setForm] = useState({})
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(() => {
+    adminGetNavRules().then(({ data, error }) => {
+      if (error) { toast.error(error.message); return }
+      setItems(data || [])
+      setForm(Object.fromEntries((data || []).map(i => [i.key, { allowed_audiences: i.allowed_audiences, custom_usernames: '' }])))
+    })
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const setItemForm = (key, value) => setForm(f => ({ ...f, [key]: value }))
+
+  const save = async () => {
+    for (const key of Object.keys(form)) {
+      if (form[key].allowed_audiences.length === 0) { toast.error('Pick at least one audience, or choose Everyone, for every tab'); return }
+    }
+    setSaving(true)
+    const payload = Object.fromEntries(Object.entries(form).map(([key, v]) => [key, {
+      allowed_audiences: v.allowed_audiences,
+      custom_usernames: v.custom_usernames.split(',').map(u => u.trim()).filter(Boolean),
+    }]))
+    const { error } = await adminUpdateNavRules(payload)
+    setSaving(false)
+    if (error) { toast.error(error.message); return }
+    toast.success('Sidebar visibility updated')
+    load()
+  }
+
+  if (!items) return <Card>Loading sidebar settings…</Card>
+
+  return (
+    <Card>
+      <SH c="Sidebar Navigation Visibility"/>
+      <p style={{fontSize:12,color:'#8C7B6E',marginTop:0,marginBottom:14}}>
+        Choose who sees each tab in the main sidebar — e.g. restrict "Jobs" to paid members only.
+        Membership, Gifts, and Wallet are controlled separately by their own module toggles.
+      </p>
+      {items.map(item => (
+        <div key={item.key} style={{marginBottom:16, paddingBottom:16, borderBottom:'1px solid #F8F3EC'}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:8}}>{item.icon} {item.label}</div>
+          <GroupAudiencePicker
+            value={form[item.key] || { allowed_audiences:['everyone'], custom_usernames:'' }}
+            onChange={v => setItemForm(item.key, v)}
+            title={`Who can see "${item.label}"?`}
+          />
+        </div>
+      ))}
+      <Btn onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save All'}</Btn>
+    </Card>
   )
 }
 
@@ -405,13 +497,7 @@ function OverviewTab() {
   return (
     <div>
       <div className="grid-3" style={{marginBottom:24}}>
-        {KPIS.map(k=>(
-          <div key={k.label} style={{background:'white',border:'1px solid #F0EAE4',borderRadius:14,padding:'16px 18px'}}>
-            <div style={{fontSize:20,marginBottom:6}}>{k.icon}</div>
-            <div style={{fontSize:22,fontWeight:700,color:k.color,fontFamily:"'Playfair Display',serif"}}>{k.val}</div>
-            <div style={{fontSize:12,color:'#8C7B6E',marginTop:2}}>{k.label}</div>
-          </div>
-        ))}
+        {KPIS.map(k=> <KpiCard key={k.label} icon={k.icon} label={k.label} value={k.val} color={k.color}/>)}
         {!stats&&Array.from({length:6}).map((_,i)=><div key={i} style={{background:'#F5EDE4',borderRadius:14,height:90}}/>)}
       </div>
     </div>
@@ -1212,10 +1298,103 @@ function BlogTab() {
   )
 }
 
-/* ── CAREERS JOBS ── */
+/* ── COMPANIES (EMPLOYER MODULE) ── */
+function CompaniesTab() {
+  const [companies, setCompanies] = useState([])
+  const [editing, setEditing] = useState(null) // null | 'new' | company.id
+  const [form, setForm] = useState({})
+  const [logoFile, setLogoFile] = useState(null)
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const load = useCallback(() => {
+    adminGetCompanies().then(({ data, error }) => {
+      if (error) { toast.error(error.message); return }
+      setCompanies(data || [])
+    })
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  const startEdit = (c = null) => {
+    setEditing(c?.id || 'new')
+    setLogoFile(null)
+    setForm(c ? { name: c.name, description: c.description || '', industry: c.industry || '', location: c.location || '', website: c.website || '' }
+              : { name: '', description: '', industry: '', location: '', website: '' })
+  }
+  const save = async () => {
+    if (!form.name?.trim()) { toast.error('Company name is required'); return }
+    const fields = { ...form, ...(logoFile ? { logo: logoFile } : {}) }
+    const { error } = editing === 'new' ? await adminCreateCompany(fields) : await adminUpdateCompany(editing, fields)
+    if (error) { toast.error(error.message); return }
+    toast.success(editing === 'new' ? 'Company created!' : 'Company updated!')
+    setEditing(null); load()
+  }
+  const toggleStatus = async (c) => {
+    const { error } = await adminSetCompanyStatus(c.id, !c.is_active)
+    if (error) { toast.error(error.message); return }
+    load()
+  }
+  const remove = async (id) => {
+    if (!window.confirm('Delete this company and all its job postings?')) return
+    const { error } = await adminDeleteCompany(id)
+    if (error) toast.error(error.message); else { toast.success('Deleted'); load() }
+  }
+
+  return (
+    <div>
+      {editing && (
+        <Card>
+          <SH c={editing === 'new' ? 'New Company' : 'Edit Company'}/>
+          <L c="Company name *"/><Inp value={form.name} onChange={set('name')} placeholder="Acme Inc."/>
+          <L c="Description"/><TA value={form.description} onChange={set('description')}/>
+          <L c="Industry"/><Inp value={form.industry} onChange={set('industry')} placeholder="Software, Retail, …"/>
+          <L c="Location"/><Inp value={form.location} onChange={set('location')} placeholder="Bengaluru, India"/>
+          <L c="Website"/><Inp value={form.website} onChange={set('website')} placeholder="https://example.com"/>
+          <L c="Logo"/><Inp type="file" accept="image/*" onChange={e => setLogoFile(e.target.files?.[0] || null)}/>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn onClick={save}>Save</Btn>
+            <Btn v="secondary" onClick={() => setEditing(null)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {!editing && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+          <Btn onClick={() => startEdit()}>+ New Company</Btn>
+        </div>
+      )}
+
+      {companies.map(c => (
+        <Card key={c.id} style={{ opacity: c.is_active ? 1 : .55 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{c.name}</div>
+              <div style={{ fontSize: 11, color: '#8C7B6E', marginTop: 4 }}>
+                {[c.industry, c.location].filter(Boolean).join(' · ')}
+                {!c.is_active && <span style={{ color: '#DC2626' }}> · Inactive</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 100, background: 'rgba(255,107,43,.1)', color: '#FF6B2B', fontWeight: 600 }}>
+                  {c.job_count} job{c.job_count === '1' ? '' : 's'}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <Btn v="secondary" onClick={() => startEdit(c)} style={{ padding: '5px 12px', fontSize: 11 }}>Edit</Btn>
+              <Btn v="secondary" onClick={() => toggleStatus(c)} style={{ padding: '5px 12px', fontSize: 11 }}>{c.is_active ? 'Deactivate' : 'Activate'}</Btn>
+              <Btn v="danger" onClick={() => remove(c.id)} style={{ padding: '5px 12px', fontSize: 11 }}>Delete</Btn>
+            </div>
+          </div>
+        </Card>
+      ))}
+      {companies.length === 0 && !editing && <Card style={{ textAlign: 'center', color: '#8C7B6E' }}>No employer companies yet.</Card>}
+    </div>
+  )
+}
+
 function CareersTab() {
   const [jobs, setJobs] = useState([])
   const [stats, setStats] = useState(null)
+  const [companies, setCompanies] = useState([])
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({})
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.type==='checkbox' ? e.target.checked : e.target.value }))
@@ -1226,12 +1405,13 @@ function CareersTab() {
       setJobs(data||[])
     })
     adminGetCareersStats().then(({data})=>{ if(data) setStats(data) })
+    adminGetCompanies().then(({data})=>setCompanies(data||[]))
   }, [])
   useEffect(()=>{ load() }, [load])
 
   const startEdit = (j=null) => {
     setEditing(j?.id || 'new')
-    setForm(j ? {...j} : { title:'', department:'', location:'', job_type:'Full-time', salary_min:'', salary_max:'', currency:'INR', description:'', requirements:'', is_active:true, sort_order: jobs.length+1 })
+    setForm(j ? {...j} : { title:'', department:'', location:'', job_type:'Full-time', salary_min:'', salary_max:'', currency:'INR', description:'', requirements:'', is_active:true, sort_order: jobs.length+1, company_id:'' })
   }
   const save = async () => {
     if (!form.title?.trim() || !form.description?.trim()) { toast.error('Title and description are required'); return }
@@ -1263,14 +1443,7 @@ function CareersTab() {
             ['📋','Total Jobs',stats.total_jobs,'All time'],
             ['📨','Applications',stats.total_applications,'Received'],
             ['✨','New',stats.new_applications,'Awaiting review'],
-          ].map(([icon,label,val,sub])=>(
-            <div key={label} style={{background:'white',border:'1px solid #F0EAE4',borderRadius:14,padding:'14px 16px'}}>
-              <div style={{fontSize:22,marginBottom:6}}>{icon}</div>
-              <div style={{fontFamily:"'Playfair Display',serif",fontSize:'1.5rem',fontWeight:900,color:'#FF6B2B'}}>{val??'—'}</div>
-              <div style={{fontSize:12,fontWeight:600,color:'#1A0800'}}>{label}</div>
-              <div style={{fontSize:11,color:'#8C7B6E'}}>{sub}</div>
-            </div>
-          ))}
+          ].map(([icon,label,val,sub])=> <KpiCard key={label} icon={icon} label={label} value={val} sub={sub}/>)}
         </div>
       )}
       <div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}>
@@ -1282,7 +1455,7 @@ function CareersTab() {
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:700}}>{j.title}</div>
               <div style={{fontSize:11,color:'#8C7B6E',marginTop:4}}>
-                {[j.department, j.location, j.job_type].filter(Boolean).join(' · ')}
+                {[j.company_name, j.department, j.location, j.job_type].filter(Boolean).join(' · ')}
                 {j.is_active===false && <span style={{color:'#DC2626'}}> · Hidden</span>}
               </div>
               <div style={{display:'flex',gap:8,marginTop:8}}>
@@ -1305,6 +1478,11 @@ function CareersTab() {
 
       {editing && (
         <Modal title={editing==='new' ? 'New Job Posting' : 'Edit Job Posting'} onClose={()=>setEditing(null)}>
+          <L c="Company (optional)"/>
+          <select value={form.company_id||''} onChange={set('company_id')} style={{width:'100%',padding:'9px 12px',border:'1.5px solid #DDD3CA',borderRadius:8,fontSize:13,fontFamily:'inherit',outline:'none',marginBottom:12}}>
+            <option value="">No company — internal Day1 hiring</option>
+            {companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
           <L c="Job title"/><Inp value={form.title||''} onChange={set('title')} placeholder="Frontend Engineer (React)"/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             <div><L c="Department"/><Inp value={form.department||''} onChange={set('department')} placeholder="Engineering"/></div>
@@ -2776,16 +2954,8 @@ function GiftAnalyticsTab() {
   return (
     <div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:14,marginBottom:20}}>
-        <Card style={{textAlign:'center'}}>
-          <div style={{fontSize:24,marginBottom:6}}>🎁</div>
-          <div style={{fontSize:20,fontWeight:800}}>{data.totals.total_gifts}</div>
-          <div style={{fontSize:11,color:'#8C7B6E'}}>Total Gifts</div>
-        </Card>
-        <Card style={{textAlign:'center'}}>
-          <div style={{fontSize:24,marginBottom:6}}>💰</div>
-          <div style={{fontSize:20,fontWeight:800}}>₹{Number(data.totals.total_revenue).toFixed(0)}</div>
-          <div style={{fontSize:11,color:'#8C7B6E'}}>Total Revenue</div>
-        </Card>
+        <KpiCard icon="🎁" label="Total Gifts" value={data.totals.total_gifts} color="#1A0800"/>
+        <KpiCard icon="💰" label="Total Revenue" value={`₹${Number(data.totals.total_revenue).toFixed(0)}`} color="#1A0800"/>
       </div>
       <SH c="By Category"/>
       {data.byCategory.map(c => <div key={c.label} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'6px 0',borderBottom:'1px solid #F8F3EC'}}><span>{c.label}</span><b>{c.count}</b></div>)}
@@ -3049,13 +3219,7 @@ function MembershipDashboardTab() {
   return (
     <div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:20}}>
-        {cards.map(([label,value,icon]) => (
-          <Card key={label} style={{textAlign:'center'}}>
-            <div style={{fontSize:24,marginBottom:6}}>{icon}</div>
-            <div style={{fontSize:20,fontWeight:800,color:'#1A0800'}}>{value}</div>
-            <div style={{fontSize:11,color:'#8C7B6E',marginTop:2}}>{label}</div>
-          </Card>
-        ))}
+        {cards.map(([label,value,icon]) => <KpiCard key={label} icon={icon} label={label} value={value} color="#1A0800"/>)}
       </div>
       <SH c="Plan Performance"/>
       {planPerf.map(p => (

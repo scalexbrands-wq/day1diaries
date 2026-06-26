@@ -2,24 +2,29 @@ import React, { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
-import { signOut, getMembershipStatus, getGiftModuleStatus } from '../lib/api'
+import { signOut, getMembershipStatus, getGiftModuleStatus, getNavRules } from '../lib/api'
 import LanguageSwitcher from './LanguageSwitcher'
 
+// navKey matches backend/src/routes/navRules.js's NAV_KEYS — used to look
+// up per-item audience visibility from getNavRules(). Membership/Gifts/
+// Wallet are intentionally NOT in this set; they keep their own separate
+// module-level toggle (membershipEnabled/giftEnabled below).
 const BASE_NAV = [
-  { to:'/feed',        icon:'⌂', labelKey:'nav.feed' },
-  { to:'/discover',    icon:'◉', labelKey:'nav.discover' },
-  { to:'/groups',      icon:'☷', labelKey:'nav.groups' },
-  { to:'/community',   icon:'🌍', labelKey:'nav.community' },
-  { to:'/habits',      icon:'◈', labelKey:'nav.habits' },
-  { to:'/jobs',        icon:'💼', labelKey:'nav.jobs' },
-  { to:'/leaderboard', icon:'◎', labelKey:'nav.leaderboard' },
-  { to:'/saved',       icon:'◇', labelKey:'nav.saved' },
+  { to:'/feed',        icon:'⌂', labelKey:'nav.feed',        navKey:'feed' },
+  { to:'/discover',    icon:'◉', labelKey:'nav.discover',    navKey:'discover' },
+  { to:'/groups',      icon:'☷', labelKey:'nav.groups',      navKey:'groups' },
+  { to:'/community',   icon:'🌍', labelKey:'nav.community',   navKey:'community' },
+  { to:'/habits',      icon:'◈', labelKey:'nav.habits',      navKey:'habits' },
+  { to:'/jobs',        icon:'💼', labelKey:'nav.jobs',        navKey:'jobs' },
+  { to:'/leaderboard', icon:'◎', labelKey:'nav.leaderboard', navKey:'leaderboard' },
+  { to:'/saved',       icon:'◇', labelKey:'nav.saved',       navKey:'saved' },
 ]
 const MEMBERSHIP_NAV_ITEM = { to:'/membership', icon:'🎫', labelKey:'nav.membership' }
 const GIFT_NAV_ITEMS = [
   { to:'/gifts',  icon:'🎁', labelKey:'nav.gifts' },
   { to:'/wallet', icon:'🪙', labelKey:'nav.wallet' },
 ]
+const REFER_NAV_ITEM = { to:'/refer', icon:'🎉', labelKey:'nav.refer', navKey:'refer' }
 
 export const COLORS = ['#FF6B2B','#7C3AED','#059669','#2563EB','#EC4899','#0EA5E9','#F59E0B']
 export const getAvatarColor = (name='') => COLORS[name.charCodeAt(0) % COLORS.length]
@@ -38,15 +43,24 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [membershipEnabled, setMembershipEnabled] = useState(true)
   const [giftEnabled, setGiftEnabled] = useState(true)
+  const [navRules, setNavRules] = useState(null)
 
   useEffect(() => { getMembershipStatus().then(({ data }) => setMembershipEnabled(data !== false)) }, [])
   useEffect(() => { getGiftModuleStatus().then(({ data }) => setGiftEnabled(data?.enabled !== false && data?.allowedForMe !== false)) }, [])
+  useEffect(() => { getNavRules().then(({ data }) => setNavRules(data || {})) }, [])
+
+  // navRules starts null (everything visible) so items don't flicker
+  // hidden before the fetch resolves — same default-open spirit as
+  // membershipEnabled/giftEnabled above.
+  const visible = (navKey) => !navRules || navRules[navKey] !== false
+
   const NAV = [
     ...BASE_NAV.slice(0, 5),
     ...(membershipEnabled ? [MEMBERSHIP_NAV_ITEM] : []),
     ...(giftEnabled ? GIFT_NAV_ITEMS : []),
+    REFER_NAV_ITEM,
     ...BASE_NAV.slice(5),
-  ]
+  ].filter(item => !item.navKey || visible(item.navKey))
 
   const handleSignOut = async () => {
     await signOut()
@@ -91,6 +105,12 @@ export default function Sidebar() {
               <span className="sidebar-nav-icon">⊞</span>{t('nav.dashboard')}
             </NavLink>
           </>
+        )}
+
+        {profile?.role === 'employer' && (
+          <NavLink to="/employer/dashboard" onClick={() => setMobileOpen(false)} style={({ isActive }) => navStyle(isActive)}>
+            <span className="sidebar-nav-icon">🏢</span>{t('nav.employer')}
+          </NavLink>
         )}
 
         <div style={{ fontSize:'10px', fontWeight:600, letterSpacing:'.1em', textTransform:'uppercase', color:'#8C7B6E', padding:'12px 18px 8px' }}>{t('nav.account')}</div>

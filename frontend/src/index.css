@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,700&family=DM+Sans:wght@300;400;500;600&display=swap');
+/* Google Fonts moved to a <link> in public/index.html — a CSS @import
+   here is only discovered after the browser downloads+parses this whole
+   bundled stylesheet, serializing an extra round-trip before any text
+   can render. A <link> in <head> is discovered immediately and fetched
+   in parallel with the rest of the page. */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 

@@ -45,7 +45,7 @@ router.post('/settings/og-image', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image file uploaded' })
   const baseUrl = `${req.protocol}://${req.get('host')}`
   const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
-  const url = await imageStorage.saveImage(`seo/og-image-${Date.now()}.${ext}`, req.file.buffer, req.file.mimetype, baseUrl)
+  const url = await imageStorage.saveImage(`seo/og-image-${Date.now()}.${ext}`, req.file.buffer, req.file.mimetype, baseUrl, { maxWidth: 1200, maxHeight: 630 })
   await pool.query(
     `INSERT INTO app_settings (key, value, updated_at) VALUES ('seo.default_og_image',$1,now())
      ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=now()`,

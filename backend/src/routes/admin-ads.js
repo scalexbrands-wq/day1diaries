@@ -61,7 +61,7 @@ router.post('/', upload.single('creative'), async (req, res) => {
     const ext = (req.file.mimetype.split('/')[1] || 'bin').replace('jpeg', 'jpg')
     const key = `ads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
     const baseUrl = `${req.protocol}://${req.get('host')}`
-    creative_url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl)
+    creative_url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl, { maxWidth: 1280, maxHeight: 1280 })
   }
   if (!creative_url) return res.status(400).json({ error: 'A creative file or creative_url is required' })
 
@@ -89,7 +89,7 @@ router.put('/:id', upload.single('creative'), async (req, res) => {
     const ext = (req.file.mimetype.split('/')[1] || 'bin').replace('jpeg', 'jpg')
     const key = `ads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
     const baseUrl = `${req.protocol}://${req.get('host')}`
-    creative_url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl)
+    creative_url = await imageStorage.saveImage(key, req.file.buffer, req.file.mimetype, baseUrl, { maxWidth: 1280, maxHeight: 1280 })
   }
 
   const placementsArr = (() => {

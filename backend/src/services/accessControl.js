@@ -156,4 +156,22 @@ async function peekUsage(userId, featureKey) {
   return { limit, used, remaining: Math.max(limit - used, 0) }
 }
 
-module.exports = { checkAndConsume, requireFeatureAccess, peekUsage, hasActiveMembership, periodKeyFor, isModuleEnabled }
+// Same audience-targeting shape already used (as inline duplicates) by
+// groups.js/gift.js/ads.js — 'everyone' (or an empty/missing list) means
+// unrestricted. Otherwise the list is a set of: 'member' (active
+// membership), 'free' (no active membership), a role name (e.g.
+// 'contributor', 'admin'), or 'custom' (hand-picked ids).
+async function isAudienceAllowed(audiences, customUserIds, profile) {
+  if (!Array.isArray(audiences) || audiences.length === 0 || audiences.includes('everyone')) return true
+  if (!profile) return false
+  if (audiences.includes(profile.role)) return true
+  if (audiences.includes('member') && await hasActiveMembership(profile.id)) return true
+  if (audiences.includes('free') && !(await hasActiveMembership(profile.id))) return true
+  if (audiences.includes('custom')) {
+    const ids = Array.isArray(customUserIds) ? customUserIds : []
+    if (ids.includes(profile.id)) return true
+  }
+  return false
+}
+
+module.exports = { checkAndConsume, requireFeatureAccess, peekUsage, hasActiveMembership, periodKeyFor, isModuleEnabled, isAudienceAllowed }

@@ -12,7 +12,7 @@ const AUDIENCE_LABELS = {
   custom: ['👤', 'Custom Users', 'Hand-picked usernames'],
 }
 
-export default function GroupAudiencePicker({ value, onChange }) {
+export default function GroupAudiencePicker({ value, onChange, title = 'Who can see & join this group?' }) {
   const audiences = value.allowed_audiences
   const customUsernames = value.custom_usernames
   const restricted = !audiences.includes('everyone')
@@ -27,7 +27,7 @@ export default function GroupAudiencePicker({ value, onChange }) {
 
   return (
     <div className="form-group">
-      <label className="form-label">Who can see &amp; join this group?</label>
+      <label className="form-label">{title}</label>
       <div style={{ display: 'flex', gap: 8, marginBottom: restricted ? 10 : 0 }}>
         <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, padding: '9px 12px', border: `1.5px solid ${!restricted ? '#FF6B2B' : '#DDD3CA'}`, borderRadius: 10, cursor: 'pointer', background: !restricted ? 'rgba(255,107,43,.06)' : 'white' }}>
           <input type="radio" checked={!restricted} onChange={setEveryone} style={{ display: 'none' }} />

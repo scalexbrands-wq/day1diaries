@@ -9,12 +9,18 @@
 const fs = require('fs')
 const path = require('path')
 const s3 = require('./s3')
+const { resizeImage } = require('./imageResize')
 
 const UPLOADS_DIR = path.join(__dirname, '../../uploads')
 
 // `baseUrl` is the request's own origin (e.g. http://localhost:4000),
 // used to build an absolute, browser-loadable URL for local fallback.
-async function saveImage(key, buffer, contentType, baseUrl) {
+// `resizeOpts` (optional) — { maxWidth, maxHeight } — downscales/recompresses
+// the image before it's written, since callers know the display context
+// (e.g. an avatar never needs to be wider than ~512px) but multer hands
+// us whatever the user's camera produced.
+async function saveImage(key, buffer, contentType, baseUrl, resizeOpts) {
+  if (resizeOpts) buffer = await resizeImage(buffer, contentType, resizeOpts)
   if (s3.isConfigured()) {
     return s3.uploadBuffer(key, buffer, contentType)
   }

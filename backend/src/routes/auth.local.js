@@ -17,6 +17,7 @@ const jwt = require('jsonwebtoken')
 const { pool } = require('../db/pool')
 const { requireAuth } = require('../middleware/auth')
 const whatsapp = require('../utils/whatsapp')
+const { applyReferralSignupBonus } = require('../utils/referral')
 
 const router = express.Router()
 const JWT_SECRET = process.env.LOCAL_JWT_SECRET || 'dev-only-insecure-secret'
@@ -78,7 +79,7 @@ function generateCode() {
 // email transport in local dev, so when verification IS required the
 // "code" is printed to the backend console instead of emailed.
 router.post('/signup', async (req, res) => {
-  const { email, password, username, fullName, phone } = req.body
+  const { email, password, username, fullName, phone, referralCode } = req.body
   if (!email || !password || !username) {
     return res.status(400).json({ error: 'email, password, and username are required' })
   }
@@ -108,6 +109,7 @@ router.post('/signup', async (req, res) => {
         `INSERT INTO local_credentials (profile_id, password_hash) VALUES ($1, $2)`,
         [sub, passwordHash]
       )
+      await applyReferralSignupBonus(sub, referralCode)
       await maybeSendWhatsAppWelcome(sub)
       return res.json({
         message: 'Account created successfully.',
@@ -118,10 +120,10 @@ router.post('/signup', async (req, res) => {
 
     const code = generateCode()
     await pool.query(
-      `INSERT INTO pending_signups (email, username, full_name, password_hash, code, phone)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (email) DO UPDATE SET username=$2, full_name=$3, password_hash=$4, code=$5, phone=$6, created_at=now()`,
-      [email, username, fullName || username, passwordHash, code, phone || null]
+      `INSERT INTO pending_signups (email, username, full_name, password_hash, code, phone, referral_code)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (email) DO UPDATE SET username=$2, full_name=$3, password_hash=$4, code=$5, phone=$6, referral_code=$7, created_at=now()`,
+      [email, username, fullName || username, passwordHash, code, phone || null, referralCode || null]
     )
     console.log(`[local-auth] verification code for ${email}: ${code}`)
 
@@ -158,6 +160,7 @@ router.post('/confirm', async (req, res) => {
       [sub, pending.password_hash]
     )
     await pool.query('DELETE FROM pending_signups WHERE email = $1', [email])
+    await applyReferralSignupBonus(sub, pending.referral_code)
     await maybeSendWhatsAppWelcome(sub)
 
     res.json({

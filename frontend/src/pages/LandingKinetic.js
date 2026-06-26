@@ -374,6 +374,7 @@ export default function LandingKinetic() {
           <Eyebrow>Trending Opportunities</Eyebrow>
           <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:'clamp(2rem,4vw,3rem)', fontWeight:900 }}>Your Day 1 at a new job starts here.</h2>
           <p style={{ fontSize:12, color:'#8C7B6E', marginTop:10 }}>← scroll →</p>
+          <Link to="/companies" style={{ display:'inline-block', marginTop:14, fontSize:13, fontWeight:700, color:'#FF6B2B', textDecoration:'none' }}>Browse Companies →</Link>
         </div>
         {!loading && (
           <div className="kn-carousel" style={{ padding:'0 48px' }}>
@@ -385,7 +386,7 @@ export default function LandingKinetic() {
               <div key={job.id || i} className="kn-job" onClick={() => navigate('/careers')}>
                 <span style={{ fontSize:10, fontWeight:700, color: JOB_TYPE[job.job_type] || '#FF6B2B' }}>{job.job_type || 'Full-Time'}</span>
                 <div style={{ fontFamily:"'Playfair Display',serif", fontWeight:700, fontSize:'1.05rem', marginTop:10, marginBottom:6, color:'#1A0800' }}>{job.title}</div>
-                <div style={{ fontSize:12, color:'#8C7B6E' }}>{job.department} {job.location ? `· ${job.location}` : ''}</div>
+                <div style={{ fontSize:12, color:'#8C7B6E' }}>{job.company_name || job.department} {job.location ? `· ${job.location}` : ''}</div>
               </div>
             ))}
           </div>
@@ -482,7 +483,7 @@ export default function LandingKinetic() {
           </div>
           {[
             ['Platform',[['Discover','/discover'],['Habits','/habits'],['Leaderboard','/leaderboard']]],
-            ['Company',[['About','/about'],['Blog','/blog'],['Careers','/careers']]],
+            ['Company',[['About','/about'],['Blog','/blog'],['Careers','/careers'],['Companies','/companies']]],
             ['Legal',[['Privacy','/privacy'],['Terms','/terms']]],
           ].map(([title, links]) => (
             <div key={title}>
